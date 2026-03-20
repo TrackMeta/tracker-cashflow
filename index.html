@@ -212,6 +212,20 @@ td.muted{color:var(--text2);font-family:var(--font);}
 .leyenda-cond{font-size:11px;color:var(--text2);margin-top:2px;font-family:var(--mono);}
 .leyenda-actions{display:flex;gap:6px;}
 
+/* WORKSPACE SELECTOR */
+.ws-selector{padding:12px 14px;border-bottom:1px solid var(--border);background:var(--bg3);}
+.ws-current{display:flex;align-items:center;justify-content:space-between;gap:8px;padding:8px 10px;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius-sm);cursor:pointer;transition:all 0.15s;}
+.ws-current:hover{border-color:var(--accent);background:#fff;}
+.ws-name{font-size:13px;font-weight:700;color:var(--text);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.ws-arrow{font-size:10px;color:var(--text3);}
+.ws-dropdown{position:absolute;left:14px;right:14px;background:var(--bg2);border:1px solid var(--border2);border-radius:var(--radius-sm);box-shadow:0 8px 24px rgba(0,0,0,0.12);z-index:500;overflow:hidden;margin-top:2px;}
+.ws-dropdown.hidden{display:none;}
+.ws-option{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;font-size:13px;color:var(--text);transition:background 0.1s;}
+.ws-option:hover{background:var(--bg3);}
+.ws-option.active{background:var(--accent-dim);color:var(--accent);font-weight:600;}
+.ws-add{display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;font-size:12px;color:var(--accent);border-top:1px solid var(--border);transition:background 0.1s;}
+.ws-add:hover{background:var(--accent-dim);}
+
 /* LOGIN */
 .login-screen{position:fixed;inset:0;background:var(--bg);display:flex;align-items:center;justify-content:center;z-index:9998;flex-direction:column;}
 .login-screen.hidden{display:none;}
@@ -309,6 +323,20 @@ td.muted{color:var(--text2);font-family:var(--font);}
     <div class="logo-text">📊 Tracker Pro <span class="sync-dot" id="sync-dot"></span></div>
     <div class="logo-sub" id="sync-status">Sincronizando...</div>
   </div>
+
+  <!-- WORKSPACE SELECTOR -->
+  <div class="ws-selector" style="position:relative">
+    <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px">Producto activo</div>
+    <div class="ws-current" onclick="toggleWsDropdown()">
+      <span id="ws-emoji" style="font-size:16px">📦</span>
+      <span class="ws-name" id="ws-nombre">Cargando...</span>
+      <span class="ws-arrow">▼</span>
+    </div>
+    <div class="ws-dropdown hidden" id="ws-dropdown">
+      <div id="ws-lista"></div>
+      <div class="ws-add" onclick="openNuevoWorkspace()">＋ Nuevo producto</div>
+    </div>
+  </div>
   <nav class="nav">
     <div class="nav-section">Análisis</div>
     <div class="nav-item active" onclick="navTo('dashboard',this)"><span class="icon">📈</span> Dashboard</div>
@@ -398,10 +426,38 @@ td.muted{color:var(--text2);font-family:var(--font);}
       </table>
     </div>
   </div>
+
+  <!-- PROYECCIÓN + META -->
+  <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px;margin-bottom:18px">
+
+    <!-- Proyección mensual -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">📅 Proyección del mes</span>
+        <span style="font-size:11px;color:var(--text2)">Basada en últimos 7 días</span>
+      </div>
+      <div class="panel-body" id="dash-proyeccion">
+        <div style="text-align:center;color:var(--text3);padding:20px">Sin datos suficientes</div>
+      </div>
+    </div>
+
+    <!-- Meta de ingresos -->
+    <div class="panel">
+      <div class="panel-header">
+        <span class="panel-title">🎯 Meta mensual</span>
+        <button class="btn btn-ghost btn-sm" onclick="openMetaMensual()">✏️ Editar meta</button>
+      </div>
+      <div class="panel-body" id="dash-meta">
+        <div style="text-align:center;color:var(--text3);padding:20px">Define tu meta de ingresos</div>
+      </div>
+    </div>
+
+  </div>
 </div>
 
 <!-- ALERTAS -->
 <div class="page" id="page-alertas">
+
   <div class="page-header">
     <div><div class="page-title">🚨 Alertas</div><div class="page-sub">Anuncios que necesitan atención inmediata</div></div>
     <button class="btn btn-ghost btn-sm" onclick="renderAlertas()">🔄 Actualizar</button>
@@ -684,6 +740,41 @@ td.muted{color:var(--text2);font-family:var(--font);}
 </div><!-- /app -->
 
 <!-- MODALS -->
+<div class="modal-overlay" id="modal-meta">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title">🎯 Meta de ingresos mensual</span>
+      <button class="modal-close" onclick="closeModal('modal-meta')">×</button>
+    </div>
+    <div class="field" style="margin-bottom:16px">
+      <label>Meta de ingresos para este mes (S/)</label>
+      <input type="number" id="meta-input" placeholder="5000" step="100">
+    </div>
+    <div style="display:flex;justify-content:flex-end;gap:8px">
+      <button class="btn btn-ghost" onclick="closeModal('modal-meta')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveMetaMensual()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-workspace">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="ws-modal-title">📦 Nuevo Producto</span>
+      <button class="modal-close" onclick="closeModal('modal-workspace')">×</button>
+    </div>
+    <div class="form-row form-2">
+      <div class="field"><label>Emoji</label><input type="text" id="ws-emoji-input" placeholder="📦" maxlength="4" value="📦"></div>
+      <div class="field"><label>Nombre del producto</label><input type="text" id="ws-nombre-input" placeholder="Ej: Protocolo Calistenia"></div>
+    </div>
+    <input type="hidden" id="ws-edit-id" value="">
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+      <button class="btn btn-ghost" onclick="closeModal('modal-workspace')">Cancelar</button>
+      <button class="btn btn-primary" onclick="saveWorkspace()">Guardar</button>
+    </div>
+  </div>
+</div>
+
 <div class="modal-overlay" id="modal-config">
   <div class="modal">
     <div class="modal-header"><span class="modal-title">⚙️ Configuración</span><button class="modal-close" onclick="closeModal('modal-config')">×</button></div>
@@ -910,6 +1001,7 @@ let CURRENT_USER = null;
 let IS_ADMIN = false;
 let ADMIN_VIEWING_USER_ID = null;
 let ACCESS_TOKEN = null;
+let CURRENT_WORKSPACE = null; // workspace activo
 
 // ── Auth via fetch directo ───────────────────────
 const auth = {
@@ -995,6 +1087,7 @@ const api = {
 // ESTADO GLOBAL (cache local)
 // ════════════════════════════════════════════════
 let DB = {
+  workspaces: [],
   config: { id:null, p1:10, p2:7, p3:5, p4:3, igv:0.18, tc:4.0, sat_caida:0.30, sat_dias:3, estados:[], alerta_gasto_min:5, alerta_roas_min:1 },
   campanas: [],
   anuncios: [],
@@ -1203,6 +1296,105 @@ async function renderAdminPage() {
 // ════════════════════════════════════════════════
 // INICIALIZACIÓN
 // ════════════════════════════════════════════════
+// ════════════════════════════════════════════════
+// WORKSPACES
+// ════════════════════════════════════════════════
+function renderWorkspaceSelector() {
+  if (!CURRENT_WORKSPACE) return;
+  document.getElementById('ws-emoji').textContent  = CURRENT_WORKSPACE.emoji || '📦';
+  document.getElementById('ws-nombre').textContent = CURRENT_WORKSPACE.nombre;
+
+  const lista = document.getElementById('ws-lista');
+  lista.innerHTML = DB.workspaces.map(w => `
+    <div class="ws-option ${w.id === CURRENT_WORKSPACE.id ? 'active' : ''}" onclick="switchWorkspace('${w.id}')">
+      <span style="font-size:16px">${w.emoji || '📦'}</span>
+      <span style="flex:1">${w.nombre}</span>
+      ${DB.workspaces.length > 1 ? `<button onclick="event.stopPropagation();editWorkspace('${w.id}')" style="background:none;border:none;cursor:pointer;font-size:12px;color:var(--text3)">✏️</button>` : ''}
+    </div>`).join('');
+}
+
+function toggleWsDropdown() {
+  document.getElementById('ws-dropdown').classList.toggle('hidden');
+}
+
+// Cerrar dropdown al hacer click fuera
+document.addEventListener('click', e => {
+  if (!e.target.closest('.ws-selector')) {
+    document.getElementById('ws-dropdown')?.classList.add('hidden');
+  }
+});
+
+async function switchWorkspace(wsId) {
+  const ws = DB.workspaces.find(w => w.id === wsId);
+  if (!ws || ws.id === CURRENT_WORKSPACE?.id) {
+    toggleWsDropdown(); return;
+  }
+  CURRENT_WORKSPACE = ws;
+  localStorage.setItem('tracker_workspace', ws.id);
+  toggleWsDropdown();
+  showLoading(`Cargando ${ws.nombre}...`);
+  try {
+    setSyncStatus('loading', 'Cambiando workspace...');
+    await loadAll();
+    setSyncStatus('ok', 'Sincronizado ✓');
+    hideLoading();
+    renderPriceChips();
+    renderDashboard();
+    renderAlertas();
+    showSuccess(`✅ Cambiado a ${ws.emoji} ${ws.nombre}`);
+  } catch(e) { hideLoading(); showError('Error: ' + e.message); }
+}
+
+function openNuevoWorkspace() {
+  document.getElementById('ws-modal-title').textContent = '📦 Nuevo Producto';
+  document.getElementById('ws-emoji-input').value  = '📦';
+  document.getElementById('ws-nombre-input').value = '';
+  document.getElementById('ws-edit-id').value = '';
+  document.getElementById('ws-dropdown').classList.add('hidden');
+  openModal('modal-workspace');
+}
+
+function editWorkspace(wsId) {
+  const ws = DB.workspaces.find(w => w.id === wsId);
+  if (!ws) return;
+  document.getElementById('ws-modal-title').textContent = '✏️ Editar Producto';
+  document.getElementById('ws-emoji-input').value  = ws.emoji || '📦';
+  document.getElementById('ws-nombre-input').value = ws.nombre;
+  document.getElementById('ws-edit-id').value = wsId;
+  document.getElementById('ws-dropdown').classList.add('hidden');
+  openModal('modal-workspace');
+}
+
+async function saveWorkspace() {
+  const nombre = document.getElementById('ws-nombre-input').value.trim();
+  const emoji  = document.getElementById('ws-emoji-input').value.trim() || '📦';
+  const editId = document.getElementById('ws-edit-id').value;
+  if (!nombre) { alert('Ingresa el nombre del producto'); return; }
+
+  try {
+    setSyncStatus('loading', 'Guardando...');
+    if (editId) {
+      const res = await api.patch('workspaces', editId, { nombre, emoji });
+      const idx = DB.workspaces.findIndex(w => w.id === editId);
+      if (idx >= 0) DB.workspaces[idx] = res[0];
+      if (CURRENT_WORKSPACE?.id === editId) CURRENT_WORKSPACE = res[0];
+    } else {
+      const res = await api.post('workspaces', { nombre, emoji, user_id: CURRENT_USER?.id });
+      DB.workspaces.push(res[0]);
+      // Cambiar al nuevo workspace automáticamente
+      CURRENT_WORKSPACE = res[0];
+      localStorage.setItem('tracker_workspace', res[0].id);
+      await loadAll();
+      renderDashboard();
+      renderAlertas();
+    }
+    setSyncStatus('ok', 'Sincronizado ✓');
+    renderWorkspaceSelector();
+    closeModal('modal-workspace');
+    showSuccess(editId ? '✅ Producto actualizado' : `✅ Producto "${nombre}" creado`);
+  } catch(e) { setSyncStatus('error','Error'); showError('Error: ' + e.message); }
+}
+
 async function init() {
   // Limpiar errores de URL (links expirados de Supabase)
   if (window.location.hash.includes('error=')) {
@@ -1220,21 +1412,36 @@ async function init() {
 }
 
 async function loadAll() {
-  // Construir filtro: si admin está viendo un usuario específico, filtrar por ese user_id
-  // Si admin ve todos → sin filtro (RLS devuelve todo para admins)
-  // Si usuario normal → RLS filtra automáticamente
   const userFilter = (IS_ADMIN && ADMIN_VIEWING_USER_ID)
-    ? `&user_id=eq.${ADMIN_VIEWING_USER_ID}`
-    : '';
+    ? `&user_id=eq.${ADMIN_VIEWING_USER_ID}` : '';
+
+  // Cargar workspaces primero
+  const wsList = await api.get('workspaces', `order=created_at.asc${userFilter}`);
+  DB.workspaces = wsList;
+
+  // Seleccionar workspace activo
+  if (!CURRENT_WORKSPACE && wsList.length) {
+    const saved = localStorage.getItem('tracker_workspace');
+    CURRENT_WORKSPACE = wsList.find(w => w.id === saved) || wsList[0];
+  } else if (CURRENT_WORKSPACE) {
+    // Refrescar el workspace actual
+    CURRENT_WORKSPACE = wsList.find(w => w.id === CURRENT_WORKSPACE.id) || wsList[0];
+  }
+
+  // Filtrar por workspace activo (además del userFilter)
+  const wsFilter = CURRENT_WORKSPACE ? `&workspace_id=eq.${CURRENT_WORKSPACE.id}` : '';
+  const baseFilter = userFilter + wsFilter;
 
   const [cfgArr, camps, ads, regs, nts] = await Promise.all([
-    api.get('config', `limit=1${userFilter}`),
-    api.get('campanas', `order=created_at.asc${userFilter}`),
-    api.get('anuncios', `order=created_at.asc${userFilter}`),
-    api.get('registros', `order=fecha.asc&limit=5000${userFilter}`),
-    api.get('notas', `order=hora.desc&limit=2000${userFilter}`),
+    api.get('config', `limit=1${userFilter}${wsFilter}`),
+    api.get('campanas', `order=created_at.asc${baseFilter}`),
+    api.get('anuncios', `order=created_at.asc${baseFilter}`),
+    api.get('registros', `order=fecha.asc&limit=5000${baseFilter}`),
+    api.get('notas', `order=hora.desc&limit=2000${baseFilter}`),
   ]);
+
   if (cfgArr.length) DB.config = cfgArr[0];
+  else DB.config = { id:null, p1:10, p2:7, p3:5, p4:3, igv:0.18, tc:4.0, sat_caida:0.30, sat_dias:3, estados:[], alerta_gasto_min:5, alerta_roas_min:1 };
   DB.campanas  = camps;
   DB.anuncios  = ads;
   DB.registros = regs;
@@ -1249,6 +1456,8 @@ async function loadAll() {
       {emoji:'⚪',nombre:'SIN DATOS',roasMin:null,roasMax:null,convMin:null,color:'gray',desc:'Sin información suficiente'},
     ];
   }
+
+  renderWorkspaceSelector();
 }
 
 function showLoading(msg) {
@@ -1318,22 +1527,24 @@ function addIGV(s) { return s * (1 + DB.config.igv); }
 
 function calcMetrics(regs) {
   const P = DB.config;
-  let gm=0,gt=0,im=0,it=0,cm=0,ct=0,chm=0,cht=0,v1=0,v2=0,v3=0,v4=0;
+  let gm=0,gt=0,im=0,it=0,cm=0,ct=0,chm=0,cht=0,v1=0,v2=0,v3=0,v4=0,upsells=0;
   regs.forEach(r => {
     gm+=+r.gasto_meta||0; gt+=+r.gasto_tiktok||0;
     im+=+r.impr_meta||0; it+=+r.impr_tiktok||0;
     cm+=+r.clics_meta||0; ct+=+r.clics_tiktok||0;
     chm+=+r.chats_meta||0; cht+=+r.chats_tiktok||0;
     v1+=+r.v1||0; v2+=+r.v2||0; v3+=+r.v3||0; v4+=+r.v4||0;
+    upsells+=+r.upsell_total||0;
   });
   const inversion=gm+gt, invIGV=addIGV(gm+gt);
-  const ingresos=v1*P.p1+v2*P.p2+v3*P.p3+v4*P.p4;
+  const ingresosBase=v1*P.p1+v2*P.p2+v3*P.p3+v4*P.p4;
+  const ingresos=ingresosBase+upsells; // upsells sumados al total
   const ventas=v1+v2+v3+v4, chats=chm+cht, impr=im+it, clics=cm+ct;
   const profit=ingresos-invIGV;
   const roas=inversion>0?ingresos/inversion:0;
   const roasIGV=invIGV>0?ingresos/invIGV:0;
   const conv=chats>0?ventas/chats:0;
-  return {inversion,invIGV,ingresos,ventas,chats,impr,clics,profit,roas,roasIGV,conv,v1,v2,v3,v4,
+  return {inversion,invIGV,ingresos,ingresosBase,upsells,ventas,chats,impr,clics,profit,roas,roasIGV,conv,v1,v2,v3,v4,
     cpv:ventas>0?inversion/ventas:0, ctr:impr>0?clics/impr:0, cpm:impr>0?inversion/impr*1000:0, cpr:chats>0?inversion/chats:0};
 }
 
@@ -1432,7 +1643,7 @@ async function saveConfig() {
     if (DB.config.id) {
       await api.patch('config', DB.config.id, newCfg);
     } else {
-      const res = await api.post('config', { ...newCfg, user_id: CURRENT_USER?.id });
+      const res = await api.post('config', { ...newCfg, user_id: CURRENT_USER?.id, workspace_id: CURRENT_WORKSPACE?.id });
       DB.config.id = res[0].id;
     }
     Object.assign(DB.config, newCfg);
@@ -1500,6 +1711,8 @@ function renderDashboard() {
   renderDonut(M);
   renderDashTable(desde,hasta);
   renderAlertas();
+  renderProyeccion();
+  renderMetaMensual();
 }
 
 function renderMainChart(regs) {
@@ -1879,6 +2092,7 @@ async function saveRegistro() {
   const data={
     fecha, campana, ad_id:adId,
     user_id: CURRENT_USER?.id,
+    workspace_id: CURRENT_WORKSPACE?.id,
     plat:document.getElementById('nr-plat').value,
     gasto_meta:+document.getElementById('nr-gasto-meta').value||0,
     impr_meta:+document.getElementById('nr-impr-meta').value||0,
@@ -1932,26 +2146,37 @@ function parseCSV(text) {
   if(lines.length<2) return;
   const sep=lines[0].includes('\t')?'\t':',';
   const headers=lines[0].split(sep).map(h=>h.trim().replace(/"/g,'').toLowerCase());
-  const iAdId=headers.findIndex(h=>h.includes('ad id')||h==='ad_id');
+  const iAdId =headers.findIndex(h=>h.includes('ad id')||h==='ad_id');
   const iFecha=headers.findIndex(h=>h.includes('fecha')||h.includes('date'));
   const iValor=headers.findIndex(h=>h.includes('valor')||h.includes('value'));
-  const iProd=headers.findIndex(h=>h.includes('producto')||h.includes('product'));
+  const iProd =headers.findIndex(h=>h.includes('producto')||h.includes('product'));
+  // Columnas de upsells del CRM
+  const iUp1=headers.findIndex(h=>h.includes('upsell 1')||h.includes('upsell1')||h.includes('order bump 1'));
+  const iUp2=headers.findIndex(h=>h.includes('upsell 2')||h.includes('upsell2')||h.includes('order bump 2'));
+  const iUp3=headers.findIndex(h=>h.includes('upsell 3')||h.includes('upsell3')||h.includes('order bump 3'));
+  const iUp4=headers.findIndex(h=>h.includes('upsell 4')||h.includes('upsell4')||h.includes('order bump 4'));
+
+  const parseVal = raw => parseFloat((raw||'').toString().replace(/S\/\s*/i,'').replace(/[^0-9.]/g,''))||0;
+
   const rows=lines.slice(1).map(l=>{
     const cols=l.split(sep).map(c=>c.trim().replace(/"/g,''));
     const adId=(cols[iAdId]||'').toString().replace(/\.0$/,'');
     const fechaRaw=cols[iFecha]||'';
     const fecha=fechaRaw.includes('T')?fechaRaw.split('T')[0]:fechaRaw.split(' ')[0];
-    const valorRaw=(cols[iValor]||'').trim();
-    // Acepta: "S/ 10", "S/10", "S/3.00", "S/10.00", "10", "5.00", etc.
-    const valorStr=valorRaw.replace(/S\/\s*/i,'').replace(/[^0-9.]/g,'');
-    const valor=parseFloat(valorStr)||0;
-    return{adId,fecha,valor,prod:cols[iProd]||''};
+    const valor=parseVal(cols[iValor]);
+    // Leer upsells si existen las columnas
+    const up1=iUp1>=0?parseVal(cols[iUp1]):0;
+    const up2=iUp2>=0?parseVal(cols[iUp2]):0;
+    const up3=iUp3>=0?parseVal(cols[iUp3]):0;
+    const up4=iUp4>=0?parseVal(cols[iUp4]):0;
+    return{adId,fecha,valor,up1,up2,up3,up4,prod:cols[iProd]||''};
   }).filter(r=>r.adId&&r.fecha&&r.valor>0);
+
   const P=DB.config;
   const grupMap={};
   rows.forEach(r=>{
     const k=`${r.fecha}||${r.adId}`;
-    if(!grupMap[k]) grupMap[k]={fecha:r.fecha,adId:r.adId,prod:r.prod,v1:0,v2:0,v3:0,v4:0};
+    if(!grupMap[k]) grupMap[k]={fecha:r.fecha,adId:r.adId,prod:r.prod,v1:0,v2:0,v3:0,v4:0,upsellTotal:0};
     const g=grupMap[k];
     const vr=Math.round(r.valor*100)/100;
     const diffs=[Math.abs(vr-P.p1),Math.abs(vr-P.p2),Math.abs(vr-P.p3),Math.abs(vr-P.p4)];
@@ -1959,20 +2184,38 @@ function parseCSV(text) {
     const idx=diffs.indexOf(minDiff);
     if(minDiff<1.0){if(idx===0)g.v1++;else if(idx===1)g.v2++;else if(idx===2)g.v3++;else g.v4++;}
     else g.v1++;
+    // Acumular upsells
+    g.upsellTotal += r.up1 + r.up2 + r.up3 + r.up4;
   });
+
   const groups=Object.values(grupMap).sort((a,b)=>a.fecha.localeCompare(b.fecha));
+  const hasUpsells=groups.some(g=>g.upsellTotal>0);
   const nuevos=groups.filter(g=>!DB.registros.find(x=>x.ad_id===g.adId&&x.fecha===g.fecha)).length;
   const actualizados=groups.length-nuevos;
-  document.getElementById('import-msg').textContent=`✅ ${rows.length} ventas → ${groups.length} combinaciones: ${nuevos} nuevas, ${actualizados} actualizan registros existentes`;
+  const totalUpsells=groups.reduce((s,g)=>s+g.upsellTotal,0);
+
+  let msg=`✅ ${rows.length} ventas → ${groups.length} combinaciones: ${nuevos} nuevas, ${actualizados} actualizan registros existentes`;
+  if(hasUpsells) msg+=` · 💰 Upsells detectados: ${fmt.s(totalUpsells)}`;
+  document.getElementById('import-msg').textContent=msg;
+
   const tbody=document.getElementById('import-tbody');
   tbody.innerHTML=groups.map((g,i)=>{
     const total=g.v1+g.v2+g.v3+g.v4;
-    const ing=g.v1*P.p1+g.v2*P.p2+g.v3*P.p3+g.v4*P.p4;
+    const ing=g.v1*P.p1+g.v2*P.p2+g.v3*P.p3+g.v4*P.p4+g.upsellTotal;
     const existe=DB.registros.find(x=>x.ad_id===g.adId&&x.fecha===g.fecha);
     const estadoHtml=existe
       ?`<span class="badge accent">🔄 Actualizar</span>`
       :`<span class="badge green">✨ Nuevo</span>`;
-    return `<tr><td><input type="checkbox" class="imp-check" data-idx="${i}" checked></td><td>${fmt.date(g.fecha)}</td><td class="muted" style="font-size:10px">${g.adId}</td><td class="muted left">${g.prod.substring(0,28)}</td><td>${g.v1}</td><td>${g.v2}</td><td>${g.v3}</td><td>${g.v4}</td><td><strong>${total}</strong></td><td style="color:var(--green)">${fmt.s(ing)}</td><td>${estadoHtml}</td></tr>`;
+    return `<tr>
+      <td><input type="checkbox" class="imp-check" data-idx="${i}" checked></td>
+      <td>${fmt.date(g.fecha)}</td>
+      <td class="muted" style="font-size:10px">${g.adId}</td>
+      <td class="muted left">${g.prod.substring(0,28)}</td>
+      <td>${g.v1}</td><td>${g.v2}</td><td>${g.v3}</td><td>${g.v4}</td>
+      <td><strong>${total}</strong></td>
+      <td style="color:var(--green)">${fmt.s(ing)}${g.upsellTotal>0?` <span style="font-size:9px;color:var(--teal)">(+${fmt.s(g.upsellTotal)} ups)</span>`:''}</td>
+      <td>${estadoHtml}</td>
+    </tr>`;
   }).join('');
   window._importGroups=groups;
   document.getElementById('import-preview').style.display='block';
@@ -1993,12 +2236,12 @@ async function importarTodo() {
     const plat=anuncio?.plat||'Meta';
     if(existe){
       // Ya existe: actualizar ventas y campaña si estaba vacía
-      const dataUpdate={v1:g.v1,v2:g.v2,v3:g.v3,v4:g.v4};
+      const dataUpdate={v1:g.v1,v2:g.v2,v3:g.v3,v4:g.v4,upsell_total:g.upsellTotal||0};
       if(!existe.campana&&campana) dataUpdate.campana=campana;
       toUpdate.push({id:existe.id, data:dataUpdate});
     } else {
       // No existe: crear nuevo con campaña del catálogo
-      toCreate.push({fecha:g.fecha,campana,ad_id:g.adId,plat,gasto_meta:0,impr_meta:0,clics_meta:0,chats_meta:0,gasto_tiktok:0,impr_tiktok:0,clics_tiktok:0,chats_tiktok:0,v1:g.v1,v2:g.v2,v3:g.v3,v4:g.v4,user_id:CURRENT_USER?.id});
+      toCreate.push({fecha:g.fecha,campana,ad_id:g.adId,plat,gasto_meta:0,impr_meta:0,clics_meta:0,chats_meta:0,gasto_tiktok:0,impr_tiktok:0,clics_tiktok:0,chats_tiktok:0,v1:g.v1,v2:g.v2,v3:g.v3,v4:g.v4,upsell_total:g.upsellTotal||0,user_id:CURRENT_USER?.id,workspace_id:CURRENT_WORKSPACE?.id});
     }
   });
   if(!toCreate.length&&!toUpdate.length) return;
@@ -2134,7 +2377,7 @@ async function importarMeta() {
         campana:anuncio?.campana||'', plat:anuncio?.plat||'Meta',
         gasto_meta:r.gasto, impr_meta:r.impr, clics_meta:r.clics, chats_meta:r.chats,
         gasto_tiktok:0, impr_tiktok:0, clics_tiktok:0, chats_tiktok:0,
-        v1:0, v2:0, v3:0, v4:0, user_id:CURRENT_USER?.id
+        v1:0, v2:0, v3:0, v4:0, user_id:CURRENT_USER?.id, workspace_id:CURRENT_WORKSPACE?.id
       });
     }
   });
@@ -2189,7 +2432,7 @@ function openNuevaCampana(){document.getElementById('nc-nombre').value='';openMo
 async function saveCampana() {
   const nombre=document.getElementById('nc-nombre').value.trim();
   if(!nombre){alert('Ingresa el nombre');return;}
-  const data={nombre,plat:document.getElementById('nc-plat').value,tipo:document.getElementById('nc-tipo').value,objetivo:document.getElementById('nc-objetivo').value,estado:document.getElementById('nc-estado').value,user_id:CURRENT_USER?.id};
+  const data={nombre,plat:document.getElementById('nc-plat').value,tipo:document.getElementById('nc-tipo').value,objetivo:document.getElementById('nc-objetivo').value,estado:document.getElementById('nc-estado').value,user_id:CURRENT_USER?.id,workspace_id:CURRENT_WORKSPACE?.id};
   try {
     setSyncStatus('loading','Guardando...');
     const res=await api.post('campanas',data);
@@ -2239,7 +2482,7 @@ async function saveAnuncio() {
   const adId=document.getElementById('na-id').value.trim();
   const nombre=document.getElementById('na-nombre').value.trim();
   if(!adId||!nombre){alert('Ingresa ID y nombre');return;}
-  const data={ad_id:adId,nombre,campana:document.getElementById('na-campana').value,plat:document.getElementById('na-plat').value,formato:document.getElementById('na-formato').value,puja:document.getElementById('na-puja').value,hook:document.getElementById('na-hook').value,estado:document.getElementById('na-estado').value,presupuesto:+document.getElementById('na-presupuesto').value||0,user_id:CURRENT_USER?.id};
+  const data={ad_id:adId,nombre,campana:document.getElementById('na-campana').value,plat:document.getElementById('na-plat').value,formato:document.getElementById('na-formato').value,puja:document.getElementById('na-puja').value,hook:document.getElementById('na-hook').value,estado:document.getElementById('na-estado').value,presupuesto:+document.getElementById('na-presupuesto').value||0,user_id:CURRENT_USER?.id,workspace_id:CURRENT_WORKSPACE?.id};
   try {
     setSyncStatus('loading','Guardando...');
     if(editId){const res=await api.patch('anuncios',editId,data);DB.anuncios=DB.anuncios.map(a=>a.id===editId?res[0]:a);}
@@ -2377,7 +2620,7 @@ async function saveNota() {
   const adId = document.getElementById('notas-ad-id').value;
   const texto = document.getElementById('nota-input').value.trim();
   if(!texto) return;
-  const data = { ad_id: adId, fecha: today(), nota: texto, user_id: CURRENT_USER?.id };
+  const data = { ad_id: adId, fecha: today(), nota: texto, user_id: CURRENT_USER?.id, workspace_id: CURRENT_WORKSPACE?.id };
   try {
     setSyncStatus('loading','Guardando nota...');
     const res = await api.post('notas', data);
@@ -2565,6 +2808,127 @@ function exportarPDF() {
 // ════════════════════════════════════════════════
 // ALERTAS
 // ════════════════════════════════════════════════
+// ════════════════════════════════════════════════
+// PROYECCIÓN MENSUAL
+// ════════════════════════════════════════════════
+function renderProyeccion() {
+  const el = document.getElementById('dash-proyeccion');
+  if (!el) return;
+  const hoy = new Date();
+  const diasMes = new Date(hoy.getFullYear(), hoy.getMonth()+1, 0).getDate();
+  const diaActual = hoy.getDate();
+  const diasRestantes = diasMes - diaActual;
+
+  // Promedio últimos 7 días
+  const hace7 = nDaysAgo(7);
+  const regs7 = DB.registros.filter(r => r.fecha >= hace7 && r.fecha <= today());
+  if (!regs7.length) {
+    el.innerHTML = '<div style="text-align:center;color:var(--text3);padding:20px">Sin datos de los últimos 7 días</div>';
+    return;
+  }
+  const m7 = calcMetrics(regs7);
+  const diasConDatos = new Set(regs7.map(r=>r.fecha)).size || 1;
+  const promedioIngDia = m7.ingresos / diasConDatos;
+  const promedioInvDia = m7.inversion / diasConDatos;
+  const promedioProfitDia = m7.profit / diasConDatos;
+
+  // Lo que ya se hizo este mes
+  const inicioMes = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-01`;
+  const regsMes = DB.registros.filter(r => r.fecha >= inicioMes && r.fecha <= today());
+  const mMes = calcMetrics(regsMes);
+
+  // Proyección
+  const proyIng    = mMes.ingresos    + (promedioIngDia * diasRestantes);
+  const proyInv    = mMes.inversion   + (promedioInvDia * diasRestantes);
+  const proyProfit = mMes.profit      + (promedioProfitDia * diasRestantes);
+  const proyRoas   = proyInv > 0 ? proyIng / proyInv : 0;
+
+  el.innerHTML = `
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:12px">
+      <div style="background:var(--bg3);border-radius:var(--radius-sm);padding:12px;border:1px solid var(--border)">
+        <div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;margin-bottom:4px">Ingresos proyectados</div>
+        <div style="font-size:20px;font-weight:700;color:var(--green);font-family:var(--mono)">${fmt.s(proyIng)}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">Ya: ${fmt.s(mMes.ingresos)} · Faltan: ${diasRestantes}d</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:var(--radius-sm);padding:12px;border:1px solid var(--border)">
+        <div style="font-size:10px;font-weight:700;color:var(--text2);text-transform:uppercase;margin-bottom:4px">Profit proyectado</div>
+        <div style="font-size:20px;font-weight:700;color:${proyProfit>=0?'var(--teal)':'var(--red)'};font-family:var(--mono)">${fmt.s(proyProfit)}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">ROAS proy: ${fmt.roas(proyRoas)}</div>
+      </div>
+    </div>
+    <div style="font-size:11px;color:var(--text3);text-align:center">
+      📊 Promedio últimos 7 días: ${fmt.s(promedioIngDia)}/día · ${diasConDatos} días con datos
+    </div>`;
+}
+
+// ════════════════════════════════════════════════
+// META MENSUAL
+// ════════════════════════════════════════════════
+function getMetaKey() {
+  const hoy = new Date();
+  const ws = CURRENT_WORKSPACE?.id || 'default';
+  return `tracker_meta_${ws}_${hoy.getFullYear()}_${hoy.getMonth()+1}`;
+}
+
+function openMetaMensual() {
+  const meta = parseFloat(localStorage.getItem(getMetaKey())) || 0;
+  document.getElementById('meta-input').value = meta || '';
+  openModal('modal-meta');
+}
+
+function saveMetaMensual() {
+  const val = parseFloat(document.getElementById('meta-input').value) || 0;
+  localStorage.setItem(getMetaKey(), val);
+  closeModal('modal-meta');
+  renderMetaMensual();
+  showSuccess('✅ Meta guardada');
+}
+
+function renderMetaMensual() {
+  const el = document.getElementById('dash-meta');
+  if (!el) return;
+  const meta = parseFloat(localStorage.getItem(getMetaKey())) || 0;
+
+  if (!meta) {
+    el.innerHTML = `<div style="text-align:center;padding:16px">
+      <div style="font-size:28px;margin-bottom:8px">🎯</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:10px">No has definido una meta para este mes</div>
+      <button class="btn btn-primary btn-sm" onclick="openMetaMensual()">Definir meta</button>
+    </div>`;
+    return;
+  }
+
+  const hoy = new Date();
+  const inicioMes = `${hoy.getFullYear()}-${String(hoy.getMonth()+1).padStart(2,'0')}-01`;
+  const regsMes = DB.registros.filter(r => r.fecha >= inicioMes && r.fecha <= today());
+  const mMes = calcMetrics(regsMes);
+  const pct = Math.min((mMes.ingresos / meta) * 100, 100);
+  const falta = Math.max(meta - mMes.ingresos, 0);
+  const color = pct >= 100 ? 'var(--green)' : pct >= 60 ? 'var(--teal)' : pct >= 30 ? 'var(--orange)' : 'var(--red)';
+
+  el.innerHTML = `
+    <div style="margin-bottom:12px">
+      <div style="display:flex;justify-content:space-between;align-items:baseline;margin-bottom:6px">
+        <span style="font-size:22px;font-weight:700;font-family:var(--mono);color:${color}">${pct.toFixed(1)}%</span>
+        <span style="font-size:11px;color:var(--text2)">${fmt.s(mMes.ingresos)} / ${fmt.s(meta)}</span>
+      </div>
+      <div style="height:12px;background:var(--bg3);border-radius:6px;overflow:hidden;border:1px solid var(--border)">
+        <div style="height:100%;width:${pct}%;background:${color};border-radius:6px;transition:width 0.6s ease"></div>
+      </div>
+    </div>
+    <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+      <div style="background:var(--bg3);border-radius:var(--radius-sm);padding:8px;border:1px solid var(--border);text-align:center">
+        <div style="font-size:9px;font-weight:700;color:var(--text2);text-transform:uppercase">Logrado</div>
+        <div style="font-size:14px;font-weight:700;color:${color};font-family:var(--mono)">${fmt.s(mMes.ingresos)}</div>
+      </div>
+      <div style="background:var(--bg3);border-radius:var(--radius-sm);padding:8px;border:1px solid var(--border);text-align:center">
+        <div style="font-size:9px;font-weight:700;color:var(--text2);text-transform:uppercase">Falta</div>
+        <div style="font-size:14px;font-weight:700;color:var(--text2);font-family:var(--mono)">${fmt.s(falta)}</div>
+      </div>
+    </div>
+    ${pct >= 100 ? '<div style="text-align:center;margin-top:10px;font-size:13px">🎉 ¡Meta alcanzada!</div>' : ''}`;
+}
+
 function calcAlertas() {
   const P = DB.config;
   const gastoMin = P.alerta_gasto_min || 5;
