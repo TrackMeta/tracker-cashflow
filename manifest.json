@@ -1,0 +1,43 @@
+{
+  "name": "Tracker Pro — Infoproductos",
+  "short_name": "Tracker Pro",
+  "description": "Dashboard de campañas publicitarias para infoproductos",
+  "start_url": "/tracker-cashflow/",
+  "scope": "/tracker-cashflow/",
+  "display": "standalone",
+  "orientation": "any",
+  "background_color": "#F0F4F8",
+  "theme_color": "#2563EB",
+  "icons": [
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 192 192'><rect width='192' height='192' rx='32' fill='%232563EB'/><text y='130' x='24' font-size='120'>📊</text></svg>",
+      "sizes": "192x192",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 512 512'><rect width='512' height='512' rx='80' fill='%232563EB'/><text y='360' x='60' font-size='320'>📊</text></svg>",
+      "sizes": "512x512",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    }
+  ],
+  "categories": ["business", "finance", "productivity"],
+  "shortcuts": [
+    {
+      "name": "Dashboard",
+      "url": "/tracker-cashflow/#dashboard",
+      "description": "Ver KPIs del día"
+    },
+    {
+      "name": "Registro Diario",
+      "url": "/tracker-cashflow/#registro",
+      "description": "Gestionar registros"
+    },
+    {
+      "name": "Importar",
+      "url": "/tracker-cashflow/#importar",
+      "description": "Importar datos de Meta/TikTok"
+    }
+  ]
+}
