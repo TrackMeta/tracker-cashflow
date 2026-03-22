@@ -5152,8 +5152,13 @@ async function syncManual() {
   result.style.color = 'var(--text2)';
 
   try {
-    // 1. Disparar Apps Script (no-cors porque Google redirige)
-    fetch(APPS_SCRIPT_URL, { method: 'GET', mode: 'no-cors' });
+    // 1. Disparar Apps Script usando img tag (evita bloqueo CORS del navegador)
+    await new Promise((resolve) => {
+      const img = new Image();
+      img.onload = img.onerror = () => resolve();
+      img.src = APPS_SCRIPT_URL + '?t=' + Date.now();
+      setTimeout(resolve, 3000); // fallback si no responde
+    });
 
     // 2. Esperar con contador visible mientras el script corre (~20s)
     const tiempoEspera = 25000;
