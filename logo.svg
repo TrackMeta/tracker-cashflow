@@ -1,0 +1,124 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100" width="100" height="100">
+  <defs>
+    <!-- Background gradient -->
+    <linearGradient id="bgGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" style="stop-color:#0D1A3E"/>
+      <stop offset="100%" style="stop-color:#0A1228"/>
+    </linearGradient>
+    <!-- Cyan glow filter -->
+    <filter id="cyanGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <!-- Pink glow filter -->
+    <filter id="pinkGlow" x="-50%" y="-50%" width="200%" height="200%">
+      <feGaussianBlur stdDeviation="2.5" result="blur"/>
+      <feMerge>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="blur"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <!-- Strong glow for bars -->
+    <filter id="barGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="3" result="blur1"/>
+      <feGaussianBlur stdDeviation="1.2" result="blur2"/>
+      <feMerge>
+        <feMergeNode in="blur1"/>
+        <feMergeNode in="blur2"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+    <!-- Strong glow for line -->
+    <filter id="lineGlow" x="-80%" y="-80%" width="260%" height="260%">
+      <feGaussianBlur stdDeviation="2.8" result="blur1"/>
+      <feGaussianBlur stdDeviation="1" result="blur2"/>
+      <feMerge>
+        <feMergeNode in="blur1"/>
+        <feMergeNode in="blur2"/>
+        <feMergeNode in="SourceGraphic"/>
+      </feMerge>
+    </filter>
+  </defs>
+
+  <!-- Background rounded square -->
+  <rect width="100" height="100" rx="18" ry="18" fill="url(#bgGrad)"/>
+
+  <!-- Subtle inner glow on background edges -->
+  <rect width="100" height="100" rx="18" ry="18" fill="none" stroke="rgba(79,110,247,0.15)" stroke-width="1.5"/>
+
+  <!-- CYAN BARS (bar chart / equalizer) -->
+  <!-- Bar positions: x centers at ~12, 21, 30, 39, 48, 57, 66, 75, 84 -->
+  <!-- Heights varying to create visual interest, bottom at y=72 -->
+  <!-- Glow layer (rendered behind) -->
+  <g filter="url(#barGlow)" opacity="0.6">
+    <rect x="10" y="52" width="5" height="20" rx="1.5" fill="#00E5FF"/>
+    <rect x="19" y="38" width="5" height="34" rx="1.5" fill="#00E5FF"/>
+    <rect x="28" y="44" width="5" height="28" rx="1.5" fill="#00E5FF"/>
+    <rect x="37" y="33" width="5" height="39" rx="1.5" fill="#00E5FF"/>
+    <rect x="46" y="48" width="5" height="24" rx="1.5" fill="#00E5FF"/>
+    <rect x="55" y="26" width="5" height="46" rx="1.5" fill="#00E5FF"/>
+    <rect x="64" y="36" width="5" height="36" rx="1.5" fill="#00E5FF"/>
+    <rect x="73" y="42" width="5" height="30" rx="1.5" fill="#00E5FF"/>
+    <rect x="82" y="30" width="5" height="42" rx="1.5" fill="#00E5FF"/>
+  </g>
+  <!-- Solid bars on top -->
+  <g>
+    <rect x="10" y="52" width="5" height="20" rx="1.5" fill="#00E5FF"/>
+    <rect x="19" y="38" width="5" height="34" rx="1.5" fill="#00E5FF"/>
+    <rect x="28" y="44" width="5" height="28" rx="1.5" fill="#00E5FF"/>
+    <rect x="37" y="33" width="5" height="39" rx="1.5" fill="#00E5FF"/>
+    <rect x="46" y="48" width="5" height="24" rx="1.5" fill="#00E5FF"/>
+    <rect x="55" y="26" width="5" height="46" rx="1.5" fill="#00E5FF"/>
+    <rect x="64" y="36" width="5" height="36" rx="1.5" fill="#00E5FF"/>
+    <rect x="73" y="42" width="5" height="30" rx="1.5" fill="#00E5FF"/>
+    <rect x="82" y="30" width="5" height="42" rx="1.5" fill="#00E5FF"/>
+  </g>
+
+  <!-- PINK LINE GRAPH (zigzag over bars) -->
+  <!-- Points: (12,58), (21,46), (30,52), (39,40), (48,55), (57,34), (66,44), (75,48), (84,37) -->
+  <!-- Glow layer -->
+  <g filter="url(#lineGlow)" opacity="0.7">
+    <polyline
+      points="12.5,58 21.5,46 30.5,52 39.5,40 48.5,55 57.5,34 66.5,44 75.5,48 84.5,37"
+      fill="none"
+      stroke="#FF2D9E"
+      stroke-width="3"
+      stroke-linejoin="round"
+      stroke-linecap="round"
+    />
+    <!-- Dots -->
+    <circle cx="12.5" cy="58" r="3.5" fill="#FF2D9E"/>
+    <circle cx="21.5" cy="46" r="3.5" fill="#FF2D9E"/>
+    <circle cx="30.5" cy="52" r="3.5" fill="#FF2D9E"/>
+    <circle cx="39.5" cy="40" r="3.5" fill="#FF2D9E"/>
+    <circle cx="48.5" cy="55" r="3.5" fill="#FF2D9E"/>
+    <circle cx="57.5" cy="34" r="3.5" fill="#FF2D9E"/>
+    <circle cx="66.5" cy="44" r="3.5" fill="#FF2D9E"/>
+    <circle cx="75.5" cy="48" r="3.5" fill="#FF2D9E"/>
+    <circle cx="84.5" cy="37" r="3.5" fill="#FF2D9E"/>
+  </g>
+  <!-- Solid line on top -->
+  <polyline
+    points="12.5,58 21.5,46 30.5,52 39.5,40 48.5,55 57.5,34 66.5,44 75.5,48 84.5,37"
+    fill="none"
+    stroke="#FF2D9E"
+    stroke-width="2.2"
+    stroke-linejoin="round"
+    stroke-linecap="round"
+  />
+  <!-- Solid dots -->
+  <circle cx="12.5" cy="58" r="2.8" fill="#FF2D9E" stroke="#FF80CE" stroke-width="1"/>
+  <circle cx="21.5" cy="46" r="2.8" fill="#FF2D9E" stroke="#FF80CE" stroke-width="1"/>
+  <circle cx="30.5" cy="52" r="2.8" fill="#FF2D9E" stroke="#FF80CE" stroke-width="1"/>
+  <circle cx="39.5" cy="40" r="2.8" fill="#FF2D9E" stroke="#FF80CE" stroke-width="1"/>
+  <circle cx="48.5" cy="55" r="2.8" fill="#FF2D9E" stroke="#FF80CE" stroke-width="1"/>
+  <circle cx="57.5" cy="34" r="2.8" fill="#FF2D9E" stroke="#FF80CE" stroke-width="1"/>
+  <circle cx="66.5" cy="44" r="2.8" fill="#FF2D9E" stroke="#FF80CE" stroke-width="1"/>
+  <circle cx="75.5" cy="48" r="2.8" fill="#FF2D9E" stroke="#FF80CE" stroke-width="1"/>
+  <circle cx="84.5" cy="37" r="2.8" fill="#FF2D9E" stroke="#FF80CE" stroke-width="1"/>
+</svg>
