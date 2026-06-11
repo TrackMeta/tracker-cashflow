@@ -443,8 +443,6 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div class="nav-item" onclick="navTo('comparar',this)"><span class="icon">⚖️</span> Comparar períodos</div>
     <div class="nav-item" onclick="navTo('comparar-productos',this)"><span class="icon">📦</span> Comparar productos</div>
     <div class="nav-item" onclick="navTo('alertas',this)" id="nav-alertas"><span class="icon">🚨</span> Alertas <span id="alertas-badge" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:auto"></span></div>
-    <div class="nav-section">CashFlow</div>
-    <div class="nav-item" onclick="navTo('cashflow',this)" style="border-left:3px solid var(--orange)"><span class="icon">💰</span> Venta Directa <span id="cf-nav-badge" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:auto"></span></div>
     <div class="nav-section">Detalle</div>
     <div class="nav-item" onclick="navTo('analyzer',this)" style="border-left:3px solid var(--green)"><span class="icon">🧠</span> Analyzer Pro</div>
     <div class="nav-item" onclick="navTo('kpis',this)"><span class="icon">🗓️</span> KPIs del Día</div>
@@ -518,67 +516,6 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   <div class="cards-row cards-5" id="dash-kpis-soles"></div>
   <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">🇺🇸 En Dólares ($)</div>
   <div class="cards-row cards-5" id="dash-kpis-dolares"></div>
-  <!-- ═══ Ticket Ponderado + Config Panel ═══ -->
-  <div class="panel" id="dash-tp-panel" style="margin-bottom:18px">
-    <div class="panel-header" style="flex-wrap:wrap;gap:8px">
-      <span class="panel-title">🎯 Ticket Ponderado & CPA Objetivo</span>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-left:auto">
-        <div style="display:flex;align-items:center;gap:5px">
-          <label style="font-size:11px;color:var(--text2);white-space:nowrap">ROAS objetivo</label>
-          <select id="dash-roas-obj" onchange="dashConfigChange()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:4px 8px;color:var(--text);font-size:12px">
-            <option value="1.5">1.5×</option>
-            <option value="2" selected>2× (mínimo)</option>
-            <option value="2.5">2.5×</option>
-            <option value="3">3×</option>
-            <option value="4">4×</option>
-          </select>
-        </div>
-        <div style="display:flex;align-items:center;gap:5px">
-          <label style="font-size:11px;color:var(--text2);white-space:nowrap">Cierre WA</label>
-          <select id="dash-cierre-rate" onchange="dashConfigChange()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:4px 8px;color:var(--text);font-size:12px">
-            <option value="10">10%</option>
-            <option value="15">15%</option>
-            <option value="20">20%</option>
-            <option value="25" selected>25%</option>
-            <option value="30">30%</option>
-            <option value="40">40%</option>
-          </select>
-        </div>
-        <button class="btn btn-ghost btn-sm" id="dash-tp-btn-auto" onclick="dashTpMode('auto')" style="border-color:var(--accent);color:var(--accent)">📊 Auto</button>
-        <button class="btn btn-ghost btn-sm" id="dash-tp-btn-manual" onclick="dashTpMode('manual')">✏️ Manual</button>
-      </div>
-    </div>
-    <div class="panel-body">
-      <!-- Modo AUTO -->
-      <div id="dash-tp-auto-body">
-        <div class="cards-row cards-4" id="dash-tp-kpis"></div>
-        <div style="font-size:11px;color:var(--text3);margin-top:8px" id="dash-tp-formula"></div>
-      </div>
-      <!-- Modo MANUAL (sliders como metricas-pro) -->
-      <div id="dash-tp-manual-body" style="display:none">
-        <div style="display:grid;gap:14px;margin-bottom:14px" id="dash-tp-sliders"></div>
-        <div style="display:flex;gap:16px;flex-wrap:wrap;align-items:center;padding:14px 16px;background:var(--bg3);border-radius:var(--radius-sm);border:1px solid var(--border)">
-          <div>
-            <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:2px">Ticket Ponderado</div>
-            <div style="font-size:26px;font-weight:800;font-family:var(--mono);color:var(--green)" id="dash-tp-manual-tp">S/—</div>
-          </div>
-          <div>
-            <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:2px">CPA Máximo</div>
-            <div style="font-size:26px;font-weight:800;font-family:var(--mono);color:var(--accent)" id="dash-tp-manual-cpa">S/—</div>
-          </div>
-          <div>
-            <div style="font-size:9px;color:var(--text3);text-transform:uppercase;font-weight:700;margin-bottom:2px">C/Msg Máximo</div>
-            <div style="font-size:22px;font-weight:700;font-family:var(--mono);color:var(--orange)" id="dash-tp-manual-cpmsg">S/—</div>
-          </div>
-          <div style="margin-left:auto;text-align:right">
-            <div style="font-size:9px;color:var(--text3);margin-bottom:4px">Total asignado</div>
-            <div style="font-size:14px;font-weight:700" id="dash-tp-total-pct">0%</div>
-          </div>
-        </div>
-      </div>
-    </div>
-  </div>
-
   <!-- PANEL DE ALERTAS -->
   <div id="dash-alertas-box" style="display:none;margin-bottom:18px"></div>
 
@@ -916,7 +853,6 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   <div class="cards-row cards-5" id="kpi-soles"></div>
   <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">🇺🇸 Dólares</div>
   <div class="cards-row cards-4" id="kpi-dolares"></div>
-  <div id="kpi-diag-box" style="margin-bottom:14px"></div>
   <div class="panel">
     <div class="panel-header"><span class="panel-title">Detalle por anuncio</span></div>
     <div class="tbl-wrap">
@@ -963,7 +899,6 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   </div>
   <div id="anuncio-notas-box" class="panel" style="display:none;padding:14px 16px">
   </div>
-  <div id="anuncio-diag-box"></div>
   <div class="panel">
     <div class="panel-header"><span class="panel-title">Detalle día a día</span></div>
     <div class="tbl-wrap">
@@ -1002,7 +937,6 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   <div class="cards-row cards-5" id="campana-kpis-soles"></div>
   <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">🇺🇸 Dólares</div>
   <div class="cards-row cards-4" id="campana-kpis-dolares"></div>
-  <div id="campana-diag-box"></div>
   <div class="panel" style="margin-bottom:16px">
     <div class="panel-header"><span class="panel-title">Evolución de la campaña</span></div>
     <div class="panel-body"><div class="chart-wrap"><canvas id="chart-campana"></canvas></div></div>
@@ -1367,7 +1301,6 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   </div>
   <div class="alert alert-info">Anuncios con muchos chats pero pocas ventas indican problema de <strong>cierre</strong>, no de tráfico. El anuncio funciona — el proceso de venta necesita mejora.</div>
   <div class="cards-row cards-3" id="cv-kpis"></div>
-  <div id="cv-diag-box"></div>
   <div class="panel">
     <div class="panel-header"><span class="panel-title">Ranking por tasa de conversión Chat→Venta</span></div>
     <div class="tbl-wrap">
@@ -1425,7 +1358,6 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   <div class="cards-row cards-5" id="analyzer-kpis" style="margin-bottom:18px"></div>
 
   <!-- Diagnóstico embudo global -->
-  <div id="analyzer-diag-box" style="margin-bottom:18px"></div>
 
   <!-- Resumen Ejecutivo -->
   <div class="panel" style="margin-bottom:18px;border-left:4px solid var(--accent)">
@@ -1548,7 +1480,6 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   </div>
   <div class="alert alert-info">Muestra qué % de tus ventas son a precio original (P1) vs precios de remarketing. Si P2/P3/P4 son muy altos, tu secuencia de remarketing está convirtiendo — o tu precio original es muy alto.</div>
   <div class="cards-row cards-4" id="rem-kpis"></div>
-  <div id="rem-diag-box" style="margin-bottom:18px"></div>
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:18px">
     <div class="panel">
       <div class="panel-header"><span class="panel-title">Distribución de ventas por precio</span></div>
@@ -1785,487 +1716,6 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 </div>
 
 <!-- CRUCE DE PAGOS -->
-<!-- CASHFLOW - VENTA DIRECTA -->
-<div class="page" id="page-cashflow">
-  <div class="page-header">
-    <div>
-      <div class="page-title">💰 Venta Directa — CashFlow</div>
-      <div class="page-sub">Producto: <strong id="cf-producto-nombre"></strong></div>
-    </div>
-    <button class="btn btn-primary btn-sm" onclick="cfLoadSettings();renderCashFlow()">🔄 Actualizar</button>
-  </div>
-
-  <!-- TABS -->
-  <div class="tab-bar" style="margin-bottom:18px;flex-wrap:wrap">
-    <button class="tab-btn active" onclick="cfTab('def',this)">📐 Definiciones</button>
-    <button class="tab-btn" onclick="cfTab('testeo',this)">🧪 Testeo</button>
-    <button class="tab-btn" onclick="cfTab('f1',this)">🚀 Fase 1</button>
-    <button class="tab-btn" onclick="cfTab('f2',this)">⚡ Fase 2</button>
-    <button class="tab-btn" onclick="cfTab('f3',this)">🔥 Fase 3</button>
-    <button class="tab-btn" onclick="cfTab('fechas',this)">📅 Por Fechas</button>
-    <button class="tab-btn" onclick="cfTab('ajustes',this)" style="margin-left:auto">⚙️ Ajustes</button>
-  </div>
-
-  <!-- ═══ TAB: DEFINICIONES ═══ -->
-  <div id="cf-tab-def">
-    <!-- Ticket Ponderado -->
-    <div class="panel" style="margin-bottom:14px">
-      <div class="panel-header"><span class="panel-title">📊 Ticket Ponderado y CPA Objetivo</span></div>
-      <div class="panel-body">
-        <div class="cards-row cards-4" id="cf-tp-cards"></div>
-        <div style="margin-top:12px;padding:12px;background:var(--bg3);border-radius:var(--radius-sm);border-left:3px solid var(--green)">
-          <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:4px">FÓRMULA</div>
-          <div style="font-size:12px;color:var(--text);font-family:var(--mono)" id="cf-formula-display"></div>
-        </div>
-      </div>
-    </div>
-    <!-- Zonas -->
-    <div class="panel" style="margin-bottom:14px">
-      <div class="panel-header"><span class="panel-title">🎯 Zonas de Decisión</span><span style="font-size:10px;color:var(--text3)">Sistema maestro — todas las decisiones se basan en estas zonas</span></div>
-      <div class="panel-body">
-        <div style="font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.6">
-          Las zonas se calculan automáticamente a partir de tu <strong>CPA objetivo</strong> (Ticket Ponderado ÷ ROAS objetivo). Si tu CPA real cae en zona verde → escalar. Amarilla → esperar sin tocar. Roja → pausar o revertir. Estas zonas son la <strong>única regla</strong> para decidir si subir, mantener o bajar presupuesto.
-        </div>
-        <div class="cards-row cards-3" id="cf-zonas-cards"></div>
-      </div>
-    </div>
-    <!-- Métricas objetivo -->
-    <div class="panel" style="margin-bottom:14px">
-      <div class="panel-header"><span class="panel-title">📏 Métricas de Diagnóstico</span><span style="font-size:10px;color:var(--text3)">Secundarias — explican POR QUÉ tu CPA está donde está</span></div>
-      <div class="panel-body"><div class="tbl-wrap" id="cf-metricas-obj"></div></div>
-    </div>
-    <!-- Diagnóstico rápido -->
-    <div class="panel" style="margin-bottom:14px">
-      <div class="panel-header"><span class="panel-title">🩺 Diagnóstico Rápido</span></div>
-      <div class="panel-body"><div class="tbl-wrap"><table>
-        <thead><tr><th>Síntoma</th><th>Diagnóstico</th><th>Acción</th></tr></thead>
-        <tbody>
-          <tr><td class="left">CPM alto + CTR alto</td><td class="left muted">Buen anuncio, audiencia cara</td><td class="left">Probar audiencia más amplia o LAL diferente</td></tr>
-          <tr><td class="left">CPM bajo + CTR bajo</td><td class="left muted">Audiencia barata, hook no engancha</td><td class="left">Nuevo ángulo/hook del creativo</td></tr>
-          <tr><td class="left">CTR bueno + CPA malo</td><td class="left muted">El ad atrae pero WhatsApp no cierra</td><td class="left">Revisar secuencia remarketing (tiempos, copy, bot)</td></tr>
-          <tr><td class="left">CPA sube 3 días seguidos</td><td class="left muted">Creativo muriendo o saturación</td><td class="left">No subir más. Preparar nuevo creativo.</td></tr>
-          <tr><td class="left">Frecuencia > 2.5</td><td class="left muted">Audiencia quemada</td><td class="left">Nuevo creativo urgente o ampliar audiencia</td></tr>
-          <tr><td class="left">CPA bajo pero pocas ventas</td><td class="left muted">Volumen limitado por audiencia</td><td class="left">Ampliar segmentación o geo</td></tr>
-        </tbody>
-      </table></div></div>
-    </div>
-    <!-- Señales de muerte -->
-    <div class="panel" style="margin-bottom:14px">
-      <div class="panel-header"><span class="panel-title">💀 Señales de Muerte</span></div>
-      <div class="panel-body"><div class="tbl-wrap"><table>
-        <thead><tr><th>Señal</th><th>Definición</th><th>Urgencia</th></tr></thead>
-        <tbody>
-          <tr><td class="left">CPA alcista 3 días</td><td class="left muted">3 días consecutivos de CPA creciente sin haber tocado nada</td><td><span class="badge orange">⚠️ ALERTA</span></td></tr>
-          <tr><td class="left">Frecuencia > 2.5</td><td class="left muted">Audiencia saturada. Costo de impacto nuevo sube.</td><td><span class="badge red">🔴 URGENTE</span></td></tr>
-          <tr><td class="left">CTR en caída sostenida</td><td class="left muted">CTR baja aunque CPM se mantenga. Fatiga creativa.</td><td><span class="badge orange">⚠️ ALERTA</span></td></tr>
-          <tr><td class="left">ROAS bajo objetivo 2 días</td><td class="left muted">Por debajo del piso de rentabilidad configurado.</td><td><span class="badge red">🔴 CRÍTICO</span></td></tr>
-        </tbody>
-      </table></div></div>
-    </div>
-    <!-- Chuleta -->
-    <div class="panel" style="margin-bottom:14px">
-      <div class="panel-header"><span class="panel-title">📋 Chuleta de Referencia</span></div>
-      <div class="panel-body">
-        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px" id="cf-chuleta">
-          <div style="background:var(--accent-dim);border-radius:var(--radius-sm);padding:14px">
-            <div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">⏰ REGLAS DE TIEMPO</div>
-            <div style="font-size:11px;color:var(--text);line-height:1.8">
-              Analizar: después 10pm<br>Cambios: 6am–8am día siguiente<br>Monitoreo reversión: 12pm–2pm<br>Evaluación: 3 días testeo, 2 días escala<br><strong style="color:var(--red)">No ESCALAR primeros 5 días del mes</strong>
-            </div>
-          </div>
-          <div style="background:var(--green-dim);border-radius:var(--radius-sm);padding:14px">
-            <div style="font-size:12px;font-weight:700;color:var(--green);margin-bottom:8px">📢 GESTIÓN DE ANUNCIOS</div>
-            <div style="font-size:11px;color:var(--text);line-height:1.8">
-              Apagar: siempre el adset, nunca el anuncio<br>Nuevo creativo: siempre nuevo adset<br>Post ID: nunca borrar, nunca cambiar<br>Cuentas anteriores: nunca apagar al abrir fase<br><strong style="color:var(--red)">Reversión rápida: si CPA rojo en 4h</strong>
-            </div>
-          </div>
-        </div>
-      </div>
-    </div>
-    <!-- KPIs cierre WA + costo/msg -->
-    <div class="panel" style="margin-bottom:14px">
-      <div class="panel-header"><span class="panel-title">💬 Funnel WhatsApp</span><span style="font-size:11px;color:var(--text2)">Tasa de cierre real vs configurada</span></div>
-      <div class="panel-body">
-        <div class="cards-row cards-3" id="cf-extra-kpis" style="margin-bottom:14px"></div>
-        <div style="font-size:11px;font-weight:700;color:var(--text2);margin-bottom:8px">📊 Simulador — escenarios por tasa de cierre</div>
-        <div class="tbl-wrap" id="cf-simulador-body"></div>
-      </div>
-    </div>
-    <!-- Alertas CashFlow -->
-    <div class="panel">
-      <div class="panel-header"><span class="panel-title">🚨 Alertas Activas</span><span id="cf-alertas-badge" class="badge red" style="display:none"></span></div>
-      <div class="panel-body" id="cf-alertas-body"><div class="empty"><div class="empty-icon">✅</div><div class="empty-title">Sin alertas</div></div></div>
-    </div>
-  </div>
-
-  <!-- ═══ TAB: TESTEO ═══ -->
-  <div id="cf-tab-testeo" style="display:none">
-    <div class="panel" style="margin-bottom:14px">
-      <div class="panel-header"><span class="panel-title">📜 Reglas de Testeo</span></div>
-      <div class="panel-body">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:10px;font-size:11px;color:var(--text)">
-          <div style="background:var(--bg3);border-radius:8px;padding:10px"><strong>Presupuesto:</strong> ABO · S/20–25/día × 5 adsets</div>
-          <div style="background:var(--bg3);border-radius:8px;padding:10px"><strong>Duración:</strong> 3 días sin tocar nada</div>
-          <div style="background:var(--bg3);border-radius:8px;padding:10px"><strong>Audiencia:</strong> Broad (Perú)</div>
-        </div>
-        <div style="margin-top:10px;padding:10px;background:var(--green-dim);border-radius:8px;font-size:11px">
-          <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:6px">📋 Criterios de evaluación al día 3 (usando tu CPA objetivo)</div>
-          <strong style="color:var(--green)">✅ GANADOR:</strong> CPA acumulado de los 3 días &lt; CPA objetivo Y el adset gastó ≥80% del presupuesto asignado → <em>Pasa a F1</em><br>
-          <strong style="color:var(--orange)">🟡 ZONA GRIS:</strong> CPA entre CPA objetivo y CPA objetivo ×1.3, o el adset gastó &lt;80% → <em>Extender testeo 2 días más</em><br>
-          <strong style="color:var(--red)">🔴 PERDEDOR:</strong> CPA &gt; CPA objetivo ×1.5 o cero ventas en 3 días → <em>Apagar adset</em>
-          <div style="margin-top:6px;padding-top:6px;border-top:1px solid rgba(0,0,0,0.08);color:var(--text2)">
-            <strong>Nota:</strong> El CPA objetivo viene de tu Ticket Ponderado (ver Definiciones). Si tu TP es S/7.50, tu CPA objetivo es S/3.75. Un creativo con CPA &lt; S/3.75 y buen gasto es GANADOR.
-          </div>
-        </div>
-      </div>
-    </div>
-    <div class="panel">
-      <div class="panel-header"><span class="panel-title">🧪 Creativos en Testeo</span><span style="font-size:11px;color:var(--text2)" id="cf-testeo-count"></span></div>
-      <div class="panel-body">
-        <div class="tbl-wrap"><table>
-          <thead><tr><th onclick="cfSortBy('nombre')" style="cursor:pointer">Creativo ↕</th><th onclick="cfSortBy('campana')" style="cursor:pointer">Campaña ↕</th><th onclick="cfSortBy('dias')" style="cursor:pointer">Día ↕</th><th onclick="cfSortBy('gasto')" style="cursor:pointer">Gasto ↕</th><th>%Pres</th><th>Impr</th><th>Clics</th><th onclick="cfSortBy('ctr')" style="cursor:pointer">CTR ↕</th><th onclick="cfSortBy('cpm')" style="cursor:pointer">CPM ↕</th><th>CPC</th><th>Chats</th><th>CPR</th><th onclick="cfSortBy('ventas')" style="cursor:pointer">Ventas ↕</th><th>Ingresos</th><th onclick="cfSortBy('cpa')" style="cursor:pointer">CPA ↕</th><th onclick="cfSortBy('roas')" style="cursor:pointer">ROAS ↕</th><th>Conv%</th><th>Zona</th><th>Veredicto</th><th>Fase</th></tr></thead>
-          <tbody id="cf-testeo-body"></tbody>
-        </table></div>
-        <div id="cf-testeo-assistant"></div>
-        <div id="cf-testeo-empty" class="empty" style="display:none"><div class="empty-icon">🧪</div><div class="empty-title">Sin creativos en testeo</div><div style="font-size:11px;color:var(--text3);margin-top:4px">Asigna fase "Testeo" a tus anuncios en el Catálogo o desde el dropdown Fase en cualquier tabla CashFlow</div></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ═══ TAB: FASE 1 ═══ -->
-  <div id="cf-tab-f1" style="display:none">
-    <div class="panel" style="margin-bottom:14px">
-      <div class="panel-header"><span class="panel-title">📜 Reglas Fase 1 — Validación</span></div>
-      <div class="panel-body">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;font-size:11px;color:var(--text)">
-          <div style="background:var(--bg3);border-radius:8px;padding:10px"><strong>Flujo:</strong> S/20→S/35→S/55→S/80</div>
-          <div style="background:var(--bg3);border-radius:8px;padding:10px"><strong>Techo:</strong> S/80</div>
-          <div style="background:var(--bg3);border-radius:8px;padding:10px"><strong>Audiencia:</strong> Broad</div>
-          <div style="background:var(--bg3);border-radius:8px;padding:10px"><strong>Subir:</strong> 2 días CPA verde</div>
-        </div>
-        <div style="margin-top:10px;padding:10px;background:var(--red-dim);border-radius:8px;font-size:11px;color:var(--red)">
-          <strong>⚡ Reversión rápida:</strong> Si CPA rojo en primeras 4h con S/15+ gastados → volver al nivel anterior. <strong>Al llegar a S/80 con 2 días verdes → abrir F2.</strong>
-        </div>
-      </div>
-    </div>
-    <div class="panel">
-      <div class="panel-header"><span class="panel-title">🚀 Creativos en Fase 1</span><span style="font-size:11px;color:var(--text2)" id="cf-f1-count"></span></div>
-      <div class="panel-body">
-        <div class="tbl-wrap"><table>
-          <thead><tr><th onclick="cfSortBy('nombre')" style="cursor:pointer">Creativo ↕</th><th onclick="cfSortBy('campana')" style="cursor:pointer">Campaña ↕</th><th>Nivel</th><th onclick="cfSortBy('dias')" style="cursor:pointer">Días ↕</th><th onclick="cfSortBy('gasto')" style="cursor:pointer">Gasto ↕</th><th>Impr</th><th>Clics</th><th onclick="cfSortBy('ctr')" style="cursor:pointer">CTR ↕</th><th onclick="cfSortBy('cpm')" style="cursor:pointer">CPM ↕</th><th>CPC</th><th>Chats</th><th>CPR</th><th onclick="cfSortBy('ventas')" style="cursor:pointer">Ventas ↕</th><th>Ingresos</th><th onclick="cfSortBy('cpa')" style="cursor:pointer">CPA ↕</th><th onclick="cfSortBy('roas')" style="cursor:pointer">ROAS ↕</th><th>Conv%</th><th>Zona</th><th>Recomendación</th><th>Fase</th></tr></thead>
-          <tbody id="cf-f1-body"></tbody>
-        </table></div>
-        <div id="cf-f1-assistant"></div>
-        <div id="cf-f1-empty" class="empty" style="display:none"><div class="empty-icon">🚀</div><div class="empty-title">Sin creativos en F1</div></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ═══ TAB: FASE 2 ═══ -->
-  <div id="cf-tab-f2" style="display:none">
-    <div class="panel" style="margin-bottom:14px">
-      <div class="panel-header"><span class="panel-title">📜 Reglas Fase 2 — Escala Media</span></div>
-      <div class="panel-body">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;font-size:11px;color:var(--text)">
-          <div style="background:var(--bg3);border-radius:8px;padding:10px"><strong>Flujo:</strong> S/100→S/150</div>
-          <div style="background:var(--bg3);border-radius:8px;padding:10px"><strong>Techo:</strong> S/150</div>
-          <div style="background:var(--bg3);border-radius:8px;padding:10px"><strong>Audiencia:</strong> LAL 1–3%</div>
-          <div style="background:var(--bg3);border-radius:8px;padding:10px"><strong>Subir:</strong> 2 días CPA verde</div>
-        </div>
-        <div style="margin-top:10px;padding:10px;background:var(--red-dim);border-radius:8px;font-size:11px;color:var(--red)">
-          <strong>⚡ Reversión:</strong> CPA rojo día 1 con S/50+ gastados → volver a S/100. <strong>Al llegar a S/150 con 2 días verdes → abrir F3.</strong>
-        </div>
-        <div style="margin-top:8px;padding:10px;background:var(--accent-dim);border-radius:8px;font-size:11px;color:var(--accent)">
-          <strong>📋 LAL 1–3%:</strong> Meta Ads → Audiencias → Crear similar → Fuente: Custom Audience compradores (min 100) → País: Perú → Tamaño: 1–3%.
-        </div>
-      </div>
-    </div>
-    <div class="panel">
-      <div class="panel-header"><span class="panel-title">⚡ Creativos en Fase 2</span><span style="font-size:11px;color:var(--text2)" id="cf-f2-count"></span></div>
-      <div class="panel-body">
-        <div class="tbl-wrap"><table>
-          <thead><tr><th onclick="cfSortBy('nombre')" style="cursor:pointer">Creativo ↕</th><th onclick="cfSortBy('campana')" style="cursor:pointer">Campaña ↕</th><th>Nivel</th><th onclick="cfSortBy('dias')" style="cursor:pointer">Días ↕</th><th onclick="cfSortBy('gasto')" style="cursor:pointer">Gasto ↕</th><th>Impr</th><th>Clics</th><th onclick="cfSortBy('ctr')" style="cursor:pointer">CTR ↕</th><th onclick="cfSortBy('cpm')" style="cursor:pointer">CPM ↕</th><th>CPC</th><th>Chats</th><th>CPR</th><th onclick="cfSortBy('ventas')" style="cursor:pointer">Ventas ↕</th><th>Ingresos</th><th onclick="cfSortBy('cpa')" style="cursor:pointer">CPA ↕</th><th onclick="cfSortBy('roas')" style="cursor:pointer">ROAS ↕</th><th>Conv%</th><th>Zona</th><th>Recomendación</th><th>Fase</th></tr></thead>
-          <tbody id="cf-f2-body"></tbody>
-        </table></div>
-        <div id="cf-f2-assistant"></div>
-        <div id="cf-f2-empty" class="empty" style="display:none"><div class="empty-icon">⚡</div><div class="empty-title">Sin creativos en F2</div></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ═══ TAB: FASE 3 ═══ -->
-  <div id="cf-tab-f3" style="display:none">
-    <div class="panel" style="margin-bottom:14px">
-      <div class="panel-header"><span class="panel-title">📜 Reglas Fase 3 — Escala Agresiva</span></div>
-      <div class="panel-body">
-        <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:10px;font-size:11px;color:var(--text)">
-          <div style="background:var(--bg3);border-radius:8px;padding:10px"><strong>Flujo:</strong> S/200→+20% c/2 días</div>
-          <div style="background:var(--bg3);border-radius:8px;padding:10px"><strong>Techo:</strong> Sin techo</div>
-          <div style="background:var(--bg3);border-radius:8px;padding:10px"><strong>Audiencia:</strong> LAL 3–5%</div>
-          <div style="background:var(--bg3);border-radius:8px;padding:10px"><strong>Para en:</strong> Saturación</div>
-        </div>
-        <div style="margin-top:10px;padding:10px;background:var(--red-dim);border-radius:8px;font-size:11px;color:var(--red)">
-          <strong>⚡ Reversión:</strong> CPA rojo día 1 con S/60+ gastados → volver al nivel anterior. <strong>Nuevo nivel arranca rojo = ese es el techo absoluto del creativo.</strong>
-        </div>
-        <div style="margin-top:8px;padding:10px;background:var(--orange-dim);border-radius:8px;font-size:11px;color:var(--orange)">
-          <strong>🔥 Protocolo de reemplazo:</strong> Creativo murió → nuevo Post ID desde F1. Cuentas del creativo anterior que sigan ROAS >2x se dejan correr. Dos creativos en escalado paralelo es lo ideal.
-        </div>
-      </div>
-    </div>
-    <div class="panel">
-      <div class="panel-header"><span class="panel-title">🔥 Creativos en Fase 3</span><span style="font-size:11px;color:var(--text2)" id="cf-f3-count"></span></div>
-      <div class="panel-body">
-        <div class="tbl-wrap"><table>
-          <thead><tr><th onclick="cfSortBy('nombre')" style="cursor:pointer">Creativo ↕</th><th onclick="cfSortBy('campana')" style="cursor:pointer">Campaña ↕</th><th>Nivel</th><th onclick="cfSortBy('dias')" style="cursor:pointer">Días ↕</th><th onclick="cfSortBy('gasto')" style="cursor:pointer">Gasto ↕</th><th>Impr</th><th>Clics</th><th onclick="cfSortBy('ctr')" style="cursor:pointer">CTR ↕</th><th onclick="cfSortBy('cpm')" style="cursor:pointer">CPM ↕</th><th>CPC</th><th>Chats</th><th>CPR</th><th onclick="cfSortBy('ventas')" style="cursor:pointer">Ventas ↕</th><th>Ingresos</th><th onclick="cfSortBy('cpa')" style="cursor:pointer">CPA ↕</th><th onclick="cfSortBy('roas')" style="cursor:pointer">ROAS ↕</th><th>Conv%</th><th>Zona</th><th>Recomendación</th><th>Fase</th></tr></thead>
-          <tbody id="cf-f3-body"></tbody>
-        </table></div>
-        <div id="cf-f3-assistant"></div>
-        <div id="cf-f3-empty" class="empty" style="display:none"><div class="empty-icon">🔥</div><div class="empty-title">Sin creativos en F3</div></div>
-      </div>
-    </div>
-  </div>
-
-  <!-- ═══ TAB: AJUSTES ═══ -->
-  <div id="cf-tab-ajustes" style="display:none">
-    <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px">
-
-      <!-- Zonas CPA -->
-      <div class="panel">
-        <div class="panel-header"><span class="panel-title">🎯 Zonas de Decisión (CPA)</span></div>
-        <div class="panel-body" style="display:flex;flex-direction:column;gap:10px">
-          <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Los multiplicadores se aplican sobre tu CPA objetivo (Ticket Ponderado ÷ 2).</div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <label style="font-size:12px;color:var(--text);min-width:160px">🟡 Amarilla empieza en</label>
-            <input type="number" id="cfg-zona-amarilla" step="0.05" min="1.0" max="2.0" style="width:80px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
-            <span style="font-size:11px;color:var(--text3)">× CPA obj</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <label style="font-size:12px;color:var(--text);min-width:160px">🔴 Roja empieza en</label>
-            <input type="number" id="cfg-zona-roja" step="0.05" min="1.0" max="3.0" style="width:80px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
-            <span style="font-size:11px;color:var(--text3)">× CPA obj</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <label style="font-size:12px;color:var(--text);min-width:160px">🔴 Matar testeo si CPA ></label>
-            <input type="number" id="cfg-zona-gris" step="0.05" min="1.0" max="3.0" style="width:80px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
-            <span style="font-size:11px;color:var(--text3)">× CPA obj (zona gris)</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <label style="font-size:12px;color:var(--text);min-width:160px">📉 ROAS mínimo (piso)</label>
-            <input type="number" id="cfg-roas-floor" step="0.1" min="1.0" max="5.0" style="width:80px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
-            <span style="font-size:11px;color:var(--text3)">× (alerta si ROAS cae por debajo)</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <label style="font-size:12px;color:var(--text);min-width:160px">💬 Tasa cierre WhatsApp</label>
-            <input type="number" id="cfg-cierre-rate" step="1" min="1" max="100" style="width:80px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
-            <span style="font-size:11px;color:var(--text3)">% de chats que compran (define techo C/msg)</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Señales de Muerte -->
-      <div class="panel">
-        <div class="panel-header"><span class="panel-title">💀 Señales de Muerte y Tiempo</span></div>
-        <div class="panel-body" style="display:flex;flex-direction:column;gap:10px">
-          <div style="display:flex;align-items:center;gap:10px">
-            <label style="font-size:12px;color:var(--text);min-width:180px">📈 CPA alcista por</label>
-            <input type="number" id="cfg-dying-dias" step="1" min="2" max="7" style="width:70px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
-            <span style="font-size:11px;color:var(--text3)">días consecutivos</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <label style="font-size:12px;color:var(--text);min-width:180px">⚠️ Zona amarilla hasta</label>
-            <input type="number" id="cfg-amarilla-dias" step="1" min="1" max="7" style="width:70px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
-            <span style="font-size:11px;color:var(--text3)">días (luego revertir)</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <label style="font-size:12px;color:var(--text);min-width:180px">📅 No escalar primeros</label>
-            <input type="number" id="cfg-mes-dias" step="1" min="1" max="10" style="width:70px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
-            <span style="font-size:11px;color:var(--text3)">días del mes</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <label style="font-size:12px;color:var(--text);min-width:180px">⏰ Cambios de presupuesto</label>
-            <input type="number" id="cfg-hora-inicio" step="1" min="0" max="23" style="width:55px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
-            <span style="font-size:11px;color:var(--text3)">–</span>
-            <input type="number" id="cfg-hora-fin" step="1" min="0" max="23" style="width:55px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
-            <span style="font-size:11px;color:var(--text3)">h</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Testeo -->
-      <div class="panel">
-        <div class="panel-header"><span class="panel-title">🧪 Testeo</span></div>
-        <div class="panel-body" style="display:flex;flex-direction:column;gap:10px">
-          <div style="display:flex;align-items:center;gap:10px">
-            <label style="font-size:12px;color:var(--text);min-width:160px">📆 Duración</label>
-            <input type="number" id="cfg-testeo-dias" step="1" min="1" max="7" style="width:70px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
-            <span style="font-size:11px;color:var(--text3)">días</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <label style="font-size:12px;color:var(--text);min-width:160px">💸 Presupuesto diario</label>
-            <input type="number" id="cfg-testeo-pres" step="1" min="5" max="200" style="width:70px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
-            <span style="font-size:11px;color:var(--text3)">S/ por adset</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <label style="font-size:12px;color:var(--text);min-width:160px">📊 Gasto mínimo para pasar</label>
-            <input type="number" id="cfg-gasto-pct" step="5" min="50" max="100" style="width:70px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
-            <span style="font-size:11px;color:var(--text3)">% del presupuesto asignado</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- F1 Niveles -->
-      <div class="panel">
-        <div class="panel-header"><span class="panel-title">🚀 Fase 1 — Niveles de Presupuesto</span></div>
-        <div class="panel-body" style="display:flex;flex-direction:column;gap:10px">
-          <div style="font-size:11px;color:var(--text2);margin-bottom:4px">2 días verdes en cada nivel para subir al siguiente. Al llegar al último → abrir F2.</div>
-          <div style="display:grid;grid-template-columns:1fr 1fr 1fr 1fr;gap:8px">
-            <div style="text-align:center">
-              <div style="font-size:10px;color:var(--text3);margin-bottom:4px">Nivel 1</div>
-              <input type="number" id="cfg-f1-l1" step="5" min="10" max="500" style="width:100%;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;text-align:center">
-            </div>
-            <div style="text-align:center">
-              <div style="font-size:10px;color:var(--text3);margin-bottom:4px">Nivel 2</div>
-              <input type="number" id="cfg-f1-l2" step="5" min="10" max="500" style="width:100%;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;text-align:center">
-            </div>
-            <div style="text-align:center">
-              <div style="font-size:10px;color:var(--text3);margin-bottom:4px">Nivel 3</div>
-              <input type="number" id="cfg-f1-l3" step="5" min="10" max="500" style="width:100%;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;text-align:center">
-            </div>
-            <div style="text-align:center">
-              <div style="font-size:10px;color:var(--text3);margin-bottom:4px">Techo</div>
-              <input type="number" id="cfg-f1-l4" step="5" min="10" max="500" style="width:100%;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px;text-align:center">
-            </div>
-          </div>
-        </div>
-      </div>
-
-      <!-- F2 y F3 -->
-      <div class="panel">
-        <div class="panel-header"><span class="panel-title">⚡ Fase 2 — Escala Media</span></div>
-        <div class="panel-body" style="display:flex;flex-direction:column;gap:10px">
-          <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Audiencia LAL 1–3%. 2 días verdes para abrir F3.</div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <label style="font-size:12px;color:var(--text);min-width:120px">🟢 Inicio</label>
-            <input type="number" id="cfg-f2-inicio" step="10" min="50" max="1000" style="width:80px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
-            <span style="font-size:11px;color:var(--text3)">S/</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <label style="font-size:12px;color:var(--text);min-width:120px">🏁 Techo F2</label>
-            <input type="number" id="cfg-f2-max" step="10" min="50" max="1000" style="width:80px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
-            <span style="font-size:11px;color:var(--text3)">S/</span>
-          </div>
-        </div>
-      </div>
-
-      <div class="panel">
-        <div class="panel-header"><span class="panel-title">🔥 Fase 3 — Escala Agresiva</span></div>
-        <div class="panel-body" style="display:flex;flex-direction:column;gap:10px">
-          <div style="font-size:11px;color:var(--text2);margin-bottom:4px">Audiencia LAL 3–5%. Incremento cada 2 días verdes.</div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <label style="font-size:12px;color:var(--text);min-width:120px">🟢 Inicio</label>
-            <input type="number" id="cfg-f3-inicio" step="10" min="100" max="2000" style="width:80px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
-            <span style="font-size:11px;color:var(--text3)">S/</span>
-          </div>
-          <div style="display:flex;align-items:center;gap:10px">
-            <label style="font-size:12px;color:var(--text);min-width:120px">📈 Incremento</label>
-            <input type="number" id="cfg-f3-pct" step="5" min="5" max="50" style="width:80px;padding:5px 8px;background:var(--bg3);border:1px solid var(--border);border-radius:6px;color:var(--text);font-size:12px">
-            <span style="font-size:11px;color:var(--text3)">% cada 2 días verdes</span>
-          </div>
-        </div>
-      </div>
-
-      <!-- Métricas diagnóstico -->
-      <div class="panel" style="grid-column:1/-1">
-        <div class="panel-header"><span class="panel-title">📊 Umbrales de Métricas Diagnóstico</span></div>
-        <div class="panel-body">
-          <div style="font-size:11px;color:var(--text2);margin-bottom:12px">Estas métricas son secundarias — explican <em>por qué</em> el CPA está en su zona, pero no determinan si escalar o no.</div>
-          <table>
-            <thead><tr><th>Métrica</th><th>🟢 Verde si</th><th>🟡 Amarilla si</th><th>🔴 Roja si</th></tr></thead>
-            <tbody>
-              <tr>
-                <td class="left"><strong>CTR</strong></td>
-                <td><span style="font-size:11px;color:var(--text3)">mayor a </span><input type="number" id="cfg-ctr-green" step="0.1" min="0" max="20" style="width:60px;padding:3px 6px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px"> %</td>
-                <td><span style="font-size:11px;color:var(--text3)">entre </span><input type="number" id="cfg-ctr-yellow" step="0.1" min="0" max="20" style="width:60px;padding:3px 6px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px"> <span style="font-size:11px;color:var(--text3)">% y verde</span></td>
-                <td style="font-size:11px;color:var(--text3)">menor al umbral amarilla</td>
-              </tr>
-              <tr>
-                <td class="left"><strong>CPM</strong></td>
-                <td><span style="font-size:11px;color:var(--text3)">menor a S/ </span><input type="number" id="cfg-cpm-green" step="1" min="0" max="100" style="width:60px;padding:3px 6px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px"></td>
-                <td><span style="font-size:11px;color:var(--text3)">S/ verde – </span><input type="number" id="cfg-cpm-yellow" step="1" min="0" max="200" style="width:60px;padding:3px 6px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px"></td>
-                <td style="font-size:11px;color:var(--text3)">mayor al umbral amarilla</td>
-              </tr>
-              <tr>
-                <td class="left"><strong>CPC</strong></td>
-                <td><span style="font-size:11px;color:var(--text3)">menor a S/ </span><input type="number" id="cfg-cpc-green" step="0.05" min="0" max="10" style="width:60px;padding:3px 6px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px"></td>
-                <td><span style="font-size:11px;color:var(--text3)">S/ verde – </span><input type="number" id="cfg-cpc-yellow" step="0.05" min="0" max="10" style="width:60px;padding:3px 6px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px"></td>
-                <td style="font-size:11px;color:var(--text3)">mayor al umbral amarilla</td>
-              </tr>
-              <tr>
-                <td class="left"><strong>Frecuencia</strong></td>
-                <td><span style="font-size:11px;color:var(--text3)">menor a </span><input type="number" id="cfg-freq-green" step="0.1" min="0" max="10" style="width:60px;padding:3px 6px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px"></td>
-                <td><span style="font-size:11px;color:var(--text3)">hasta </span><input type="number" id="cfg-freq-yellow" step="0.1" min="0" max="10" style="width:60px;padding:3px 6px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);font-size:11px"></td>
-                <td style="font-size:11px;color:var(--text3)">mayor al umbral amarilla</td>
-              </tr>
-            </tbody>
-          </table>
-        </div>
-      </div>
-
-    </div>
-
-    <!-- Acciones -->
-    <div style="display:flex;gap:10px;margin-top:16px;justify-content:flex-end">
-      <button class="btn btn-ghost btn-sm" onclick="cfResetSettings()">↩️ Restaurar valores por defecto</button>
-      <button class="btn btn-primary" onclick="cfSaveSettings()">💾 Guardar ajustes</button>
-    </div>
-  </div>
-
-  <!-- ═══ TAB: POR FECHAS ═══ -->
-  <div id="cf-tab-fechas" style="display:none">
-    <!-- Filtros -->
-    <div style="display:flex;align-items:flex-end;gap:12px;flex-wrap:wrap;margin-bottom:16px;padding:12px 14px;background:var(--bg2);border-radius:var(--radius);border:1px solid var(--border)">
-      <div class="field">
-        <label>Período</label>
-        <select id="cf-fechas-periodo" onchange="cfFechasPeriodo()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px">
-          <option value="7">Últimos 7 días</option>
-          <option value="14">Últimos 14 días</option>
-          <option value="30" selected>Últimos 30 días</option>
-          <option value="60">Últimos 60 días</option>
-          <option value="custom">📅 Rango personalizado</option>
-          <option value="dia">📌 Día específico</option>
-        </select>
-      </div>
-      <div id="cf-fechas-custom" style="display:flex;gap:8px;align-items:flex-end">
-        <div class="field"><label>Desde</label><input type="date" id="cf-fechas-desde" onchange="cfRenderFechas()"></div>
-        <div class="field"><label>Hasta</label><input type="date" id="cf-fechas-hasta" onchange="cfRenderFechas()"></div>
-      </div>
-      <div id="cf-fechas-dia-div" style="display:none">
-        <div class="field"><label>Día</label><input type="date" id="cf-fechas-dia" onchange="cfRenderFechas()"></div>
-      </div>
-      <div style="display:flex;align-items:center;gap:6px;margin-left:auto">
-        <label style="font-size:11px;color:var(--text2)">Agrupar por</label>
-        <select id="cf-fechas-agrupar" onchange="cfRenderFechas()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:4px 8px;color:var(--text);font-size:12px">
-          <option value="anuncio">Anuncio</option>
-          <option value="dia">Día a día</option>
-        </select>
-      </div>
-    </div>
-    <!-- KPIs globales del período -->
-    <div class="cards-row cards-5" id="cf-fechas-kpis" style="margin-bottom:14px"></div>
-    <!-- Diagnóstico global -->
-    <div id="cf-fechas-diag" style="margin-bottom:14px"></div>
-    <!-- Tabla de anuncios -->
-    <div class="panel">
-      <div class="panel-header">
-        <span class="panel-title" id="cf-fechas-titulo">📊 Todos los anuncios</span>
-        <span style="font-size:11px;color:var(--text3)" id="cf-fechas-sub"></span>
-      </div>
-      <div id="cf-fechas-body"></div>
-    </div>
-  </div>
-
-</div>
-
 <div class="page" id="page-cruce-pagos">
   <div class="page-header">
     <div>
@@ -2796,7 +2246,6 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <div class="field" style="grid-column:1/-1"><label>Hook del anuncio</label><input type="text" id="na-hook" placeholder="Primeras palabras..."></div>
       <div class="field"><label>Estado</label><select id="na-estado"><option>Activo</option><option>Pausado</option><option>Escalando</option><option>En prueba</option></select></div>
       <div class="field"><label>Presupuesto diario (S/)</label><input type="number" id="na-presupuesto" step="0.01"></div>
-      <div class="field"><label>Fase CashFlow</label><select id="na-fase"><option value="">Auto-detectar</option><option value="testeo">🧪 Testeo</option><option value="f1">🚀 Fase 1</option><option value="f2">⚡ Fase 2</option><option value="f3">🔥 Fase 3</option></select></div>
     </div>
     <input type="hidden" id="na-edit-id" value="">
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:10px">
@@ -4121,19 +3570,6 @@ async function onLoginSuccess(user) {
     renderPriceChips();
     try { renderDashboard(); } catch(e) { console.warn('renderDashboard:', e); }
     try { renderAlertas(); } catch(e) { console.warn('renderAlertas:', e); }
-    // Update CashFlow nav badge
-    try {
-      const cfAlerts = [];
-      const diaM = new Date().getDate();
-      if (diaM <= 5) cfAlerts.push(1);
-      (DB.anuncios||[]).filter(a=>a.estado!=='pausado'&&a.estado!=='apagado').forEach(ad => {
-        const ar=(DB.registros||[]).filter(r=>r.ad_id===ad.ad_id).sort((a,b)=>b.fecha.localeCompare(a.fecha));
-        if(ar.length>=3){const c=ar.slice(0,3).map(r=>{const g=(+r.gasto_meta||0)+(+r.gasto_tiktok||0);const v=(+r.v1||0)+(+r.v2||0)+(+r.v3||0)+(+r.v4||0);return v>0?g/v:null}).filter(x=>x!==null);if(c.length>=3&&c[0]>c[1]&&c[1]>c[2])cfAlerts.push(1);}
-        const m=calcMetrics(ar);if(m.inversion>5&&m.roas>0&&m.roas<2)cfAlerts.push(1);
-      });
-      const nb=document.getElementById('cf-nav-badge');
-      if(nb){if(cfAlerts.length){nb.style.display='inline';nb.textContent=cfAlerts.length;}else{nb.style.display='none';}}
-    } catch(e) {}
     // Mostrar badge SETUP si el usuario no tiene Google Sheets configurado
     const badge = document.getElementById('nav-setup-badge');
     if (badge) badge.style.display = DB.config?.sheets_url ? 'none' : 'inline';
@@ -4831,15 +4267,6 @@ function renderChatsVentas() {
     return;
   }
 
-  // ── Diagnóstico embudo global del período ────────────────
-  const cvDiag = document.getElementById('cv-diag-box');
-  if(cvDiag) {
-    const Mglobal = calcMetrics(regs);
-    const { cpaObj, cpmsgMax } = diagGetThresholds();
-    cvDiag.innerHTML = diagPanel(Mglobal, cpaObj, cpmsgMax, `🔬 Diagnóstico Global — Chats & Ventas`);
-  }
-  // ────────────────────────────────────────────────────────
-
   const rowsConChats = rows.filter(r => r.m.chats > 0);
   const sinChats     = rows.filter(r => r.m.chats === 0);
 
@@ -5061,18 +4488,6 @@ function renderAnalyzerUI() {
     kpiCard('📈 Subiendo', subiendo, 'teal', `Tendencia positiva`),
   ].join('');
 
-  // ── Diagnóstico embudo portafolio ─────────────────────
-  const analyzerDiagBox = document.getElementById('analyzer-diag-box');
-  if (analyzerDiagBox && _analyzerData.length > 0) {
-    const { cpaObj, cpmsgMax } = diagGetThresholds();
-    // Agregar métricas de todos los anuncios del período
-    const allRegs = _analyzerData.flatMap(d => DB.registros.filter(r => r.ad_id === d.adId));
-    const Mportfolio = calcMetrics(allRegs);
-    analyzerDiagBox.innerHTML = diagPanel(Mportfolio, cpaObj, cpmsgMax, `🔬 Diagnóstico Global — Portafolio (${_analyzerData.length} anuncios)`);
-  } else if (analyzerDiagBox) {
-    analyzerDiagBox.innerHTML = '';
-  }
-  // ────────────────────────────────────────────────────
 
   // ── Resumen Ejecutivo (texto inteligente) ──
   const resumenEl = document.getElementById('analyzer-resumen');
@@ -5139,9 +4554,7 @@ function renderAnalyzerUI() {
           </div>
           <div style="text-align:center;min-width:70px">${_tendenciaArrow(d.tendencia)}<div style="font-size:9px;color:var(--text3)">Tendencia</div></div>
           <div style="min-width:90px"><span class="badge ${d.accion.color}" style="font-size:11px;padding:4px 10px">${d.accion.emoji} ${d.accion.nombre}</span></div>
-          <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:3px 8px" onclick="analyzerToggleDiag('${d.adId.replace(/'/g,"\\'")}', this)">🔬 Diagnóstico</button>
         </div>
-        <div id="analyzer-rank-diag-${d.adId.replace(/[^a-zA-Z0-9]/g,'_')}" style="display:none;padding:12px 16px 4px;border-top:1px dashed var(--border2)"></div>
       </div>`;
     }).join('');
   }
@@ -5279,27 +4692,6 @@ function renderAnalyzerUI() {
   }).join('');
 }
 
-function analyzerToggleDiag(adId, btn) {
-  const safeId = adId.replace(/[^a-zA-Z0-9]/g,'_');
-  const box = document.getElementById('analyzer-rank-diag-' + safeId);
-  if (!box) return;
-  if (box.style.display !== 'none') {
-    box.style.display = 'none';
-    if(btn) btn.textContent = '🔬 Diagnóstico';
-    return;
-  }
-  // Lazy-render funnel
-  if (!box.innerHTML) {
-    const entry = _analyzerData.find(d => d.adId === adId);
-    if (entry) {
-      const { cpaObj, cpmsgMax } = diagGetThresholds();
-      box.innerHTML = diagFunnelHtml(entry.m, cpaObj, cpmsgMax, true);
-    }
-  }
-  box.style.display = 'block';
-  if(btn) btn.textContent = '✖ Cerrar';
-}
-
 function renderMejorAnuncio() {
   const el = document.getElementById('mejor-content');
   const periodoSel = document.getElementById('mejor-periodo')?.value || '7';
@@ -5345,8 +4737,6 @@ function renderMejorAnuncio() {
   const ganador = ranking[0];
   const roasColor = ganador.m.roas >= 2 ? 'var(--green)' : ganador.m.roas >= 1 ? 'var(--orange)' : 'var(--red)';
 
-  const { cpaObj: _mjrCpa, cpmsgMax: _mjrCpmsg } = diagGetThresholds();
-  const _mjrDiagHtml = diagFunnelHtml(ganador.m, _mjrCpa, _mjrCpmsg, false);
 
   el.innerHTML = `
     <!-- GANADOR -->
@@ -5374,12 +4764,6 @@ function renderMejorAnuncio() {
             : `<div style="font-size:14px;color:var(--text3)">Sin datos prev.</div>`}
         </div>
       </div>
-    </div>
-
-    <!-- DIAGNÓSTICO EMBUDO DEL GANADOR -->
-    <div class="panel" style="margin-bottom:18px">
-      <div class="panel-header"><span class="panel-title">🔬 Diagnóstico — ${ganador.nombre}</span></div>
-      <div class="panel-body">${_mjrDiagHtml}</div>
     </div>
 
     <!-- RANKING COMPLETO -->
@@ -5415,1082 +4799,6 @@ function renderMejorAnuncio() {
 // ════════════════════════════════════════════════
 // ANÁLISIS DE REMARKETING
 // ════════════════════════════════════════════════
-// ════════════════════════════════════════════════
-// CASHFLOW — VENTA DIRECTA (5 TABS)
-// ════════════════════════════════════════════════
-let CF_TAB = 'def';
-let CF_SORT = { col: 'cpa', dir: 'asc' };
-
-// ── CashFlow Settings ────────────────────────────────────────────────────────
-const CF_SETTINGS_DEFAULTS = {
-  zona_amarilla_mult: 1.0,  // amarilla empieza justo sobre CPA obj (siempre 1.0)
-  zona_roja_mult:    1.5,   // roja empieza en 1.5× CPA obj
-  zona_gris_mult:    1.3,   // zona gris testeo (matar si CPA > 1.3× en testeo)
-  roas_floor:        2.0,   // ROAS mínimo antes de alertar
-  cierre_rate:       25,    // tasa de cierre WhatsApp % (ventas / chats)
-  dying_dias:        3,     // días consecutivos CPA subiendo → muriendo
-  amarilla_dias:     3,     // días en zona amarilla antes de recomendar revertir
-  mes_inicio_dias:   5,     // primeros N días del mes: no escalar
-  hora_cambios_inicio: 6,   // ventana de cambios — hora inicio
-  hora_cambios_fin:    8,   // ventana de cambios — hora fin
-  testeo_dias:       3,     // duración testeo en días
-  testeo_pres:       22.5,  // presupuesto diario por adset en testeo
-  gasto_pct_min:     80,    // % mínimo de gasto del presupuesto para pasar testeo
-  f1_levels:         [20, 35, 55, 80], // niveles de presupuesto F1
-  f2_inicio:         100,   // presupuesto inicial F2
-  f2_max:            150,   // techo F2
-  f3_inicio:         200,   // presupuesto inicial F3
-  f3_pct:            20,    // incremento % cada 2 días verdes en F3
-  ctr_green:         2.5,   // CTR verde si > este %
-  ctr_yellow:        1.5,   // CTR amarilla si entre este % y verde
-  cpm_green:         8,     // CPM verde si < este S/
-  cpm_yellow:        14,    // CPM amarilla si entre verde y este S/
-  cpc_green:         0.40,  // CPC verde si < este S/
-  cpc_yellow:        0.80,  // CPC amarilla si entre verde y este S/
-  freq_green:        1.8,   // frecuencia verde si < este valor
-  freq_yellow:       2.5,   // frecuencia amarilla si entre verde y este valor
-};
-
-let CF_SETTINGS = { ...CF_SETTINGS_DEFAULTS };
-
-function cfSettingsKey() {
-  return `cf_settings_${CURRENT_WORKSPACE?.id || 'default'}`;
-}
-function cfLoadSettings() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(cfSettingsKey()) || 'null');
-    if (saved) CF_SETTINGS = { ...CF_SETTINGS_DEFAULTS, ...saved };
-    else CF_SETTINGS = { ...CF_SETTINGS_DEFAULTS };
-  } catch(e) { CF_SETTINGS = { ...CF_SETTINGS_DEFAULTS }; }
-}
-/** Persiste CF_SETTINGS (objeto en memoria) directamente en localStorage.
- *  Usar cuando los valores ya fueron escritos en CF_SETTINGS desde código (no desde el form). */
-function cfSaveSettingsDirect() {
-  localStorage.setItem(cfSettingsKey(), JSON.stringify(CF_SETTINGS));
-}
-
-/** Guarda los ajustes leyendo los inputs del formulario de la pestaña Ajustes de CashFlow.
- *  IMPORTANTE: primero parte de CF_SETTINGS en memoria para no perder campos
- *  que no están presentes en el formulario (ej. los seteados desde el Dashboard). */
-function cfSaveSettings() {
-  const get    = id => document.getElementById(id);
-  const getNum = id => { const el = get(id); return el ? +el.value || 0 : null; };
-
-  // Partir de los valores actuales en memoria (no de los defaults)
-  const s = { ...CF_SETTINGS };
-
-  // Solo sobreescribir campos que EXISTEN en el formulario (no null)
-  const apply = (key, id) => { const v = getNum(id); if (v !== null && v !== 0) s[key] = v; };
-  apply('zona_roja_mult',      'cfg-zona-roja');
-  apply('zona_gris_mult',      'cfg-zona-gris');
-  apply('roas_floor',          'cfg-roas-floor');
-  apply('cierre_rate',         'cfg-cierre-rate');
-  apply('dying_dias',          'cfg-dying-dias');
-  apply('amarilla_dias',       'cfg-amarilla-dias');
-  apply('mes_inicio_dias',     'cfg-mes-dias');
-  apply('hora_cambios_inicio', 'cfg-hora-inicio');
-  apply('hora_cambios_fin',    'cfg-hora-fin');
-  apply('testeo_dias',         'cfg-testeo-dias');
-  apply('testeo_pres',         'cfg-testeo-pres');
-  apply('gasto_pct_min',       'cfg-gasto-pct');
-  apply('f2_inicio',           'cfg-f2-inicio');
-  apply('f2_max',              'cfg-f2-max');
-  apply('f3_inicio',           'cfg-f3-inicio');
-  apply('f3_pct',              'cfg-f3-pct');
-  apply('ctr_green',           'cfg-ctr-green');
-  apply('ctr_yellow',          'cfg-ctr-yellow');
-  apply('cpm_green',           'cfg-cpm-green');
-  apply('cpm_yellow',          'cfg-cpm-yellow');
-  apply('cpc_green',           'cfg-cpc-green');
-  apply('cpc_yellow',          'cfg-cpc-yellow');
-  apply('freq_green',          'cfg-freq-green');
-  apply('freq_yellow',         'cfg-freq-yellow');
-
-  // F1 levels (array especial)
-  const f1 = ['cfg-f1-l1','cfg-f1-l2','cfg-f1-l3','cfg-f1-l4']
-    .map(id => getNum(id)).filter(v => v !== null && v > 0).sort((a,b)=>a-b);
-  if (f1.length) s.f1_levels = f1;
-
-  localStorage.setItem(cfSettingsKey(), JSON.stringify(s));
-  CF_SETTINGS = { ...CF_SETTINGS_DEFAULTS, ...s };
-  showSuccess('✅ Ajustes guardados');
-  renderCashFlow();
-}
-function cfResetSettings() {
-  localStorage.removeItem(cfSettingsKey());
-  CF_SETTINGS = { ...CF_SETTINGS_DEFAULTS };
-  cfPopulateSettingsForm();
-  dashSyncSelectors(); // sincronizar Dashboard si existe
-  showSuccess('↩️ Valores por defecto restaurados');
-  renderCashFlow();
-}
-function cfPopulateSettingsForm() {
-  const set = (id, val) => { const el = document.getElementById(id); if (el) el.value = val; };
-  const s = CF_SETTINGS;
-  set('cfg-zona-roja',    s.zona_roja_mult);
-  set('cfg-zona-gris',    s.zona_gris_mult);
-  set('cfg-roas-floor',   s.roas_floor);
-  set('cfg-cierre-rate',  s.cierre_rate);
-  set('cfg-dying-dias',  s.dying_dias);
-  set('cfg-amarilla-dias', s.amarilla_dias);
-  set('cfg-mes-dias',    s.mes_inicio_dias);
-  set('cfg-hora-inicio', s.hora_cambios_inicio);
-  set('cfg-hora-fin',    s.hora_cambios_fin);
-  set('cfg-testeo-dias', s.testeo_dias);
-  set('cfg-testeo-pres', s.testeo_pres);
-  set('cfg-gasto-pct',   s.gasto_pct_min);
-  const lvls = s.f1_levels;
-  set('cfg-f1-l1', lvls[0]||20); set('cfg-f1-l2', lvls[1]||35);
-  set('cfg-f1-l3', lvls[2]||55); set('cfg-f1-l4', lvls[3]||80);
-  set('cfg-f2-inicio', s.f2_inicio); set('cfg-f2-max', s.f2_max);
-  set('cfg-f3-inicio', s.f3_inicio); set('cfg-f3-pct',  s.f3_pct);
-  set('cfg-ctr-green',  s.ctr_green);  set('cfg-ctr-yellow',  s.ctr_yellow);
-  set('cfg-cpm-green',  s.cpm_green);  set('cfg-cpm-yellow',  s.cpm_yellow);
-  set('cfg-cpc-green',  s.cpc_green);  set('cfg-cpc-yellow',  s.cpc_yellow);
-  set('cfg-freq-green', s.freq_green); set('cfg-freq-yellow', s.freq_yellow);
-  // Sincronizar también selectores del Dashboard
-  dashSyncSelectors();
-}
-
-// ── Alertas descartables ─────────────────────────────────────────────────────
-function cfDismissedKey() {
-  return `cf_alerts_dismissed_${CURRENT_WORKSPACE?.id || 'default'}`;
-}
-function cfGetDismissed() {
-  try { return new Set(JSON.parse(localStorage.getItem(cfDismissedKey()) || '[]')); }
-  catch(e) { return new Set(); }
-}
-function cfDismissAlert(id) {
-  const dismissed = cfGetDismissed();
-  dismissed.add(id);
-  localStorage.setItem(cfDismissedKey(), JSON.stringify([...dismissed]));
-  renderCashFlow();
-}
-
-function cfSortBy(col) {
-  if (CF_SORT.col === col) CF_SORT.dir = CF_SORT.dir === 'asc' ? 'desc' : 'asc';
-  else { CF_SORT.col = col; CF_SORT.dir = 'asc'; }
-  renderCashFlow();
-}
-
-async function cfChangeFase(adId, newFase) {
-  const ad = DB.anuncios.find(a => a.ad_id === adId || a.id === adId);
-  if (!ad) return;
-  try {
-    setSyncStatus('loading','Cambiando fase...');
-    await api.patch('anuncios', ad.id, { fase: newFase || null });
-    ad.fase = newFase || null;
-    // Guardar fecha de inicio de fase para contar días desde cero en cada fase
-    if (newFase) {
-      const today = new Date().toISOString().split('T')[0];
-      localStorage.setItem(`cf_fase_desde_${ad.id}`, JSON.stringify({ fase: newFase, desde: today }));
-    } else {
-      localStorage.removeItem(`cf_fase_desde_${ad.id}`);
-    }
-    setSyncStatus('ok','Sincronizado ✓');
-    renderCashFlow();
-    showSuccess(`✅ ${ad.nombre||ad.ad_id} → ${newFase || 'Sin fase'} (días reiniciados)`);
-  } catch(e) { setSyncStatus('error','Error'); showError('Error: '+e.message); }
-}
-function cfTab(tab, btn) {
-  CF_TAB = tab;
-  ['def','testeo','f1','f2','f3','ajustes','fechas'].forEach(t => {
-    const el = document.getElementById('cf-tab-'+t);
-    if(el) el.style.display = t===tab ? 'block' : 'none';
-  });
-  document.querySelectorAll('#page-cashflow > .tab-bar .tab-btn').forEach(b => b.classList.remove('active'));
-  if(btn) btn.classList.add('active');
-  if(tab === 'ajustes') { cfPopulateSettingsForm(); return; }
-  if(tab === 'fechas') { cfFechasPeriodo(); return; }
-  renderCashFlow();
-}
-
-// ═══════════════════════════════════════════════════════════
-// CONFIG RÁPIDA — ROAS objetivo + Cierre WA
-// ═══════════════════════════════════════════════════════════
-function cfApplyQuickConfig() {
-  cfLoadSettings();
-  const roas   = parseFloat(document.getElementById('cf-quick-roas')?.value || 2);
-  const cierre = parseFloat(document.getElementById('cf-quick-cierre')?.value || 25);
-  CF_SETTINGS.roas_floor  = roas;
-  CF_SETTINGS.cierre_rate = cierre;
-  cfSaveSettings();
-  cfUpdateQuickConfigLabels();
-  if (CF_TAB !== 'ajustes') renderCashFlow();
-}
-
-function cfUpdateQuickConfigLabels() {
-  const tp = cfGetTP();
-  const cpaObj   = tp.cpaObj;
-  const cierre   = CF_SETTINGS.cierre_rate || 25;
-  const cpmsgMax = cpaObj * (cierre / 100);
-  const cpaEl    = document.getElementById('cf-quick-cpa-val');
-  const cpmsgEl  = document.getElementById('cf-quick-cpmsg-val');
-  const roasSel  = document.getElementById('cf-quick-roas');
-  const cierreSel= document.getElementById('cf-quick-cierre');
-  if(cpaEl)   cpaEl.textContent   = `S/${cpaObj.toFixed(2)}`;
-  if(cpmsgEl) cpmsgEl.textContent = `S/${cpmsgMax.toFixed(2)}`;
-  if(roasSel && CF_SETTINGS.roas_floor)  roasSel.value  = String(CF_SETTINGS.roas_floor);
-  if(cierreSel && CF_SETTINGS.cierre_rate) cierreSel.value = String(CF_SETTINGS.cierre_rate);
-}
-
-// ═══════════════════════════════════════════════════════════
-// TAB: POR FECHAS — Todos los anuncios en rango de fechas
-// ═══════════════════════════════════════════════════════════
-function cfFechasPeriodo() {
-  const val = document.getElementById('cf-fechas-periodo')?.value || '30';
-  const customDiv = document.getElementById('cf-fechas-custom');
-  const diaDiv    = document.getElementById('cf-fechas-dia-div');
-  if(customDiv) customDiv.style.display = val === 'custom' ? 'flex' : 'none';
-  if(diaDiv)    diaDiv.style.display    = val === 'dia'    ? 'block' : 'none';
-  if(val === 'custom') {
-    if(!document.getElementById('cf-fechas-desde').value) document.getElementById('cf-fechas-desde').value = nDaysAgo(30);
-    if(!document.getElementById('cf-fechas-hasta').value) document.getElementById('cf-fechas-hasta').value = today();
-  } else if(val === 'dia') {
-    if(!document.getElementById('cf-fechas-dia').value) document.getElementById('cf-fechas-dia').value = today();
-  }
-  cfRenderFechas();
-}
-
-function cfRenderFechas() {
-  cfLoadSettings();
-  const val = document.getElementById('cf-fechas-periodo')?.value || '30';
-  let desde, hasta;
-  if(val === 'custom') {
-    desde = document.getElementById('cf-fechas-desde')?.value || nDaysAgo(30);
-    hasta = document.getElementById('cf-fechas-hasta')?.value || today();
-  } else if(val === 'dia') {
-    const dia = document.getElementById('cf-fechas-dia')?.value || today();
-    desde = dia; hasta = dia;
-  } else {
-    desde = nDaysAgo(+val);
-    hasta = today();
-  }
-  const agrupado  = document.getElementById('cf-fechas-agrupar')?.value || 'anuncio';
-  const regs      = DB.registros.filter(r => r.fecha >= desde && r.fecha <= hasta);
-  const { cpaObj, cpmsgMax, cierre, roasObj } = diagGetThresholds(); // usa ROAS obj y Cierre configurados
-
-  // ── KPIs globales ────────────────────────────────────────
-  const Mglobal = calcMetrics(regs);
-  const kpisEl  = document.getElementById('cf-fechas-kpis');
-  if(kpisEl) {
-    const zonaGlobal = cfGetZona(Mglobal.cpv, cpaObj);
-    kpisEl.innerHTML = [
-      kpiCard('Inversión', fmt.s(Mglobal.inversion), 'orange'),
-      kpiCard('Ingresos', fmt.s(Mglobal.ingresos), 'green'),
-      kpiCard('Profit', fmt.s(Mglobal.profit), Mglobal.profit >= 0 ? 'green' : 'red'),
-      kpiCard('ROAS', fmt.roas(Mglobal.roas), Mglobal.roas >= (roasObj||CF_SETTINGS.roas_floor||2) ? 'green' : Mglobal.roas >= 1 ? 'orange' : 'red'),
-      kpiCard('CPA Promedio', Mglobal.ventas > 0 ? fmt.s(Mglobal.cpv) : '—', zonaGlobal.zona === 'green' ? 'green' : zonaGlobal.zona === 'orange' ? 'orange' : 'red', `Zona: ${zonaGlobal.label}`),
-    ].join('');
-  }
-
-  // ── Diagnóstico global del período ───────────────────────
-  const diagEl = document.getElementById('cf-fechas-diag');
-  if(diagEl) {
-    diagEl.innerHTML = Mglobal.inversion > 0
-      ? diagPanel(Mglobal, cpaObj, cpmsgMax, `🔬 Diagnóstico Global — ${fmt.date(desde)} → ${fmt.date(hasta)}`)
-      : '';
-  }
-
-  // ── Subtítulo ─────────────────────────────────────────────
-  const tituloEl = document.getElementById('cf-fechas-titulo');
-  const subEl    = document.getElementById('cf-fechas-sub');
-  const diasSet  = new Set(regs.map(r => r.fecha));
-  if(tituloEl) tituloEl.textContent = agrupado === 'dia' ? '📅 Día a día' : '📊 Por Anuncio';
-  if(subEl) subEl.textContent = `${diasSet.size} días · ${fmt.date(desde)} → ${fmt.date(hasta)}`;
-
-  const bodyEl = document.getElementById('cf-fechas-body');
-  if(!bodyEl) return;
-
-  if(!regs.length) {
-    bodyEl.innerHTML = '<div style="padding:28px;text-align:center;color:var(--text3)">Sin datos en el período seleccionado</div>';
-    return;
-  }
-
-  if(agrupado === 'dia') {
-    // ── Vista Día a día ──────────────────────────────────────
-    const byDate = groupByDate(regs);
-    let html = `<div class="tbl-wrap"><table>
-      <thead><tr>
-        <th>Fecha</th><th>Inversión</th><th>Impr.</th><th>Clics</th><th>CTR</th><th>CPM</th>
-        <th>Chats</th><th>C/Msg</th><th>Ventas</th><th>Ingresos</th><th>Profit</th><th>ROAS</th>
-        <th>CPA</th><th>Zona</th>
-      </tr></thead><tbody>`;
-    byDate.forEach(([fecha, rs]) => {
-      const m = calcMetrics(rs);
-      const z = cfGetZona(m.cpv, cpaObj);
-      const cpc = m.clics > 0 ? m.inversion / m.clics : 0;
-      html += `<tr>
-        <td style="font-weight:600">${fmt.date(fecha)}</td>
-        <td>${fmt.s(m.inversion)}</td>
-        <td>${fmt.num(m.impr)}</td>
-        <td>${fmt.num(m.clics)}</td>
-        <td>${m.ctr > 0 ? (m.ctr*100).toFixed(2)+'%' : '—'}</td>
-        <td>${m.cpm > 0 ? fmt.s(m.cpm) : '—'}</td>
-        <td>${m.chats}</td>
-        <td>${m.cpr > 0 ? fmt.s(m.cpr) : '—'}</td>
-        <td>${m.ventas}</td>
-        <td style="color:var(--green)">${fmt.s(m.ingresos)}</td>
-        <td style="color:${m.profit>=0?'var(--green)':'var(--red)'}">${fmt.s(m.profit)}</td>
-        <td style="color:${m.roas>=(roasObj||CF_SETTINGS.roas_floor||2)?'var(--green)':m.roas>=1?'var(--orange)':'var(--red)'};font-weight:700">${fmt.roas(m.roas)}</td>
-        <td style="color:${z.color};font-weight:700">${m.ventas>0?fmt.s(m.cpv):'—'}</td>
-        <td><span class="badge ${z.zona==='green'?'green':z.zona==='orange'?'orange':'red'}" style="font-size:10px">${z.label}</span></td>
-      </tr>`;
-    });
-    // Fila total
-    const z = cfGetZona(Mglobal.cpv, cpaObj);
-    html += `<tr style="font-weight:700;background:var(--accent-dim);border-top:2px solid var(--accent)">
-      <td style="color:var(--accent)">TOTAL</td>
-      <td>${fmt.s(Mglobal.inversion)}</td>
-      <td>${fmt.num(Mglobal.impr)}</td>
-      <td>${fmt.num(Mglobal.clics)}</td>
-      <td>${Mglobal.ctr>0?(Mglobal.ctr*100).toFixed(2)+'%':'—'}</td>
-      <td>${Mglobal.cpm>0?fmt.s(Mglobal.cpm):'—'}</td>
-      <td>${Mglobal.chats}</td>
-      <td>${Mglobal.cpr>0?fmt.s(Mglobal.cpr):'—'}</td>
-      <td>${Mglobal.ventas}</td>
-      <td style="color:var(--green)">${fmt.s(Mglobal.ingresos)}</td>
-      <td style="color:${Mglobal.profit>=0?'var(--green)':'var(--red)'}">${fmt.s(Mglobal.profit)}</td>
-      <td style="color:${Mglobal.roas>=(roasObj||CF_SETTINGS.roas_floor||2)?'var(--green)':Mglobal.roas>=1?'var(--orange)':'var(--red)'};font-weight:700">${fmt.roas(Mglobal.roas)}</td>
-      <td style="color:${z.color};font-weight:700">${Mglobal.ventas>0?fmt.s(Mglobal.cpv):'—'}</td>
-      <td><span class="badge ${z.zona==='green'?'green':z.zona==='orange'?'orange':'red'}" style="font-size:10px">${z.label}</span></td>
-    </tr>`;
-    html += '</tbody></table></div>';
-
-    // Por-día diagnóstico expandible
-    html += '<div style="margin-top:16px">';
-    byDate.forEach(([fecha, rs]) => {
-      const m = calcMetrics(rs);
-      if(m.inversion <= 0) return;
-      const safeId = fecha.replace(/-/g,'');
-      html += `<div style="margin-bottom:8px;border:1px solid var(--border);border-radius:var(--radius);overflow:hidden">
-        <div style="display:flex;align-items:center;justify-content:space-between;padding:8px 14px;background:var(--bg2);cursor:pointer" onclick="cfFechasDiagToggle('${safeId}',this)">
-          <span style="font-size:12px;font-weight:700;color:var(--text)">${fmt.date(fecha)}</span>
-          <div style="display:flex;gap:10px;align-items:center">
-            <span style="font-size:11px;color:var(--text2)">Inversión ${fmt.s(m.inversion)} · ROAS ${fmt.roas(m.roas)} · CPA ${m.ventas>0?fmt.s(m.cpv):'—'}</span>
-            <span style="font-size:10px;color:var(--accent)">🔬 Ver diagnóstico ▾</span>
-          </div>
-        </div>
-        <div id="cf-fechas-diag-${safeId}" style="display:none;padding:14px">
-          ${diagFunnelHtml(m, cpaObj, cpmsgMax, true)}
-        </div>
-      </div>`;
-    });
-    html += '</div>';
-    bodyEl.innerHTML = html;
-
-  } else {
-    // ── Vista Por Anuncio ────────────────────────────────────
-    const adMap = {};
-    regs.forEach(r => { if(!adMap[r.ad_id]) adMap[r.ad_id]=[]; adMap[r.ad_id].push(r); });
-    const adRows = Object.entries(adMap).map(([adId, rs]) => {
-      const a = DB.anuncios.find(x => x.ad_id === adId) || {};
-      const m = calcMetrics(rs);
-      const dias = new Set(rs.map(r => r.fecha)).size;
-      const z = cfGetZona(m.cpv, cpaObj);
-      return { adId, nombre: a.nombre || adId, m, dias, z };
-    }).sort((a, b) => a.z.zona === b.z.zona ? b.m.roas - a.m.roas : (a.z.zona === 'green' ? -1 : b.z.zona === 'green' ? 1 : a.z.zona === 'orange' ? -1 : 1));
-
-    let html = `<div class="tbl-wrap"><table>
-      <thead><tr>
-        <th>Anuncio</th><th>Días</th><th>Inversión</th><th>Impr.</th><th>Clics</th><th>CTR</th><th>CPM</th>
-        <th>Chats</th><th>C/Msg</th><th>Ventas</th><th>Ingresos</th><th>Profit</th><th>ROAS</th>
-        <th>CPA</th><th>Zona</th>
-      </tr></thead><tbody>`;
-    adRows.forEach(({ adId, nombre, m, dias, z }) => {
-      const safeId = adId.replace(/[^a-zA-Z0-9]/g,'_');
-      html += `<tr style="cursor:pointer" onclick="cfFechasDiagToggle('ad_${safeId}',this.nextElementSibling,'row')">
-        <td class="left" style="font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis">${nombre}</td>
-        <td>${dias}</td>
-        <td>${fmt.s(m.inversion)}</td>
-        <td>${fmt.num(m.impr)}</td>
-        <td>${fmt.num(m.clics)}</td>
-        <td>${m.ctr>0?(m.ctr*100).toFixed(2)+'%':'—'}</td>
-        <td>${m.cpm>0?fmt.s(m.cpm):'—'}</td>
-        <td>${m.chats}</td>
-        <td>${m.cpr>0?fmt.s(m.cpr):'—'}</td>
-        <td>${m.ventas}</td>
-        <td style="color:var(--green)">${fmt.s(m.ingresos)}</td>
-        <td style="color:${m.profit>=0?'var(--green)':'var(--red)'}">${fmt.s(m.profit)}</td>
-        <td style="color:${m.roas>=(roasObj||CF_SETTINGS.roas_floor||2)?'var(--green)':m.roas>=1?'var(--orange)':'var(--red)'};font-weight:700">${fmt.roas(m.roas)}</td>
-        <td style="color:${z.color};font-weight:700">${m.ventas>0?fmt.s(m.cpv):'—'}</td>
-        <td><span class="badge ${z.zona==='green'?'green':z.zona==='orange'?'orange':'red'}" style="font-size:10px">${z.label}</span></td>
-      </tr>
-      <tr id="cf-fechas-diag-ad_${safeId}" style="display:none">
-        <td colspan="15" style="padding:14px;background:var(--bg2)">
-          ${diagFunnelHtml(m, cpaObj, cpmsgMax, true)}
-        </td>
-      </tr>`;
-    });
-    // Fila total
-    const z = cfGetZona(Mglobal.cpv, cpaObj);
-    html += `<tr style="font-weight:700;background:var(--accent-dim);border-top:2px solid var(--accent)">
-      <td style="color:var(--accent)">TOTAL (${adRows.length} anuncios)</td>
-      <td>—</td>
-      <td>${fmt.s(Mglobal.inversion)}</td>
-      <td>${fmt.num(Mglobal.impr)}</td>
-      <td>${fmt.num(Mglobal.clics)}</td>
-      <td>${Mglobal.ctr>0?(Mglobal.ctr*100).toFixed(2)+'%':'—'}</td>
-      <td>${Mglobal.cpm>0?fmt.s(Mglobal.cpm):'—'}</td>
-      <td>${Mglobal.chats}</td>
-      <td>${Mglobal.cpr>0?fmt.s(Mglobal.cpr):'—'}</td>
-      <td>${Mglobal.ventas}</td>
-      <td style="color:var(--green)">${fmt.s(Mglobal.ingresos)}</td>
-      <td style="color:${Mglobal.profit>=0?'var(--green)':'var(--red)'}">${fmt.s(Mglobal.profit)}</td>
-      <td style="color:${Mglobal.roas>=(roasObj||CF_SETTINGS.roas_floor||2)?'var(--green)':Mglobal.roas>=1?'var(--orange)':'var(--red)'};font-weight:700">${fmt.roas(Mglobal.roas)}</td>
-      <td style="color:${z.color};font-weight:700">${Mglobal.ventas>0?fmt.s(Mglobal.cpv):'—'}</td>
-      <td><span class="badge ${z.zona==='green'?'green':z.zona==='orange'?'orange':'red'}" style="font-size:10px">${z.label}</span></td>
-    </tr>`;
-    html += '</tbody></table></div>';
-    bodyEl.innerHTML = html;
-  }
-}
-
-function cfFechasDiagToggle(safeId, rowOrEl, mode) {
-  const el = document.getElementById('cf-fechas-diag-' + safeId);
-  if(!el) return;
-  const open = el.style.display !== 'none';
-  el.style.display = open ? 'none' : (mode === 'row' ? 'table-row' : 'block');
-}
-
-function cfGetTP() {
-  const P = DB.config;
-  const regs = DB.registros || [];
-
-  // Leer freeze desde localStorage (fuente de verdad, ya que Supabase no tiene esas columnas)
-  const localFreeze = (() => { try { return JSON.parse(localStorage.getItem(cfTpStorageKey()) || 'null'); } catch(e) { return null; } })();
-  if (localFreeze) Object.assign(P, localFreeze);
-
-  // If TP is frozen, use saved values
-  if (P.tp_frozen && P.tp_value > 0) {
-    const p1=P.p1??10, p2=P.p2??7, p3=P.p3??5, p4=P.p4??3;
-    const activePrices = [{v:0,p:p1,label:'P1',pct:0},{v:0,p:p2,label:'P2',pct:0},{v:0,p:p3,label:'P3',pct:0},{v:0,p:p4,label:'P4',pct:0}].filter(x=>x.p>0);
-    // Recalc real distribution for display only
-    let v1=0,v2=0,v3=0,v4=0;
-    regs.forEach(r => { v1+=+r.v1||0; v2+=+r.v2||0; v3+=+r.v3||0; v4+=+r.v4||0; });
-    const counts = [v1,v2,v3,v4];
-    const total = v1+v2+v3+v4;
-    let idx = 0;
-    const pcts = activePrices.map(x => {
-      const c = counts[idx++] || 0;
-      return { ...x, v: c, pct: total > 0 ? c/total : 0 };
-    });
-    const _roasObj = CF_SETTINGS.roas_floor || 2;
-    return { tp: +P.tp_value, cpaObj: +P.tp_value/_roasObj, roasObj: _roasObj, pcts, total, v1,v2,v3,v4, p1,p2,p3,p4, frozen: true, frozenDate: P.tp_frozen_date||'' };
-  }
-
-  let v1=0,v2=0,v3=0,v4=0;
-  regs.forEach(r => { v1+=+r.v1||0; v2+=+r.v2||0; v3+=+r.v3||0; v4+=+r.v4||0; });
-  const total = v1+v2+v3+v4;
-  const p1=P.p1??10, p2=P.p2??7, p3=P.p3??5, p4=P.p4??3;
-  const activePrices = [
-    {v:v1, p:p1, label:'P1'}, {v:v2, p:p2, label:'P2'},
-    {v:v3, p:p3, label:'P3'}, {v:v4, p:p4, label:'P4'}
-  ].filter(x => x.p > 0);
-  const activeTotal = activePrices.reduce((s,x) => s+x.v, 0);
-  const pcts = activePrices.map(x => ({ ...x, pct: activeTotal>0 ? x.v/activeTotal : 1/activePrices.length }));
-  const tp = pcts.reduce((s,x) => s + x.pct * x.p, 0);
-  const roasObj = CF_SETTINGS.roas_floor || 2;
-  const cpaObj = tp / roasObj;
-  return { tp, cpaObj, roasObj, pcts, total: activeTotal, v1,v2,v3,v4, p1,p2,p3,p4, frozen: false };
-}
-
-function cfTpStorageKey() {
-  return `cf_tp_freeze_${CURRENT_WORKSPACE?.id || 'default'}`;
-}
-
-async function cfFreezeTP() {
-  const tp = cfGetTP();
-  const freezeData = { tp_frozen: true, tp_value: tp.tp, tp_frozen_date: new Date().toISOString().split('T')[0] };
-  // Guardar en localStorage (las columnas tp_frozen/tp_value/tp_frozen_date no existen en el esquema Supabase)
-  localStorage.setItem(cfTpStorageKey(), JSON.stringify(freezeData));
-  Object.assign(DB.config, freezeData);
-  renderCashFlow();
-  showSuccess(`✅ Ticket Ponderado congelado en S/${tp.tp.toFixed(2)} — CPA obj: S/${tp.cpaObj.toFixed(2)}`);
-}
-
-async function cfRecalcTP() {
-  const clearData = { tp_frozen: false, tp_value: null, tp_frozen_date: null };
-  localStorage.removeItem(cfTpStorageKey());
-  Object.assign(DB.config, clearData);
-  renderCashFlow();
-  const tp = cfGetTP();
-  showSuccess(`✅ Ticket Ponderado recalculado: S/${tp.tp.toFixed(2)} — CPA obj: S/${tp.cpaObj.toFixed(2)}`);
-}
-
-function cfGetZona(cpa, cpaObj) {
-  if (cpa <= 0) return { zona:'gray', color:'var(--text3)', label:'SIN DATOS' };
-  if (cpa <= cpaObj) return { zona:'green', color:'var(--green)', label:'🟢 VERDE' };
-  if (cpa <= cpaObj * CF_SETTINGS.zona_roja_mult) return { zona:'orange', color:'var(--orange)', label:'🟡 AMARILLA' };
-  return { zona:'red', color:'var(--red)', label:'🔴 ROJA' };
-}
-
-/** Config rápida desde CashFlow — actualiza y sincroniza todo el sistema */
-function cfQuickSetRoas(val) {
-  if (!val || val < 1) return;
-  CF_SETTINGS.roas_floor = val;
-  cfSaveSettingsDirect();
-  dashSyncSelectors();
-  if (typeof dashTpRenderAuto === 'function' && document.getElementById('dash-tp-kpis')) dashTpRenderAuto();
-  renderCashFlow();
-  showSuccess(`🎯 ROAS objetivo actualizado: ${val}x — CPA obj: S/${(cfGetTP().cpaObj).toFixed(2)}`);
-}
-
-function cfQuickSetCierre(val) {
-  if (!val || val < 1) return;
-  CF_SETTINGS.cierre_rate = val;
-  cfSaveSettingsDirect();
-  dashSyncSelectors();
-  if (typeof dashTpRenderAuto === 'function' && document.getElementById('dash-tp-kpis')) dashTpRenderAuto();
-  renderCashFlow();
-  showSuccess(`💬 Cierre WhatsApp actualizado: ${val}%`);
-}
-
-// ═══════════════════════════════════════════════════════════════
-// MOTOR DE DIAGNÓSTICO GLOBAL — disponible en toda la app
-// ═══════════════════════════════════════════════════════════════
-
-/** Devuelve cpaObj y cpmsgMax usando el ROAS objetivo y Cierre % configurados */
-function diagGetThresholds() {
-  cfLoadSettings();
-  const tp      = cfGetTP();
-  const roasObj = CF_SETTINGS.roas_floor  || 2;   // respeta el ROAS obj del usuario
-  const cierre  = CF_SETTINGS.cierre_rate || 25;  // respeta el cierre WA del usuario
-  const cpaObj  = tp.tp / roasObj;                // TP ÷ ROAS obj seleccionado
-  const cpmsgMax = cpaObj * (cierre / 100);
-  const cpcMax   = cpmsgMax * 0.3;
-  return { cpaObj, cpmsgMax, cpcMax, tp, roasObj, cierre };
-}
-
-/** Clasifica una métrica en green / yellow / orange / red / gray */
-function diagZone(val, greenMax, yellowMax, lowerIsBetter = true) {
-  if (!val || val <= 0) return 'gray';
-  if (lowerIsBetter) {
-    if (val <= greenMax)  return 'green';
-    if (val <= yellowMax) return 'orange';
-    return 'red';
-  } else {
-    if (val >= greenMax)  return 'green';
-    if (val >= yellowMax) return 'orange';
-    return 'red';
-  }
-}
-
-/** Devuelve las zonas de cada métrica del funnel para un calcMetrics() */
-function diagAnalyze(m, cpaObj, cpmsgMax) {
-  const S = CF_SETTINGS;
-  const ctr  = m.ctr * 100;
-  const cpm  = m.cpm;
-  const cpc  = m.clics > 0 ? m.inversion / m.clics : 0;
-  const cpmsg = m.cpr;   // costo por chat
-  const cpa  = m.cpv;
-  const roas = m.roas;
-  const conv = m.conv * 100; // ventas/chats %
-
-  const zones = {
-    cpm:   diagZone(cpm,   S.cpm_green,   S.cpm_yellow),
-    ctr:   diagZone(ctr,   S.ctr_green,   S.ctr_yellow,   false),
-    cpc:   diagZone(cpc,   S.cpc_green,   S.cpc_yellow),
-    cpmsg: cpmsgMax > 0 ? diagZone(cpmsg, cpmsgMax * 0.8, cpmsgMax) : 'gray',
-    cpa:   cpaObj > 0    ? diagZone(cpa,  cpaObj,         cpaObj * CF_SETTINGS.zona_roja_mult) : 'gray',
-    roas:  diagZone(roas, CF_SETTINGS.roas_floor * 1.25, CF_SETTINGS.roas_floor, false),
-    conv:  diagZone(conv, 25, 15, false),
-  };
-
-  // ── Causa raíz (árbol de decisión causal) ──────────────────
-  let causa = '', prioridad = 'info';
-
-  if (m.inversion <= 0) {
-    causa = 'Sin datos de inversión en este período.';
-  } else if (zones.ctr === 'red') {
-    causa = `CTR de ${ctr.toFixed(2)}% muy bajo — el hook del anuncio no engancha. Cambia el creativo antes de tocar presupuesto, audiencia o bot. El problema empieza en el primer segundo del video/imagen.`;
-    prioridad = 'red';
-  } else if (zones.cpmsg === 'red' && cpmsgMax > 0) {
-    causa = `Costo por mensaje S/${cpmsg.toFixed(2)} supera el techo S/${cpmsgMax.toFixed(2)}. Con una tasa de cierre de ${CF_SETTINGS.cierre_rate}%, el CPA mínimo posible es S/${(cpmsg / (CF_SETTINGS.cierre_rate / 100)).toFixed(2)} — arriba del objetivo. Prioridad: bajar CPM o mejorar CTR para reducir el costo por chat.`;
-    prioridad = 'red';
-  } else if (zones.ctr === 'green' && zones.cpa === 'red' && zones.cpmsg !== 'red') {
-    causa = `CTR ${ctr.toFixed(2)}% en verde (anuncio funciona) pero CPA en rojo. El problema está después del clic — en el cierre de WhatsApp. Revisa: velocidad de respuesta del bot, secuencia P1→P2→P3, precio y objeciones frecuentes.`;
-    prioridad = 'orange';
-  } else if (zones.cpm === 'red' && zones.ctr === 'green') {
-    causa = `CPM S/${cpm.toFixed(2)} alto (audiencia cara) pero CTR ${ctr.toFixed(2)}% bueno (creativo sólido). Considera ampliar la audiencia o pasar a LAL más amplio para bajar el CPM sin perder el CTR.`;
-    prioridad = 'orange';
-  } else if (zones.cpm === 'red' && zones.ctr !== 'green') {
-    causa = `Doble problema: audiencia cara (CPM S/${cpm.toFixed(2)}) y creativo débil (CTR ${ctr.toFixed(2)}%). Primero cambia el creativo, luego revisa la audiencia.`;
-    prioridad = 'red';
-  } else if (zones.cpa === 'orange') {
-    causa = `CPA en zona amarilla — no escalar aún. Monitorear 2 días más. Si no mejora, revisar la tasa de cierre de WhatsApp (actual ${conv.toFixed(0)}%).`;
-    prioridad = 'orange';
-  } else if (zones.roas === 'green' && zones.cpa === 'green') {
-    causa = `Funnel saludable. ROAS ${roas.toFixed(2)}× sobre objetivo. Si llevas 2+ días estables, considera escalar según tu protocolo.`;
-    prioridad = 'green';
-  } else {
-    causa = `Métricas mixtas. Monitorea 24–48h más antes de tomar decisiones.`;
-    prioridad = 'info';
-  }
-
-  return { zones, causa, prioridad, ctr, cpm, cpc, cpmsg, cpa, roas, conv };
-}
-
-/** Genera el HTML del mini-funnel visual (CPM→CTR→CPC→C/Msg→CPA→ROAS) */
-function diagFunnelHtml(m, cpaObj, cpmsgMax, compact = false) {
-  const d = diagAnalyze(m, cpaObj, cpmsgMax);
-  const cpc = m.clics > 0 ? m.inversion / m.clics : 0;
-
-  const steps = [
-    { key:'cpm',   label:'CPM',    val: m.cpm > 0   ? `S/${m.cpm.toFixed(2)}`             : '—', hint:'Costo impresión' },
-    { key:'ctr',   label:'CTR',    val: m.ctr > 0   ? `${(m.ctr*100).toFixed(2)}%`         : '—', hint:'Click-through' },
-    { key:'cpc',   label:'CPC',    val: cpc > 0     ? `S/${cpc.toFixed(2)}`                : '—', hint:'Costo por clic' },
-    { key:'cpmsg', label:'C/Msg',  val: m.cpr > 0   ? `S/${m.cpr.toFixed(2)}`             : '—', hint:'Chat WhatsApp' },
-    { key:'cpa',   label:'CPA',    val: m.cpv > 0   ? `S/${m.cpv.toFixed(2)}`             : '—', hint:'Por venta' },
-    { key:'roas',  label:'ROAS',   val: m.roas > 0  ? `${m.roas.toFixed(2)}×`             : '—', hint:'Retorno' },
-  ];
-
-  const zoneColor = { green:'var(--green)', orange:'var(--orange)', red:'var(--red)', gray:'var(--text3)' };
-  const zoneBg    = { green:'var(--green-dim)', orange:'var(--orange-dim)', red:'var(--red-dim)', gray:'var(--bg3)' };
-
-  const stepHtml = steps.map((s, i) => {
-    const z = d.zones[s.key] || 'gray';
-    return `
-      <div style="display:flex;flex-direction:column;align-items:center;gap:3px;min-width:${compact?'52':'64'}px">
-        <div style="font-size:9px;color:var(--text3);text-transform:uppercase;letter-spacing:0.8px">${s.label}</div>
-        <div style="padding:${compact?'4px 8px':'6px 12px'};border-radius:6px;background:${zoneBg[z]};border:1px solid ${zoneColor[z]};font-size:${compact?'11':'12'}px;font-weight:700;color:${zoneColor[z]};font-family:var(--mono);white-space:nowrap">${s.val}</div>
-        <div style="font-size:9px;color:var(--text3)">${s.hint}</div>
-      </div>
-      ${i < steps.length-1 ? `<div style="color:var(--text3);font-size:14px;align-self:center;padding-top:12px">→</div>` : ''}
-    `;
-  }).join('');
-
-  const causaColor = { green:'var(--green)', orange:'var(--orange)', red:'var(--red)', info:'var(--accent)' };
-  const causaBg    = { green:'var(--green-dim)', orange:'var(--orange-dim)', red:'var(--red-dim)', info:'var(--accent-dim)' };
-  const p = d.prioridad;
-
-  return `
-    <div style="display:flex;gap:6px;align-items:stretch;flex-wrap:wrap;margin-bottom:${d.causa?'10':'0'}px">
-      ${stepHtml}
-    </div>
-    ${d.causa ? `
-    <div style="font-size:11px;color:var(--text);background:${causaBg[p]};border-radius:6px;padding:10px 14px;border-left:3px solid ${causaColor[p]};line-height:1.7;margin-top:4px">
-      <strong style="color:${causaColor[p]}">🔍 ${p==='green'?'Estado':'Diagnóstico'}:</strong> ${d.causa}
-    </div>` : ''}
-  `;
-}
-
-/** Panel de diagnóstico completo: funnel + causa + acciones */
-function diagPanel(m, cpaObj, cpmsgMax, titulo = '🔍 Diagnóstico de Funnel') {
-  if (m.inversion <= 0) return '';
-  const d = diagAnalyze(m, cpaObj, cpmsgMax);
-  return `
-  <div class="panel" style="margin-bottom:14px">
-    <div class="panel-header"><span class="panel-title">${titulo}</span>
-      <span style="font-size:10px;color:var(--text3)">CPM → CTR → CPC → C/Msg → CPA → ROAS</span>
-    </div>
-    <div class="panel-body">
-      ${diagFunnelHtml(m, cpaObj, cpmsgMax)}
-    </div>
-  </div>`;
-}
-
-/** Simulador de escenarios por tasa de cierre */
-function diagSimuladorHtml(cpaObj, realConv) {
-  const rates = [10, 15, 20, 25, 30, 35, 40];
-  const roasObj = CF_SETTINGS.roas_floor;
-  const rows = rates.map(r => {
-    const cpmsgM = cpaObj * (r / 100);
-    const isCurrent = realConv > 0 && Math.abs(r - realConv * 100) < 5;
-    const cls = r >= 25 ? 'green' : r >= 15 ? 'orange' : 'red';
-    const estado = r >= 25 ? '✅ Escalable' : r >= 15 ? '⚠️ Monitorear' : '❌ Optimizar WA';
-    return `<tr ${isCurrent ? 'style="background:var(--green-dim)"' : ''}>
-      <td style="color:var(--${cls});font-weight:700">${r}%${isCurrent ? ' ← actual' : ''}</td>
-      <td>S/${cpmsgM.toFixed(2)}</td>
-      <td>S/${cpaObj.toFixed(2)}</td>
-      <td style="color:var(--${cls})">${roasObj}×</td>
-      <td style="color:var(--${cls})">${estado}</td>
-    </tr>`;
-  }).join('');
-  return `
-  <table>
-    <thead><tr><th>Cierre WA</th><th>C/Msg máx</th><th>CPA objetivo</th><th>ROAS</th><th>Estado</th></tr></thead>
-    <tbody>${rows}</tbody>
-  </table>`;
-}
-
-function cfDetectFase(ad) {
-  if (ad.fase) return ad.fase;
-  const n = ((ad.campana||'')+(ad.nombre||'')).toLowerCase();
-  if (ad.estado === 'Apagado' || ad.estado === 'apagado') return 'apagado';
-  if (n.includes('test') || n.includes('prueba') || n.includes('explora')) return 'testeo';
-  if (n.includes('f3') || n.includes('fase3') || n.includes('escala3') || n.includes('fase 3')) return 'f3';
-  if (n.includes('f2') || n.includes('fase2') || n.includes('escala2') || n.includes('fase 2')) return 'f2';
-  if (n.includes('f1') || n.includes('fase1') || n.includes('escala1') || n.includes('fase 1') || n.includes('escala')) return 'f1';
-  return '';
-}
-
-function cfAdFullRow(ad, regs, cpaObj, faseRules) {
-  // Filtrar registros solo desde el inicio de la fase actual (días reinician al cambiar de fase)
-  const faseData = (() => { try { return JSON.parse(localStorage.getItem(`cf_fase_desde_${ad.id}`) || 'null'); } catch(e) { return null; } })();
-  const faseDesdeFecha = (faseData && faseData.fase === cfDetectFase(ad)) ? faseData.desde : null;
-  const allAdRegs = regs.filter(r => r.ad_id === ad.ad_id);
-  const adRegs = (faseDesdeFecha
-    ? allAdRegs.filter(r => r.fecha >= faseDesdeFecha)
-    : allAdRegs
-  ).sort((a,b) => b.fecha.localeCompare(a.fecha));
-  const m = calcMetrics(adRegs);
-  // Días = días de calendario desde inicio de fase (no cantidad de registros)
-  // Dias de calendario desde inicio de fase. Parsear como hora local (sin 'Z') para evitar offset de timezone
-  const diasCalendario = faseDesdeFecha
-    ? Math.max(1, Math.floor((new Date() - new Date(faseDesdeFecha + 'T00:00:00')) / 86400000) + 1)
-    : adRegs.length;
-  const dias = diasCalendario;
-  const cpaReal = m.ventas > 0 ? m.inversion / m.ventas : (m.inversion > 0 ? 9999 : 0);
-  const z = cfGetZona(cpaReal, cpaObj);
-  const cpc = m.clics > 0 ? m.inversion / m.clics : 0;
-
-  // CPA trend last 3 days
-  let cpaTrend = '—';
-  const last3 = adRegs.slice(0, 3);
-  if (last3.length >= 2) {
-    const cpas = last3.map(r => {
-      const g=(+r.gasto_meta||0)+(+r.gasto_tiktok||0); const v=(+r.v1||0)+(+r.v2||0)+(+r.v3||0)+(+r.v4||0);
-      return v>0?g/v:null;
-    }).filter(c=>c!==null);
-    if (cpas.length>=2) cpaTrend = cpas[0]>cpas[1] ? '📈↑' : '📉↓';
-  }
-
-  // Recommendation based on phase rules
-  let recom = '', rc = 'gray';
-  const dyingDias = CF_SETTINGS.dying_dias;
-  const lastN = adRegs.slice(0, dyingDias);
-  const dying = lastN.length >= dyingDias && (() => {
-    const c = lastN.map(r => { const g=(+r.gasto_meta||0)+(+r.gasto_tiktok||0); const v=(+r.v1||0)+(+r.v2||0)+(+r.v3||0)+(+r.v4||0); return v>0?g/v:null; }).filter(x=>x!==null);
-    if (c.length < dyingDias) return false;
-    for (let i=0; i<c.length-1; i++) if (c[i] <= c[i+1]) return false;
-    return true;
-  })();
-
-  // % presupuesto gastado — use actual ad budget if available
-  const adPres = (+ad.presupuesto || 0);
-  const presupuestoDia = adPres > 0 ? adPres : (faseRules?.presupuestoDia || CF_SETTINGS.testeo_pres);
-  const presAsignado = presupuestoDia > 0 ? presupuestoDia * dias : 0;
-  const pctPresNum = presAsignado > 0 ? m.inversion / presAsignado : 0;
-  const pctPres = presAsignado > 0 ? (pctPresNum * 100).toFixed(0) + '%' : '—';
-
-  // Helper: siguiente nivel de presupuesto en F1 (usa niveles configurables)
-  const f1NextLevel = (() => {
-    const levels = CF_SETTINGS.f1_levels;
-    const cur = +ad.presupuesto || 0;
-    const next = levels.find(l => l > cur);
-    return next ? `S/${next}` : null; // null = ya en techo → abrir F2
-  })();
-
-  const testDias = CF_SETTINGS.testeo_dias;
-  const gastoPct = CF_SETTINGS.gasto_pct_min / 100;
-  const grisMult = CF_SETTINGS.zona_gris_mult;
-  const amarillaDias = CF_SETTINGS.amarilla_dias;
-
-  if (dying) { recom='💀 MURIENDO'; rc='red'; }
-  else if (z.zona==='gray') { recom='⏳ Sin datos'; rc='gray'; }
-  // TESTEO-specific veredictos
-  else if (faseRules?.showPctPres) {
-    if (dias < testDias) { recom = `⏳ Día ${dias}/${testDias}`; rc = 'teal'; }
-    else if (z.zona==='green' && pctPresNum >= gastoPct) { recom = '🏆 GANADOR → F1'; rc = 'green'; }
-    else if (z.zona==='green' && pctPresNum < gastoPct) { recom = '🟡 Bajo gasto — extender'; rc = 'orange'; }
-    else if (cpaReal > 0 && cpaReal <= cpaObj * grisMult) { recom = `🟡 ZONA GRIS — +2 días`; rc = 'orange'; }
-    else if (z.zona==='red' || m.ventas === 0) { recom = '🔴 PERDEDOR — apagar'; rc = 'red'; }
-    else { recom = '🟡 ZONA GRIS — +2 días'; rc = 'orange'; }
-  }
-  // SCALING phase veredictos (F1/F2/F3)
-  else if (z.zona==='green' && dias>=2 && faseRules?.nextAction) {
-    // F1: escalar dentro de fase hasta llegar al techo, luego abrir F2
-    if (faseRules.level === 'F1' && f1NextLevel) {
-      recom = `📈 ESCALAR a ${f1NextLevel}`; rc = 'green';
-    } else {
-      recom = faseRules.nextAction; rc = 'green';
-    }
-  }
-  else if (z.zona==='green' && dias<2) { recom='⏳ Día 1 — observar'; rc='teal'; }
-  else if (z.zona==='orange' && dias >= amarillaDias) { recom=`⚠️ ${amarillaDias}d amarillo — revertir nivel`; rc='red'; }
-  else if (z.zona==='orange' && dias === amarillaDias-1) { recom=`⏸️ Día ${dias} amarillo — última espera`; rc='orange'; }
-  else if (z.zona==='orange') { recom='⏸️ ESPERAR 2 días'; rc='orange'; }
-  else if (z.zona==='red' && dias<=1) { recom='👁️ Día 1 rojo — monitorear 12pm'; rc='orange'; }
-  else if (z.zona==='red' && dias===2) { recom='⚡ 2 días rojo — REVERTIR'; rc='red'; }
-  else if (z.zona==='red' && faseRules?.level==='F3') { recom='🛑 TECHO ABSOLUTO — pausar'; rc='red'; }
-  else if (z.zona==='red') { recom='🛑 PAUSAR adset'; rc='red'; }
-  else if (z.zona==='green') { recom='🚀 ESCALAR'; rc='green'; }
-
-  return { ad, m, dias, cpaReal, z, cpc, cpaTrend, recom, rc, pctPres, f1NextLevel,
-    // For sorting
-    _nombre: ad.nombre||ad.ad_id, _campana: ad.campana||'', _dias: dias,
-    _gasto: m.inversion, _ventas: m.ventas, _cpa: cpaReal>=9999?99999:cpaReal,
-    _roas: m.roas, _ctr: m.ctr, _cpm: m.cpm,
-    html: `<tr>
-    <td class="left" style="font-family:var(--font);font-weight:600">${ad.nombre||ad.ad_id}</td>
-    <td class="left muted">${ad.campana||'—'}</td>
-    ${faseRules?.showLevel ? `<td>${ad.presupuesto > 0 ? `S/${ad.presupuesto}` : faseRules.level||'—'}</td>` : ''}
-    <td>${dias}d</td>
-    <td>${fmt.s(m.inversion)}</td>
-    ${faseRules?.showPctPres ? `<td>${pctPres}</td>` : ''}
-    <td>${fmt.num(m.impr)}</td>
-    <td>${fmt.num(m.clics)}</td>
-    <td>${m.ctr>0?(m.ctr*100).toFixed(2)+'%':'—'}</td>
-    <td>${m.cpm>0?fmt.s(m.cpm):'—'}</td>
-    <td>${cpc>0?fmt.s(cpc):'—'}</td>
-    <td>${m.chats}</td>
-    <td>${m.cpr>0?fmt.s(m.cpr):'—'}</td>
-    <td>${m.ventas}</td>
-    <td>${fmt.s(m.ingresos)}</td>
-    <td style="color:${z.color};font-weight:700">${cpaReal>=9999?'∞':cpaReal>0?fmt.s(cpaReal):'—'}</td>
-    <td style="font-weight:700;color:${m.roas>=2?'var(--green)':m.roas>=1?'var(--orange)':'var(--red)'}">${fmt.roas(m.roas)}</td>
-    <td>${m.conv>0?(m.conv*100).toFixed(1)+'%':'—'}</td>
-    <td><span class="badge ${z.zona}">${z.label}</span></td>
-    <td><span class="badge ${rc}" style="font-size:10px">${recom}</span></td>
-    <td><select onchange="cfChangeFase('${ad.id}',this.value)" style="font-size:10px;padding:2px 4px;background:var(--bg3);border:1px solid var(--border);border-radius:4px;color:var(--text);cursor:pointer">
-      <option value="testeo" ${cfDetectFase(ad)==='testeo'?'selected':''}>🧪 Test</option>
-      <option value="f1" ${cfDetectFase(ad)==='f1'?'selected':''}>🚀 F1</option>
-      <option value="f2" ${cfDetectFase(ad)==='f2'?'selected':''}>⚡ F2</option>
-      <option value="f3" ${cfDetectFase(ad)==='f3'?'selected':''}>🔥 F3</option>
-      <option value="apagado" ${cfDetectFase(ad)==='apagado'?'selected':''}>⏹️ Off</option>
-    </select></td>
-  </tr>` };
-}
-
-function renderCashFlow() {
-  const P = DB.config;
-  const regs = DB.registros || [];
-  const anuncios = DB.anuncios || [];
-  const tp = cfGetTP();
-
-  document.getElementById('cf-producto-nombre').textContent = CURRENT_WORKSPACE?.nombre || 'Sin producto';
-
-  // ═══ TAB: DEFINICIONES ═══
-  if (CF_TAB === 'def') {
-    // TP Cards
-    const frozenBadge = tp.frozen ? `<span class="badge accent" style="font-size:9px">🔒 Congelado ${tp.frozenDate||''}</span>` : `<span class="badge gray" style="font-size:9px">🔄 Auto</span>`;
-    document.getElementById('cf-tp-cards').innerHTML = `
-      <div class="kpi-card accent"><div class="kpi-label">Ticket Ponderado ${frozenBadge}</div><div class="kpi-value">S/ ${tp.tp.toFixed(2)}</div><div class="kpi-sub">${tp.total>0?tp.total+' ventas reales':'⚠️ Estimado'}</div></div>
-      <div class="kpi-card green"><div class="kpi-label">CPA Objetivo</div><div class="kpi-value">S/ ${tp.cpaObj.toFixed(2)}</div><div class="kpi-sub">TP÷${(tp.roasObj||2).toFixed(1)} = ROAS ${(tp.roasObj||2).toFixed(1)}x 🎯</div></div>
-      <div class="kpi-card teal"><div class="kpi-label">Ventas totales</div><div class="kpi-value">${tp.total}</div><div class="kpi-sub">${tp.pcts.map(x=>x.label+':'+x.v).join(' · ')}</div></div>
-      <div class="kpi-card purple"><div class="kpi-label">Distribución</div><div class="kpi-value">${tp.pcts.map(x=>(x.pct*100).toFixed(0)+'%').join('/')}</div><div class="kpi-sub">${tp.pcts.map(x=>x.label+'=S/'+x.p).join(' · ')}</div></div>
-    `;
-
-    // Formula + freeze buttons
-    document.getElementById('cf-formula-display').innerHTML =
-      `TP = ${tp.pcts.map(x=>`(${(x.pct*100).toFixed(1)}% × S/${x.p})`).join(' + ')} = <strong>S/ ${tp.tp.toFixed(2)}</strong><br>` +
-      `CPA objetivo = S/${tp.tp.toFixed(2)} ÷ ${(tp.roasObj||2).toFixed(1)} = <strong>S/ ${tp.cpaObj.toFixed(2)}</strong> · ROAS objetivo: ${(tp.roasObj||2).toFixed(1)}x ✓` +
-      `<div style="margin-top:10px;display:flex;gap:8px;align-items:center">` +
-      (tp.frozen
-        ? `<button class="btn btn-ghost btn-sm" onclick="cfRecalcTP()" style="font-size:11px">🔄 Recalcular con datos actuales</button><span style="font-size:10px;color:var(--text3)">Congelado el ${tp.frozenDate||'—'}. Las zonas no cambiarán hasta que recalcules.</span>`
-        : `<button class="btn btn-primary btn-sm" onclick="cfFreezeTP()" style="font-size:11px">🔒 Congelar TP actual</button><span style="font-size:10px;color:var(--text3)">Recomendado: congela después de 30+ ventas. Se recalculará solo cuando tú lo decidas.</span>`
-      ) + `</div>` +
-      `<div style="margin-top:10px;display:flex;gap:14px;align-items:center;padding:9px 12px;background:var(--bg);border-radius:var(--radius-sm);border:1px solid var(--border);flex-wrap:wrap">` +
-      `<span style="font-size:10px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.5px">⚡ Config rápida</span>` +
-      `<label style="display:flex;align-items:center;gap:6px;font-size:11px"><span style="color:var(--text2)">🎯 ROAS objetivo</span><input type="number" value="${(tp.roasObj||2).toFixed(1)}" min="1" max="20" step="0.5" style="width:65px;padding:3px 8px;border:1px solid var(--accent);border-radius:6px;font-size:13px;font-weight:700;color:var(--accent);background:var(--bg2);text-align:center" onchange="cfQuickSetRoas(+this.value)"><span style="color:var(--text3);font-size:11px">x</span></label>` +
-      `<label style="display:flex;align-items:center;gap:6px;font-size:11px"><span style="color:var(--text2)">💬 Cierre WhatsApp</span><input type="number" value="${CF_SETTINGS.cierre_rate||25}" min="1" max="100" step="1" style="width:65px;padding:3px 8px;border:1px solid var(--teal);border-radius:6px;font-size:13px;font-weight:700;color:var(--teal);background:var(--bg2);text-align:center" onchange="cfQuickSetCierre(+this.value)"><span style="color:var(--text3);font-size:11px">%</span></label>` +
-      `<span style="font-size:10px;color:var(--text3)">Se guarda y sincroniza con Dashboard automáticamente</span>` +
-      `</div>`;
-
-    // ── KPIs extra: cierre WA + costo/msg + simulador ────────
-    const totalChatsAll = (DB.registros||[]).reduce((s,r)=>(+r.chats_meta||0)+(+r.chats_tiktok||0)+s, 0);
-    const totalVentasAll = tp.total;
-    const cierreReal = totalChatsAll > 0 ? totalVentasAll / totalChatsAll : 0;
-    const cpmsgMax  = tp.cpaObj * (CF_SETTINGS.cierre_rate / 100);
-    const cierreColor = cierreReal >= 0.25 ? 'var(--green)' : cierreReal >= 0.15 ? 'var(--orange)' : cierreReal > 0 ? 'var(--red)' : 'var(--text3)';
-    const cfgRate   = CF_SETTINGS.cierre_rate;
-
-    const extraCards = document.getElementById('cf-extra-kpis');
-    if (extraCards) {
-      extraCards.innerHTML = [
-        `<div class="kpi-card teal"><div class="kpi-label">💬 Cierre WA configurado</div><div class="kpi-value">${cfgRate}%</div><div class="kpi-sub">Ajustable en ⚙️ Ajustes</div></div>`,
-        `<div class="kpi-card accent"><div class="kpi-label">📨 C/Msg máximo</div><div class="kpi-value">S/${cpmsgMax.toFixed(2)}</div><div class="kpi-sub">CPA obj × ${cfgRate}% cierre</div></div>`,
-        `<div class="kpi-card ${cierreReal>=0.25?'green':cierreReal>=0.15?'orange':'red'}"><div class="kpi-label">📊 Cierre WA real</div><div class="kpi-value" style="color:${cierreColor}">${cierreReal>0?(cierreReal*100).toFixed(1)+'%':'—'}</div><div class="kpi-sub">${totalVentasAll} ventas / ${totalChatsAll} chats</div></div>`,
-      ].join('');
-    }
-
-    // Simulador
-    const simEl = document.getElementById('cf-simulador-body');
-    if (simEl) simEl.innerHTML = diagSimuladorHtml(tp.cpaObj, cierreReal);
-
-    // Zonas — THE PRIMARY DECISION SYSTEM (usa CF_SETTINGS)
-    const zv = tp.cpaObj;
-    const za = tp.cpaObj * CF_SETTINGS.zona_roja_mult;
-    const roasVerde    = (tp.roasObj || 2).toFixed(2);
-    const roasAmarilla = tp.tp > 0 ? (tp.tp / za).toFixed(2) : '—';
-    document.getElementById('cf-zonas-cards').innerHTML = `
-      <div class="kpi-card green"><div class="kpi-label">🟢 VERDE — Escalar</div><div class="kpi-value">CPA &lt; S/ ${zv.toFixed(2)}</div><div class="kpi-sub">ROAS &gt; ${roasVerde}x 🎯 · Subir presupuesto</div></div>
-      <div class="kpi-card orange"><div class="kpi-label">🟡 AMARILLA — Esperar</div><div class="kpi-value">CPA S/ ${zv.toFixed(2)} – ${za.toFixed(2)}</div><div class="kpi-sub">ROAS ${roasAmarilla}x–${roasVerde}x · No tocar ${CF_SETTINGS.amarilla_dias} días</div></div>
-      <div class="kpi-card red"><div class="kpi-label">🔴 ROJA — Actuar</div><div class="kpi-value">CPA &gt; S/ ${za.toFixed(2)} (×${CF_SETTINGS.zona_roja_mult})</div><div class="kpi-sub">ROAS &lt; ${roasAmarilla}x · Pausar o revertir</div></div>
-    `;
-
-    // Métricas objetivo — SECONDARY DIAGNOSTIC METRICS (aligned with Zonas)
-    document.getElementById('cf-metricas-obj').innerHTML = `
-    <div style="font-size:11px;color:var(--text2);margin-bottom:10px;line-height:1.6">
-      Las <strong>Zonas de Decisión</strong> (arriba) se basan en CPA y determinan si escalar o pausar. Esta tabla muestra <strong>métricas secundarias</strong> que ayudan a diagnosticar <em>por qué</em> tu CPA está en la zona que está. Si tu CPA es rojo y tu CTR es verde, el problema no es el anuncio — es el cierre en WhatsApp.
-    </div>
-    <table>
-      <thead><tr><th>Métrica</th><th>🟢 Saludable</th><th>🟡 Atención</th><th>🔴 Problema</th><th>¿Qué indica?</th></tr></thead>
-      <tbody>
-        <tr><td class="left"><strong>CPA</strong></td><td style="color:var(--green)">&lt; S/ ${zv.toFixed(2)}</td><td style="color:var(--orange)">S/ ${zv.toFixed(2)} – ${za.toFixed(2)}</td><td style="color:var(--red)">&gt; S/ ${za.toFixed(2)}</td><td class="left muted">Costo por venta real (métrica maestra)</td></tr>
-        <tr><td class="left"><strong>ROAS</strong></td><td style="color:var(--green)">&gt; ${roasVerde}x</td><td style="color:var(--orange)">${roasAmarilla}x – ${roasVerde}x</td><td style="color:var(--red)">&lt; ${roasAmarilla}x</td><td class="left muted">Retorno sobre inversión (inverso del CPA)</td></tr>
-        <tr><td class="left"><strong>CTR</strong></td><td style="color:var(--green)">&gt; ${CF_SETTINGS.ctr_green}%</td><td style="color:var(--orange)">${CF_SETTINGS.ctr_yellow}% – ${CF_SETTINGS.ctr_green}%</td><td style="color:var(--red)">&lt; ${CF_SETTINGS.ctr_yellow}%</td><td class="left muted">¿El anuncio atrae clics? Si es bajo → cambiar hook</td></tr>
-        <tr><td class="left"><strong>CPM</strong></td><td style="color:var(--green)">&lt; S/ ${CF_SETTINGS.cpm_green}</td><td style="color:var(--orange)">S/ ${CF_SETTINGS.cpm_green} – ${CF_SETTINGS.cpm_yellow}</td><td style="color:var(--red)">&gt; S/ ${CF_SETTINGS.cpm_yellow}</td><td class="left muted">Costo por 1000 impresiones. Alto = audiencia cara</td></tr>
-        <tr><td class="left"><strong>CPC</strong></td><td style="color:var(--green)">&lt; S/ ${CF_SETTINGS.cpc_green}</td><td style="color:var(--orange)">S/ ${CF_SETTINGS.cpc_green} – ${CF_SETTINGS.cpc_yellow}</td><td style="color:var(--red)">&gt; S/ ${CF_SETTINGS.cpc_yellow}</td><td class="left muted">Costo por clic. Alto = baja relevancia del anuncio</td></tr>
-        <tr><td class="left"><strong>Frecuencia</strong></td><td style="color:var(--green)">&lt; ${CF_SETTINGS.freq_green}</td><td style="color:var(--orange)">${CF_SETTINGS.freq_green} – ${CF_SETTINGS.freq_yellow}</td><td style="color:var(--red)">&gt; ${CF_SETTINGS.freq_yellow}</td><td class="left muted">Veces que la misma persona vio tu anuncio. >${CF_SETTINGS.freq_yellow} = quemado</td></tr>
-      </tbody>
-    </table>`;
-
-    // Alertas (con soporte de descarte individual)
-    const alertas = [];
-    const diaDelMes = new Date().getDate();
-    const dismissed = cfGetDismissed();
-    const S = CF_SETTINGS;
-    if (diaDelMes <= S.mes_inicio_dias) alertas.push({id:'mes_inicio',tipo:'orange',icon:'📅',msg:`Día ${diaDelMes} del mes — NO escalar (primeros ${S.mes_inicio_dias} días). Sí pausar/reducir si CPA rojo.`});
-    anuncios.filter(a=>a.estado!=='pausado'&&a.estado!=='apagado').forEach(ad => {
-      const ar = regs.filter(r=>r.ad_id===ad.ad_id).sort((a,b)=>b.fecha.localeCompare(a.fecha));
-      const dyN = S.dying_dias;
-      if(ar.length>=dyN){
-        const c=ar.slice(0,dyN).map(r=>{const g=(+r.gasto_meta||0)+(+r.gasto_tiktok||0);const v=(+r.v1||0)+(+r.v2||0)+(+r.v3||0)+(+r.v4||0);return v>0?g/v:null}).filter(x=>x!==null);
-        let muriendo=c.length>=dyN;for(let i=0;i<c.length-1;i++)if(c[i]<=c[i+1]){muriendo=false;break;}
-        if(muriendo)alertas.push({id:`dying_${ad.id}`,tipo:'red',icon:'💀',msg:`"${ad.nombre||ad.ad_id}" — CPA ↑ ${dyN} días consecutivos. Muriendo.`});
-      }
-      const m=calcMetrics(ar);
-      if(m.inversion>5&&m.roas>0&&m.roas<S.roas_floor)alertas.push({id:`roas_${ad.id}`,tipo:'orange',icon:'⚠️',msg:`"${ad.nombre||ad.ad_id}" — ROAS ${m.roas.toFixed(2)}x (mínimo ${S.roas_floor}x)`});
-    });
-    if(tp.total>=30&&tp.tp<7)alertas.push({id:'tp_bajo',tipo:'red',icon:'💰',msg:`TP muy bajo: S/${tp.tp.toFixed(2)}. Revisar precios y remarketing.`});
-    const visibles = alertas.filter(a => !dismissed.has(a.id));
-    const ab=document.getElementById('cf-alertas-badge'),abody=document.getElementById('cf-alertas-body');
-    const navBadge=document.getElementById('cf-nav-badge');
-    if(!visibles.length){
-      ab.style.display='none';
-      const hayDescartadas = alertas.length > visibles.length;
-      abody.innerHTML=`<div class="empty"><div class="empty-icon">✅</div><div class="empty-title">Sin alertas activas</div>${hayDescartadas?`<div style="font-size:11px;color:var(--text3);margin-top:6px">${alertas.length-visibles.length} descartada(s) — <button class="btn btn-ghost btn-sm" style="font-size:10px;padding:2px 8px" onclick="localStorage.removeItem('${cfDismissedKey()}');renderCashFlow()">Restaurar</button></div>`:''}
-      </div>`;
-      if(navBadge) navBadge.style.display='none';
-    } else {
-      ab.style.display='inline-flex';ab.textContent=visibles.length;
-      abody.innerHTML=visibles.map(a=>`<div style="display:flex;align-items:flex-start;gap:10px;padding:10px 14px;background:var(--${a.tipo}-dim);border-radius:var(--radius-sm);margin-bottom:6px;border-left:3px solid var(--${a.tipo})"><span style="font-size:16px;flex-shrink:0">${a.icon}</span><div style="font-size:12px;color:var(--text);line-height:1.5;flex:1">${a.msg}</div><button onclick="cfDismissAlert('${a.id}')" title="Descartar" style="background:none;border:none;cursor:pointer;color:var(--text3);font-size:16px;padding:0 0 0 8px;flex-shrink:0;line-height:1">×</button></div>`).join('');
-      if(navBadge){navBadge.style.display='inline';navBadge.textContent=visibles.length;}
-    }
-  }
-
-  // ═══ PHASE TABS (Testeo, F1, F2, F3) ═══
-  const phaseConfigs = {
-    testeo: { bodyId:'cf-testeo-body', emptyId:'cf-testeo-empty', countId:'cf-testeo-count', showPctPres:true, showLevel:false, presupuestoDia:CF_SETTINGS.testeo_pres, nextAction:'✅ PASA A F1' },
-    f1: { bodyId:'cf-f1-body', emptyId:'cf-f1-empty', countId:'cf-f1-count', showPctPres:false, showLevel:true, level:'F1', nextAction:'📤 ABRIR F2' },
-    f2: { bodyId:'cf-f2-body', emptyId:'cf-f2-empty', countId:'cf-f2-count', showPctPres:false, showLevel:true, level:'F2', nextAction:'📤 ABRIR F3' },
-    f3: { bodyId:'cf-f3-body', emptyId:'cf-f3-empty', countId:'cf-f3-count', showPctPres:false, showLevel:true, level:'F3', nextAction:`📈 +${CF_SETTINGS.f3_pct}% SUBIR` },
-  };
-
-  if (['testeo','f1','f2','f3'].includes(CF_TAB)) {
-    const cfg = phaseConfigs[CF_TAB];
-    const phaseAds = anuncios.filter(a => cfDetectFase(a) === CF_TAB);
-    const tbody = document.getElementById(cfg.bodyId);
-    const empty = document.getElementById(cfg.emptyId);
-    const count = document.getElementById(cfg.countId);
-
-    if(count) count.textContent = `${phaseAds.length} creativos`;
-
-    if (!phaseAds.length) {
-      tbody.innerHTML = '';
-      empty.style.display = 'block';
-    } else {
-      empty.style.display = 'none';
-      // Build sortable data
-      let adData = phaseAds.map(ad => cfAdFullRow(ad, regs, tp.cpaObj, cfg));
-      // Sort
-      const sc = CF_SORT.col, sd = CF_SORT.dir === 'asc' ? 1 : -1;
-      const sortKey = { nombre:'_nombre', campana:'_campana', dias:'_dias', gasto:'_gasto', ventas:'_ventas', cpa:'_cpa', roas:'_roas', ctr:'_ctr', cpm:'_cpm' };
-      if (sortKey[sc]) adData.sort((a,b) => (a[sortKey[sc]] > b[sortKey[sc]] ? 1 : -1) * sd);
-      tbody.innerHTML = adData.map(d => d.html).join('');
-
-      // ── ASSISTANT: Generate contextual recommendations ──
-      const assistEl = document.getElementById('cf-'+CF_TAB+'-assistant');
-      if (assistEl) {
-        const msgs = [];
-        // Indicador de ventana horaria (cambios recomendados 6-8am, análisis 10pm+)
-        const horaLocal = new Date().getHours();
-        const enVentanaCambios = horaLocal >= 6 && horaLocal < 8;
-        const enVentanaAnalisis = horaLocal >= 22 || horaLocal < 2;
-        const primeroDiaDelMes = new Date().getDate() <= 5;
-
-        if (primeroDiaDelMes) {
-          msgs.push({ tipo:'orange', msg:`📅 <strong>Día ${new Date().getDate()} del mes</strong> — NO escalar. El algoritmo de Meta es inestable los primeros 5 días. Sí puedes pausar o reducir si CPA rojo.` });
-        }
-        if (!enVentanaCambios && !enVentanaAnalisis && adData.some(d => ['green','red'].includes(d.rc) && d.recom !== '⏳ Sin datos')) {
-          msgs.push({ tipo:'accent', msg:`🕐 <strong>Ventana de cambios: 6–8am</strong> — Estás fuera del horario recomendado. Anota las acciones necesarias y ejecuta mañana temprano. Analiza resultados después de las 10pm.` });
-        }
-
-        adData.forEach(d => {
-          const name = d._nombre;
-          const pres = d.ad.presupuesto > 0 ? `S/${d.ad.presupuesto}` : '—';
-
-          if (d.rc === 'red' && d.recom.includes('MURIENDO')) {
-            msgs.push({ tipo:'red', msg:`💀 <strong>${name}</strong> — CPA sube 3 días seguidos. No toques el presupuesto. Prepara un nuevo creativo con distinto ángulo o hook. Cuando esté listo, lánzalo desde Testeo.` });
-          } else if (d.recom.includes('GANADOR')) {
-            msgs.push({ tipo:'green', msg:`🏆 <strong>${name}</strong> es GANADOR. CPA verde + gasto suficiente (${d.pctPres} del presupuesto). <strong>Acción:</strong> Apaga este adset en testeo → copia el Post ID → crea nuevo adset en F1 desde S/20 con audiencia broad Perú.` });
-          } else if (d.recom.includes('PERDEDOR')) {
-            msgs.push({ tipo:'red', msg:`🔴 <strong>${name}</strong> es PERDEDOR. CPA rojo después de 3 días. <strong>Acción:</strong> Apaga el adset ahora. Revisa el hook y el ángulo del creativo antes de reutilizarlo.` });
-          } else if (d.recom.includes('ZONA GRIS')) {
-            msgs.push({ tipo:'orange', msg:`🟡 <strong>${name}</strong> — Zona gris (CPA entre objetivo y 1.3×). No lo mates ni lo escales. <strong>Acción:</strong> Extiende 2 días más sin tocar nada. Evalúa el día ${d.dias + 2}.` });
-          } else if (d.recom.includes('Bajo gasto')) {
-            msgs.push({ tipo:'orange', msg:`⚠️ <strong>${name}</strong> — CPA verde pero solo gastó ${d.pctPres} del presupuesto asignado. Meta no distribuyó bien. <strong>Acción:</strong> Extiende 2 días más. Si vuelve a gastar poco, duplica el adset.` });
-          } else if (d.recom.includes('Día 1') && d.rc === 'teal') {
-            msgs.push({ tipo:'accent', msg:`⏳ <strong>${name}</strong> — Día 1 en esta fase (${pres}). El CPA del primer día es referencial. <strong>No hagas cambios.</strong> Monitorea mañana a las 12pm–2pm.` });
-          } else if (d.recom.includes('12pm')) {
-            msgs.push({ tipo:'orange', msg:`👁️ <strong>${name}</strong> — Día 1 con CPA rojo en ${pres}. Esto es normal al abrir una fase nueva. <strong>Acción:</strong> Monitorea mañana 12–2pm. Si a esa hora el CPA sigue rojo con S/15+ gastados → revierte al nivel anterior inmediatamente.` });
-          } else if (d.recom.includes('REVERTIR')) {
-            msgs.push({ tipo:'red', msg:`⚡ <strong>${name}</strong> — 2 días consecutivos en rojo con ${pres}. <strong>Acción:</strong> Este nivel es el techo actual. Revierte al presupuesto anterior mañana entre 6–8am. No lo pauses, solo baja el monto.` });
-          } else if (d.recom.includes('3d amarillo')) {
-            msgs.push({ tipo:'red', msg:`⚠️ <strong>${name}</strong> — 3 días en zona amarilla con ${pres}. El CPA no mejora. <strong>Acción:</strong> Revierte al nivel de presupuesto anterior. Si en 2 días verde → intenta subir de nuevo.` });
-          } else if (d.recom.includes('Día 2 amarillo')) {
-            msgs.push({ tipo:'orange', msg:`⏸️ <strong>${name}</strong> — Día 2 en zona amarilla con ${pres}. Última espera antes de tomar acción. <strong>No toques nada hoy.</strong> Si mañana sigue amarillo → revertir.` });
-          } else if (d.recom.includes('TECHO ABSOLUTO')) {
-            msgs.push({ tipo:'red', msg:`🛑 <strong>${name}</strong> — CPA rojo en F3. <strong>Este nivel (${pres}) es el TECHO ABSOLUTO del creativo.</strong> Pausa este adset. Mantén la F2 activa si ROAS >2×. Lanza nuevo creativo desde Testeo.` });
-          } else if (d.recom.includes('PAUSAR')) {
-            msgs.push({ tipo:'red', msg:`🛑 <strong>${name}</strong> — CPA en zona roja. <strong>Acción:</strong> Pausa el adset (nunca el anuncio padre). Evalúa si el creativo puede recuperarse o ya llegó a su techo.` });
-          } else if (d.recom.includes('ABRIR F2')) {
-            msgs.push({ tipo:'green', msg:`📤 <strong>${name}</strong> listo para F2. <strong>Acción:</strong> Crea nueva campaña en Cuenta F2 desde <strong>S/100</strong> con audiencia <strong>LAL 1–3%</strong> (basada en lista de compradores mín. 100). Deja F1 activa tal como está.` });
-          } else if (d.recom.includes('ABRIR F3')) {
-            msgs.push({ tipo:'green', msg:`📤 <strong>${name}</strong> listo para F3. <strong>Acción:</strong> Crea nueva campaña en Cuenta F3 desde <strong>S/200</strong> con audiencia <strong>LAL 3–5%</strong>. Deja F2 activa. Objetivo: 2 creativos escalando en paralelo.` });
-          } else if (d.recom.includes('+20% SUBIR')) {
-            const nuevoPres = d.ad.presupuesto > 0 ? `S/${Math.round(d.ad.presupuesto * 1.2)}` : '+20%';
-            msgs.push({ tipo:'green', msg:`🚀 <strong>${name}</strong> — CPA verde 2+ días en F3 (${pres}). <strong>Acción:</strong> Sube presupuesto a <strong>${nuevoPres}</strong> mañana entre 6–8am. Monitorea a las 12pm. Si CPA rojo con S/60+ gastados → revierte.` });
-          } else if (d.recom.includes('ESCALAR a')) {
-            // F1 escalado dentro de fase (no es apertura de F2 aún)
-            msgs.push({ tipo:'green', msg:`📈 <strong>${name}</strong> — CPA verde 2+ días en F1 (${pres}). <strong>Acción:</strong> Sube presupuesto a <strong>${d.f1NextLevel}</strong> mañana entre 6–8am. Monitorea a las 12pm–2pm. Si CPA rojo con S/15+ gastados → revierte inmediatamente.` });
-          } else if (d.rc === 'orange' && d.recom.includes('ESPERAR')) {
-            msgs.push({ tipo:'orange', msg:`⏸️ <strong>${name}</strong> — Zona amarilla con ${pres}. CPA entre objetivo y 1.5×. <strong>No toques nada.</strong> Espera 2 días completos antes de tomar decisión.` });
-          }
-        });
-        // ── Diagnóstico causal por creativo ──────────────────
-        const { cpaObj: cpaObjD, cpmsgMax: cpmsgMaxD } = diagGetThresholds();
-        const funnelBlocks = adData
-          .filter(d => d.m.inversion > 0)
-          .map(d => {
-            const diag = diagAnalyze(d.m, cpaObjD, cpmsgMaxD);
-            const pColor = { green:'var(--green)', orange:'var(--orange)', red:'var(--red)', info:'var(--accent)' }[diag.prioridad] || 'var(--text3)';
-            return `
-              <div style="margin-bottom:12px;padding:12px;background:var(--bg3);border-radius:8px;border-left:3px solid ${pColor}">
-                <div style="font-size:11px;font-weight:700;color:var(--text);margin-bottom:8px">${d._nombre}</div>
-                ${diagFunnelHtml(d.m, cpaObjD, cpmsgMaxD, true)}
-              </div>`;
-          }).join('');
-
-        if (msgs.length || funnelBlocks) {
-          assistEl.innerHTML = `<div style="margin-top:14px">
-            ${msgs.length ? `<div style="font-size:12px;font-weight:700;color:var(--accent);margin-bottom:8px">🤖 Asistente — Acciones recomendadas</div>${msgs.map(m=>`<div style="display:flex;align-items:flex-start;gap:8px;padding:8px 12px;background:var(--${m.tipo}-dim);border-radius:8px;margin-bottom:4px;border-left:3px solid var(--${m.tipo});font-size:11px;color:var(--text);line-height:1.6">${m.msg}</div>`).join('')}` : ''}
-            ${funnelBlocks ? `<div style="font-size:12px;font-weight:700;color:var(--text2);margin:12px 0 8px">🔍 Diagnóstico de funnel por creativo</div>${funnelBlocks}` : ''}
-          </div>`;
-        } else {
-          assistEl.innerHTML = '';
-        }
-      }
-    }
-  }
-
-  // ── Sincronizar TP al Dashboard automáticamente (modo auto) ──
-  if (typeof _dashTpMode !== 'undefined' && _dashTpMode === 'auto' && document.getElementById('dash-tp-kpis')) {
-    dashTpRenderAuto();
-  }
-}
 
 function renderRemarketing() {
   const periodo = +document.getElementById('rem-periodo')?.value || 30;
@@ -6510,14 +4818,6 @@ function renderRemarketing() {
     return;
   }
 
-  // ── Diagnóstico embudo ─────────────────────────
-  const remDiag = document.getElementById('rem-diag-box');
-  if(remDiag) {
-    const Mrem = calcMetrics(regs);
-    const { cpaObj, cpmsgMax } = diagGetThresholds();
-    remDiag.innerHTML = diagPanel(Mrem, cpaObj, cpmsgMax, `🔬 Diagnóstico Embudo — Últimos ${periodo > 0 ? periodo : '∞'} días`);
-  }
-  // ─────────────────────────────────────────────
 
   const pct = n => total > 0 ? (n/total*100).toFixed(1)+'%' : '—';
   const ing  = n => n > 0 ? fmt.s(n) : '—';
@@ -8699,7 +6999,6 @@ function renderPage(page) {
   if (page==='horarios')     renderHorarios();
   if (page==='estructura')   renderEstructura();
   if (page==='cruce-pagos')  { /* módulo autónomo, no requiere renderizado inicial */ }
-  if (page==='cashflow')     { cfLoadSettings(); renderCashFlow(); }
 }
 
 // ════════════════════════════════════════════════
@@ -8750,25 +7049,21 @@ function getEstado(roas, conv, inversion=0) {
     if (inversion > 0) return E.find(e=>e.nombre==='CORTAR')||{emoji:'🔴',nombre:'CORTAR',color:'red'};
     return E.find(e=>e.nombre==='SIN DATOS')||{emoji:'⚪',nombre:'SIN DATOS',color:'gray'};
   }
-  // Factor de escala: si roas_floor es 4 (vs default 2), los umbrales se multiplican × 2
-  const _rf = CF_SETTINGS.roas_floor || 2;
-  const _scale = _rf / 2;
   for (const e of E) {
     if (e.nombre==='SIN DATOS') continue;
-    // Forzar conversión numérica y escalar umbrales ROAS con roas_floor actual
-    const roasMinN = e.roasMin===null||e.roasMin===undefined ? null : +e.roasMin * _scale;
-    const roasMaxN = e.roasMax===null||e.roasMax===undefined ? null : +e.roasMax * _scale;
+    const roasMinN = e.roasMin===null||e.roasMin===undefined ? null : +e.roasMin;
+    const roasMaxN = e.roasMax===null||e.roasMax===undefined ? null : +e.roasMax;
     const convMinN = e.convMin===null||e.convMin===undefined ? null : +e.convMin;
     const roaOk = roasMinN===null || roas >= roasMinN;
     const roaMax= roasMaxN===null || roas < roasMaxN;
     const convOk= convMinN===null || conv >= convMinN;
     if (roaOk && roaMax && convOk) return e;
   }
-  // Fallback escalado con roas_floor (GANADOR = 125% del objetivo, ESCALAR = objetivo, etc.)
-  if (roas >= _rf * 1.25) return E.find(e=>e.nombre==='GANADOR')||{emoji:'🏆',nombre:'GANADOR',color:'green'};
-  if (roas >= _rf)        return E.find(e=>e.nombre==='ESCALAR')||{emoji:'📈',nombre:'ESCALAR',color:'teal'};
-  if (roas >= _rf * 0.75) return E.find(e=>e.nombre==='OBSERVAR')||{emoji:'🟡',nombre:'OBSERVAR',color:'yellow'};
-  if (roas >= 1)          return E.find(e=>e.nombre==='ALERTA')||{emoji:'🟠',nombre:'ALERTA',color:'orange'};
+  // Fallback con umbrales fijos
+  if (roas >= 2.5)  return E.find(e=>e.nombre==='GANADOR')||{emoji:'🏆',nombre:'GANADOR',color:'green'};
+  if (roas >= 2)    return E.find(e=>e.nombre==='ESCALAR')||{emoji:'📈',nombre:'ESCALAR',color:'teal'};
+  if (roas >= 1.5)  return E.find(e=>e.nombre==='OBSERVAR')||{emoji:'🟡',nombre:'OBSERVAR',color:'yellow'};
+  if (roas >= 1)    return E.find(e=>e.nombre==='ALERTA')||{emoji:'🟠',nombre:'ALERTA',color:'orange'};
   return E.find(e=>e.nombre==='CORTAR')||{emoji:'🔴',nombre:'CORTAR',color:'red'};
 }
 
@@ -8911,171 +7206,6 @@ function onDashPeriodo() {
   renderDashboard();
 }
 
-// ═══════════════════════════════════════════════════════════
-// DASHBOARD — TICKET PONDERADO (Auto + Manual) + Config
-// ═══════════════════════════════════════════════════════════
-let _dashTpMode = 'auto';
-
-function dashTpManualKey() { return `dash_tp_manual_${CURRENT_WORKSPACE?.id||'default'}`; }
-function dashTpManualLoad() {
-  try { return JSON.parse(localStorage.getItem(dashTpManualKey()) || 'null'); } catch { return null; }
-}
-function dashTpManualSave(pcts) {
-  localStorage.setItem(dashTpManualKey(), JSON.stringify(pcts));
-}
-
-/** Aplica los selectores ROAS obj + Cierre del Dashboard a CF_SETTINGS y re-renderiza todo el sistema */
-function dashConfigChange() {
-  cfLoadSettings();  // cargar estado actual antes de modificar
-  const roas   = parseFloat(document.getElementById('dash-roas-obj')?.value  || 2);
-  const cierre = parseFloat(document.getElementById('dash-cierre-rate')?.value || 25);
-  CF_SETTINGS.roas_floor  = roas;
-  CF_SETTINGS.cierre_rate = cierre;
-  cfSaveSettingsDirect();  // ← persiste CF_SETTINGS en memoria directamente (sin leer form del tab Ajustes)
-  // Re-renderizar panel TP en Dashboard
-  if(_dashTpMode === 'auto')   dashTpRenderAuto();
-  if(_dashTpMode === 'manual') dashTpSliderChange();
-  // Propagar a diagnósticos del Dashboard
-  try {
-    const { cpaObj, cpmsgMax } = diagGetThresholds();
-    const M = calcMetrics(DB.registros || []);
-    const diagBox = document.getElementById('dash-diag-box');
-    if (diagBox && M.inversion > 0) {
-      diagBox.innerHTML = diagPanel(M, cpaObj, cpmsgMax, '🔬 Diagnóstico Global');
-    }
-  } catch(e) {}
-}
-
-/** Sincroniza los selectores del Dashboard con los valores guardados en CF_SETTINGS */
-function dashSyncSelectors() {
-  cfLoadSettings();
-  const roasSel   = document.getElementById('dash-roas-obj');
-  const cierreSel = document.getElementById('dash-cierre-rate');
-  if(roasSel   && CF_SETTINGS.roas_floor)  roasSel.value   = String(CF_SETTINGS.roas_floor);
-  if(cierreSel && CF_SETTINGS.cierre_rate) cierreSel.value = String(CF_SETTINGS.cierre_rate);
-}
-
-function dashTpMode(mode) {
-  _dashTpMode = mode;
-  const autoBody   = document.getElementById('dash-tp-auto-body');
-  const manualBody = document.getElementById('dash-tp-manual-body');
-  const btnAuto    = document.getElementById('dash-tp-btn-auto');
-  const btnManual  = document.getElementById('dash-tp-btn-manual');
-  if(autoBody)   autoBody.style.display   = mode === 'auto'   ? 'block' : 'none';
-  if(manualBody) manualBody.style.display = mode === 'manual' ? 'block' : 'none';
-  if(btnAuto)  { btnAuto.style.borderColor  = mode==='auto'   ? 'var(--accent)' : ''; btnAuto.style.color  = mode==='auto'   ? 'var(--accent)' : ''; }
-  if(btnManual){ btnManual.style.borderColor= mode==='manual' ? 'var(--accent)' : ''; btnManual.style.color= mode==='manual' ? 'var(--accent)' : ''; }
-  if(mode === 'auto')   dashTpRenderAuto();
-  if(mode === 'manual') dashTpRenderManual();
-}
-
-function dashTpRenderAuto() {
-  cfLoadSettings();                      // ← siempre primero
-  const tp       = cfGetTP();
-  const kpisEl   = document.getElementById('dash-tp-kpis');
-  const formulaEl= document.getElementById('dash-tp-formula');
-  if(!kpisEl) return;
-  const cierre   = CF_SETTINGS.cierre_rate || 25;
-  const roasObj  = CF_SETTINGS.roas_floor  || 2;
-  const cpaObj   = tp.tp / roasObj;      // respeta el ROAS obj seleccionado
-  const cpmsgMax = cpaObj * (cierre / 100);
-  kpisEl.innerHTML = [
-    kpiCard('Ticket Ponderado', `S/${tp.tp.toFixed(2)}`, 'green', tp.frozen ? '🔒 Congelado' : '🔄 Auto (datos reales)'),
-    kpiCard(`CPA Objetivo (ROAS ${roasObj}×)`, `S/${cpaObj.toFixed(2)}`, 'accent', `TP ÷ ${roasObj}`),
-    kpiCard('C/Msg Máximo', `S/${cpmsgMax.toFixed(2)}`, 'orange', `${cierre}% cierre WhatsApp`),
-    kpiCard('Total Ventas', fmt.num(tp.total), 'teal', tp.pcts.map(x=>`${x.label}:${x.v}`).join(' · ')),
-  ].join('');
-  if(formulaEl) {
-    const fmla = tp.pcts.map(x => `${(x.pct*100).toFixed(0)}%×S/${x.p}`).join(' + ');
-    formulaEl.innerHTML = `<span style="color:var(--text3)">Fórmula:</span> ${fmla} = <strong style="color:var(--green)">S/${tp.tp.toFixed(2)}</strong>`;
-  }
-}
-
-function dashTpRenderManual() {
-  const P = DB.config;
-  const prices = [
-    { key:'p1', label:'P1', price: P.p1??10, color:'var(--green)',  hint:'Precio original' },
-    { key:'p2', label:'P2', price: P.p2??7,  color:'var(--accent)', hint:'Remarketing 12h' },
-    { key:'p3', label:'P3', price: P.p3??5,  color:'var(--orange)', hint:'Urgencia 24h' },
-    { key:'p4', label:'P4', price: P.p4??3,  color:'var(--purple)', hint:'Oferta final' },
-  ].filter(x => x.price > 0);
-
-  const saved = dashTpManualLoad() || {};
-  const n = prices.length;
-  // Defaults: P1=96%, resto reparten el resto equitativamente
-  const remainder = Math.floor(4 / Math.max(n-1, 1));
-  const defaultPcts = {};
-  prices.forEach((p, i) => { defaultPcts[p.key] = i === 0 ? 100 - remainder*(n-1) : remainder; });
-
-  const slidersEl = document.getElementById('dash-tp-sliders');
-  if(!slidersEl) return;
-
-  slidersEl.innerHTML = prices.map(p => {
-    const pct = saved[p.key] ?? defaultPcts[p.key] ?? 0;
-    return `
-    <div>
-      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-        <div>
-          <span style="font-size:12px;font-weight:700;color:${p.color}">${p.label} — S/${p.price}</span>
-          <span style="font-size:10px;color:var(--text3);margin-left:8px">${p.hint}</span>
-        </div>
-        <span style="font-size:14px;font-weight:800;color:${p.color};font-family:var(--mono)" id="dash-tp-pct-${p.key}">${pct}%</span>
-      </div>
-      <input type="range" min="0" max="100" value="${pct}" id="dash-tp-slider-${p.key}"
-        style="width:100%;height:8px;cursor:pointer;border-radius:4px"
-        oninput="dashTpSliderChange()">
-    </div>`;
-  }).join('');
-
-  dashTpSliderChange();
-}
-
-function dashTpSliderChange() {
-  const P = DB.config;
-  const prices = [
-    { key:'p1', price: P.p1??10 }, { key:'p2', price: P.p2??7 },
-    { key:'p3', price: P.p3??5 }, { key:'p4', price: P.p4??3 },
-  ].filter(x => x.price > 0 && document.getElementById('dash-tp-slider-'+x.key));
-
-  const pcts = {};
-  let total = 0;
-  prices.forEach(p => {
-    const v = +document.getElementById('dash-tp-slider-'+p.key)?.value || 0;
-    pcts[p.key] = v;
-    total += v;
-  });
-
-  prices.forEach(p => {
-    const el = document.getElementById('dash-tp-pct-'+p.key);
-    if(el) el.textContent = pcts[p.key] + '%';
-  });
-
-  const totalEl = document.getElementById('dash-tp-total-pct');
-  if(totalEl) {
-    totalEl.textContent = total + '%';
-    totalEl.style.color = total === 100 ? 'var(--green)' : total > 100 ? 'var(--red)' : 'var(--orange)';
-  }
-
-  // Calcular TP manual ponderado por porcentajes reales
-  const tp = total > 0
-    ? prices.reduce((s, p) => s + (pcts[p.key] / total) * p.price, 0)
-    : 0;
-  cfLoadSettings();
-  const roasObj  = CF_SETTINGS.roas_floor  || 2;
-  const cierre   = CF_SETTINGS.cierre_rate || 25;
-  const cpaObj   = tp / roasObj;
-  const cpmsgMax = cpaObj * (cierre / 100);
-
-  const tpEl    = document.getElementById('dash-tp-manual-tp');
-  const cpaEl   = document.getElementById('dash-tp-manual-cpa');
-  const cpmsgEl = document.getElementById('dash-tp-manual-cpmsg');
-  if(tpEl)    tpEl.textContent    = `S/${tp.toFixed(2)}`;
-  if(cpaEl)   cpaEl.textContent   = `S/${cpaObj.toFixed(2)}`;
-  if(cpmsgEl) cpmsgEl.textContent = `S/${cpmsgMax.toFixed(2)}`;
-
-  dashTpManualSave(pcts);
-}
-
 function renderDashboard() {
   const periodo=document.getElementById('dash-periodo').value;
   let desde, hasta=today();
@@ -9122,61 +7252,6 @@ function renderDashboard() {
   renderAlertas();
   renderProyeccion();
   renderMetaMensual();
-
-  // ── Ticket Ponderado Dashboard ────────────────────────────
-  dashSyncSelectors();   // sincroniza selectores ROAS/Cierre con CF_SETTINGS
-  dashTpMode(_dashTpMode); // renderiza en el modo actual
-
-  // ── Diagnóstico global del funnel ─────────────────────────
-  const { cpaObj, cpmsgMax } = diagGetThresholds();
-  const realConv = M.chats > 0 ? M.ventas / M.chats : 0;
-  let diagBox = document.getElementById('dash-diag-box');
-  if (!diagBox) {
-    diagBox = document.createElement('div');
-    diagBox.id = 'dash-diag-box';
-    diagBox.style.marginBottom = '18px';
-    const ref = document.getElementById('dash-proyeccion')?.closest('.panel')?.parentElement?.parentElement;
-    const kpisEl = document.getElementById('dash-kpis-dolares');
-    if (kpisEl) kpisEl.after(diagBox);
-  }
-  if (M.inversion > 0) {
-    const d = diagAnalyze(M, cpaObj, cpmsgMax);
-    const cierreReal = (realConv * 100).toFixed(1);
-    const cierreColor = realConv >= 0.25 ? 'var(--green)' : realConv >= 0.15 ? 'var(--orange)' : 'var(--red)';
-    diagBox.innerHTML = `
-    <div class="panel" style="margin-bottom:14px">
-      <div class="panel-header">
-        <span class="panel-title">🔍 Diagnóstico del Funnel</span>
-        <span style="font-size:10px;color:var(--text3)">CPM → CTR → CPC → C/Msg → CPA → ROAS</span>
-      </div>
-      <div class="panel-body">
-        <div style="display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:14px">
-          <div style="background:var(--bg3);border-radius:8px;padding:10px 16px;display:flex;flex-direction:column;gap:2px">
-            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">CPA Objetivo</div>
-            <div style="font-size:20px;font-weight:700;color:var(--green);font-family:var(--mono)">S/${cpaObj.toFixed(2)}</div>
-            <div style="font-size:10px;color:var(--text3)">TP ÷ 2</div>
-          </div>
-          <div style="background:var(--bg3);border-radius:8px;padding:10px 16px;display:flex;flex-direction:column;gap:2px">
-            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">C/Msg máximo</div>
-            <div style="font-size:20px;font-weight:700;color:var(--accent);font-family:var(--mono)">S/${cpmsgMax.toFixed(2)}</div>
-            <div style="font-size:10px;color:var(--text3)">CPA × ${CF_SETTINGS.cierre_rate}% cierre</div>
-          </div>
-          <div style="background:var(--bg3);border-radius:8px;padding:10px 16px;display:flex;flex-direction:column;gap:2px">
-            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px">Cierre WA real</div>
-            <div style="font-size:20px;font-weight:700;color:${cierreColor};font-family:var(--mono)">${cierreReal}%</div>
-            <div style="font-size:10px;color:var(--text3)">${M.ventas} ventas / ${M.chats} chats</div>
-          </div>
-          <div style="background:var(--bg3);border-radius:8px;padding:10px 16px;flex:1;min-width:200px">
-            <div style="font-size:10px;color:var(--text3);text-transform:uppercase;letter-spacing:1px;margin-bottom:6px">Estado del funnel</div>
-            <div style="font-size:12px;color:var(--text);line-height:1.6">${d.causa}</div>
-          </div>
-        </div>
-        ${diagFunnelHtml(M, cpaObj, cpmsgMax)}
-      </div>
-    </div>`;
-  } else {
-    diagBox.innerHTML = '';
-  }
 }
 
 function renderMainChart(regs) {
@@ -9285,17 +7360,6 @@ function renderKPIs() {
     kpiCard('Ventas',fmt.num(M.ventas),'teal'),
     kpiCard('CPA',M.ventas>0?fmt.s(M.cpv):'—',M.ventas>0&&M.cpv<(DB.config.p1??10)?'green':'orange','Costo por venta real'),
   ].join('');
-  // ── Diagnóstico embudo del día ────────────────────────
-  const kpiDiag = document.getElementById('kpi-diag-box');
-  if(kpiDiag) {
-    if(regs.length && M.inversion > 0) {
-      const { cpaObj, cpmsgMax } = diagGetThresholds();
-      kpiDiag.innerHTML = diagPanel(M, cpaObj, cpmsgMax, `🔬 Diagnóstico Embudo — ${fmt.date(fecha)}`);
-    } else {
-      kpiDiag.innerHTML = '';
-    }
-  }
-  // ────────────────────────────────────────────────────
   const adMap={};
   regs.forEach(r=>{if(!adMap[r.ad_id])adMap[r.ad_id]=[];adMap[r.ad_id].push(r);});
   const tbody=document.getElementById('kpi-tbody');
@@ -9389,18 +7453,6 @@ function renderPorAnuncio() {
       <button class="btn btn-ghost btn-sm" onclick="openNotas('${adId}','${aObj.nombre}')">Ver todas / Agregar</button>
     </div>${notasAnuncio.length?notasAnuncio.map(n=>`<div style="padding:8px 10px;background:var(--bg3);border-radius:var(--radius-sm);margin-bottom:6px;border-left:3px solid var(--accent)"><div style="font-size:11px;color:var(--text)">${n.nota}</div><div style="font-size:10px;color:var(--text3);margin-top:3px">${fmt.date(n.fecha)} ${new Date(n.hora).toLocaleTimeString('es',{hour:'2-digit',minute:'2-digit'})}</div></div>`).join(''):'<div style="font-size:12px;color:var(--text3);padding:8px">Sin notas aún — agrega la primera.</div>'}`;
   }
-  // ── Diagnóstico embudo ──────────────────────────────────
-  const diagBox = document.getElementById('anuncio-diag-box');
-  if(diagBox) {
-    if(regs.length) {
-      const { cpaObj, cpmsgMax } = diagGetThresholds();
-      const adObj = DB.anuncios.find(x=>x.ad_id===adId)||{nombre:adId};
-      diagBox.innerHTML = diagPanel(M, cpaObj, cpmsgMax, `🔬 Diagnóstico — ${adObj.nombre||adId}`);
-    } else {
-      diagBox.innerHTML = '';
-    }
-  }
-  // ────────────────────────────────────────────────────────
   const byDate=groupByDate(regs);
   if(charts.anuncio) charts.anuncio.destroy();
   charts.anuncio=new Chart(document.getElementById('chart-anuncio').getContext('2d'),{type:'line',data:{labels:byDate.map(([d])=>fmt.date(d)),datasets:[{label:'Ingresos',data:byDate.map(([,rs])=>+calcMetrics(rs).ingresos.toFixed(2)),borderColor:'#34D399',backgroundColor:'rgba(52,211,153,0.07)',tension:0.4,fill:true},{label:'Inversión',data:byDate.map(([,rs])=>+calcMetrics(rs).inversion.toFixed(2)),borderColor:'#FB923C',backgroundColor:'rgba(251,146,60,0.07)',tension:0.4,fill:true},{label:'Profit',data:byDate.map(([,rs])=>+calcMetrics(rs).profit.toFixed(2)),borderColor:'#4F8EF7',backgroundColor:'rgba(79,142,247,0.07)',tension:0.4,fill:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#5A6A7E',font:{size:10}}}},scales:{x:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#9BAABF',font:{size:9}}},y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#9BAABF',font:{size:9}}}}}});
@@ -9478,17 +7530,6 @@ function renderPorCampana() {
   const regs=DB.registros.filter(r=>r.campana===camp&&r.fecha>=desde&&r.fecha<=hasta);
   const M=calcMetrics(regs);
   document.getElementById('campana-kpis-dolares').innerHTML=[kpiCard('Ingresos $',fmt.d(toUSD(M.ingresos)),'accent'),kpiCard('Profit $',fmt.d(toUSD(M.profit)),toUSD(M.profit)>=0?'green':'red'),kpiCard('Conv. Rate',fmt.pct(M.conv),M.conv>=0.2?'green':'orange'),kpiCard('CPA',M.ventas>0?fmt.s(M.cpv):'—',M.ventas>0&&M.cpv<(DB.config.p1??10)?'green':'orange','Costo por venta real'),kpiCard('Ventas',fmt.num(M.ventas),'teal')].join('');
-  // ── Diagnóstico embudo campaña ───────────────────────────
-  const campDiagBox = document.getElementById('campana-diag-box');
-  if(campDiagBox) {
-    if(regs.length) {
-      const { cpaObj, cpmsgMax } = diagGetThresholds();
-      campDiagBox.innerHTML = diagPanel(M, cpaObj, cpmsgMax, `🔬 Diagnóstico — ${camp}`);
-    } else {
-      campDiagBox.innerHTML = '';
-    }
-  }
-  // ────────────────────────────────────────────────────────
   const byDate=groupByDate(regs);
   if(charts.campana) charts.campana.destroy();
   charts.campana=new Chart(document.getElementById('chart-campana').getContext('2d'),{type:'line',data:{labels:byDate.map(([d])=>fmt.date(d)),datasets:[{label:'Ingresos',data:byDate.map(([,rs])=>+calcMetrics(rs).ingresos.toFixed(2)),borderColor:'#34D399',backgroundColor:'rgba(52,211,153,0.07)',tension:0.4,fill:true},{label:'Inversión',data:byDate.map(([,rs])=>+calcMetrics(rs).inversion.toFixed(2)),borderColor:'#FB923C',backgroundColor:'rgba(251,146,60,0.07)',tension:0.4,fill:true}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{labels:{color:'#5A6A7E',font:{size:10}}}},scales:{x:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#9BAABF',font:{size:9}}},y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#9BAABF',font:{size:9}}}}}});
@@ -10531,7 +8572,6 @@ function openNuevoAnuncio() {
   DB.campanas.forEach(c=>sel.innerHTML+=`<option value="${c.nombre}">${c.nombre}</option>`);
   ['na-id','na-nombre','na-hook'].forEach(id=>document.getElementById(id).value='');
   document.getElementById('na-presupuesto').value='';
-  document.getElementById('na-fase').value='';
   const selC=document.getElementById('na-conjunto'); if(selC) selC.innerHTML='<option value="">Sin conjunto</option>';
   openModal('modal-anuncio');
 }
@@ -10552,7 +8592,6 @@ function editAnuncio(id) {
   document.getElementById('na-hook').value=a.hook||'';
   document.getElementById('na-estado').value=a.estado||'Activo';
   document.getElementById('na-presupuesto').value=a.presupuesto||'';
-  document.getElementById('na-fase').value=a.fase||'';
   // Poblar conjuntos y preseleccionar el actual
   updateConjuntosSel(a.conjunto_id||'');
   openModal('modal-anuncio');
@@ -10564,7 +8603,7 @@ async function saveAnuncio() {
   const nombre=document.getElementById('na-nombre').value.trim();
   if(!adId||!nombre){alert('Ingresa ID y nombre');return;}
   const conjId=document.getElementById('na-conjunto')?.value||null;
-  const data={ad_id:adId,nombre,campana:document.getElementById('na-campana').value,plat:document.getElementById('na-plat').value,formato:document.getElementById('na-formato').value,puja:document.getElementById('na-puja').value,hook:document.getElementById('na-hook').value,estado:document.getElementById('na-estado').value,presupuesto:+document.getElementById('na-presupuesto').value||0,fase:document.getElementById('na-fase').value||null,conjunto_id:conjId||null,user_id:CURRENT_USER?.id,workspace_id:CURRENT_WORKSPACE?.id};
+  const data={ad_id:adId,nombre,campana:document.getElementById('na-campana').value,plat:document.getElementById('na-plat').value,formato:document.getElementById('na-formato').value,puja:document.getElementById('na-puja').value,hook:document.getElementById('na-hook').value,estado:document.getElementById('na-estado').value,presupuesto:+document.getElementById('na-presupuesto').value||0,conjunto_id:conjId||null,user_id:CURRENT_USER?.id,workspace_id:CURRENT_WORKSPACE?.id};
   try {
     setSyncStatus('loading','Guardando...');
     if(editId){const res=await api.patch('anuncios',editId,data);DB.anuncios=DB.anuncios.map(a=>a.id===editId?res[0]:a);}
@@ -11129,15 +9168,6 @@ function renderAlertas() {
           <div style="font-size:12px;color:var(--text2);margin-bottom:4px">📊 Campaña: ${a.campana}</div>
           <div style="font-size:12px;font-weight:600;color:var(--${a.nivel})">${a.msg}</div>
           <div style="font-size:11px;color:var(--text3);margin-top:3px">${a.detalle}</div>
-          ${(() => {
-            try {
-              const adRegs = DB.registros.filter(r => r.ad_id === a.adId).slice(-7);
-              if (!adRegs.length) return '';
-              const mAlert = calcMetrics(adRegs);
-              const { cpaObj: cpaA, cpmsgMax: cmsgA } = diagGetThresholds();
-              return `<div style="margin-top:10px;padding-top:10px;border-top:1px solid var(--border)">${diagFunnelHtml(mAlert, cpaA, cmsgA, true)}</div>`;
-            } catch(e) { return ''; }
-          })()}
         </div>
         <div style="display:flex;flex-direction:column;gap:6px;align-items:flex-end">
           <button class="btn btn-ghost btn-sm" onclick="verAnuncioEnFecha('${a.adId}','${a.fecha}')">Ver anuncio →</button>
@@ -11953,21 +9983,6 @@ function renderComparar() {
       }).join('')}
     </div>
 
-    <!-- Diagnóstico embudo A vs B -->
-    ${(() => {
-      const { cpaObj, cpmsgMax } = diagGetThresholds();
-      return `<div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:20px">
-        <div class="panel">
-          <div class="panel-header" style="border-left:3px solid var(--accent)"><span class="panel-title" style="color:var(--accent)">🔬 Diagnóstico Período A</span></div>
-          <div class="panel-body">${diagFunnelHtml(A, cpaObj, cpmsgMax, true)}</div>
-        </div>
-        <div class="panel">
-          <div class="panel-header" style="border-left:3px solid var(--teal)"><span class="panel-title" style="color:var(--teal)">🔬 Diagnóstico Período B</span></div>
-          <div class="panel-body">${diagFunnelHtml(B, cpaObj, cpmsgMax, true)}</div>
-        </div>
-      </div>`;
-    })()}
-
     <!-- Tabla de comparación por anuncio -->
     <div class="panel">
       <div class="panel-header">
@@ -12513,7 +10528,6 @@ init();
   <div class="mobile-more-title">Más secciones</div>
   <div class="mobile-more-grid">
     <div class="mobile-more-btn" onclick="mobileNav('alertas');closeMobileMore()"><span class="mmb-icon">🚨</span><span class="mmb-label">Alertas</span></div>
-    <div class="mobile-more-btn" onclick="mobileNav('cashflow');closeMobileMore()"><span class="mmb-icon">💰</span><span class="mmb-label">CashFlow</span></div>
     <div class="mobile-more-btn" onclick="mobileNav('por-anuncio');closeMobileMore()"><span class="mmb-icon">📢</span><span class="mmb-label">Por Anuncio</span></div>
     <div class="mobile-more-btn" onclick="mobileNav('por-campana');closeMobileMore()"><span class="mmb-icon">🎯</span><span class="mmb-label">Por Campaña</span></div>
     <div class="mobile-more-btn" onclick="mobileNav('analyzer');closeMobileMore()"><span class="mmb-icon">🧠</span><span class="mmb-label">Analyzer Pro</span></div>
