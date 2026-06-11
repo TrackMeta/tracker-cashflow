@@ -3211,9 +3211,7 @@ async function reconstruirRegistros() {
             await fetch(`${SUPABASE_URL}/rest/v1/registros?on_conflict=workspace_id,ad_id,fecha`, {
               method: 'POST',
               headers: {
-                'apikey': SUPABASE_SERVICE_KEY,
-                'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-                'Content-Type': 'application/json',
+                ...api._h(),
                 'Prefer': 'resolution=ignore-duplicates,return=minimal'
               },
               body: JSON.stringify([{
@@ -3228,9 +3226,7 @@ async function reconstruirRegistros() {
             await fetch(`${SUPABASE_URL}/rest/v1/registros?workspace_id=eq.${wsId}&fecha=eq.${r.fecha}&ad_id=eq.${encodeURIComponent(r.adId)}`, {
               method: 'PATCH',
               headers: {
-                'apikey': SUPABASE_SERVICE_KEY,
-                'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-                'Content-Type': 'application/json',
+                ...api._h(),
                 'Prefer': 'return=minimal'
               },
               body: JSON.stringify({ v1: r.v1, v2: r.v2, v3: r.v3, v4: r.v4, upsell_total: r.upsell })
@@ -3378,13 +3374,18 @@ function generateScriptCode() {
     if (m) sheetId = m[1];
   }
 
+  // La service key NO se guarda en el código fuente (repo público). Se toma de un
+  // campo opcional; si está vacío, queda un placeholder para pegar en Apps Script.
+  const svcKey = document.getElementById('sheets-service-key-input')?.value?.trim()
+    || 'PEGA_AQUI_TU_SERVICE_ROLE_KEY';
+
   const code = `// ══════════════════════════════════════
 // TRACKER PRO — Apps Script v10
 // Generado automáticamente para tu cuenta
 // ══════════════════════════════════════
 
 var SUPABASE_URL  = 'https://uegooussscihdnnohrff.supabase.co';
-var SERVICE_KEY   = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVlZ29vdXNzc2NpaGRubm9ocmZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDAxMjUwMSwiZXhwIjoyMDg5NTg4NTAxfQ.G9E5RLoym7mkA_ivsWXNjcsW1mSMybfZgJepSZFDljM';
+var SERVICE_KEY   = '${svcKey}';
 var SHEET_ID      = '${sheetId || 'PEGA_TU_SHEET_ID_AQUI'}';
 var WORKSPACE_ID  = '${wsId}';
 var USER_ID       = '${userId}';
@@ -3589,8 +3590,9 @@ function closeSidebar() {
 // ════════════════════════════════════════════════
 const SUPABASE_URL = 'https://uegooussscihdnnohrff.supabase.co';
 const SUPABASE_ANON_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVlZ29vdXNzc2NpaGRubm9ocmZmIiwicm9sZSI6ImFub24iLCJpYXQiOjE3NzQwMTI1MDEsImV4cCI6MjA4OTU4ODUwMX0.OmoOYgsCuo3WwLggyXBjUMpToc0kyIKqUmqNYhnTFvk';
-const SUPABASE_SERVICE_KEY = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InVlZ29vdXNzc2NpaGRubm9ocmZmIiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3NDAxMjUwMSwiZXhwIjoyMDg5NTg4NTAxfQ.G9E5RLoym7mkA_ivsWXNjcsW1mSMybfZgJepSZFDljM';
-const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbxi-QGLR8I0_cbOxA21bszBnMULjrXpOcasl4FnPc3trOc1DzJdYk2bPYhAOZcG_0p2ag/exec';
+// La service_role key se eliminó del cliente. Las operaciones privilegiadas
+// (crear/borrar usuarios) viven ahora en la Edge Function 'admin-users'.
+const APPS_SCRIPT_URL ='https://script.google.com/macros/s/AKfycbxi-QGLR8I0_cbOxA21bszBnMULjrXpOcasl4FnPc3trOc1DzJdYk2bPYhAOZcG_0p2ag/exec';
 
 async function syncGoogleSheets() {
   const btn    = document.getElementById('btn-sheets-sync');
@@ -4318,20 +4320,8 @@ async function deleteUserAdmin(userId, email) {
   try {
     setSyncStatus('loading', 'Eliminando usuario...');
 
-    // Borrar todos los datos del usuario en orden
-    const tables = ['notas','notas_campanas','crm_ventas','sync_log','registros','conjuntos','anuncios','campanas','cuentas_pub','business_managers','config','workspaces'];
-    for (const tabla of tables) {
-      await fetch(`${SUPABASE_URL}/rest/v1/${tabla}?user_id=eq.${userId}`, {
-        method: 'DELETE',
-        headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` }
-      });
-    }
-
-    // Eliminar el usuario de auth
-    await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
-      method: 'DELETE',
-      headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` }
-    });
+    // Datos + usuario de auth se borran en el servidor (Edge Function con service_role)
+    await callAdminFn({ action: 'delete', userId });
 
     setSyncStatus('ok', 'Sincronizado ✓');
     showSuccess(`✅ Cuenta de ${email} eliminada correctamente`);
@@ -4351,20 +4341,9 @@ async function deleteSelfAccount() {
 
   try {
     setSyncStatus('loading', 'Eliminando tu cuenta...');
-    const userId = CURRENT_USER.id;
 
-    const tables = ['notas','notas_campanas','crm_ventas','sync_log','registros','conjuntos','anuncios','campanas','cuentas_pub','business_managers','config','workspaces'];
-    for (const tabla of tables) {
-      await fetch(`${SUPABASE_URL}/rest/v1/${tabla}?user_id=eq.${userId}`, {
-        method: 'DELETE',
-        headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` }
-      });
-    }
-
-    await fetch(`${SUPABASE_URL}/auth/v1/admin/users/${userId}`, {
-      method: 'DELETE',
-      headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` }
-    });
+    // Datos + usuario de auth se borran en el servidor (Edge Function)
+    await callAdminFn({ action: 'delete_self' });
 
     alert('Tu cuenta ha sido eliminada. Serás redirigido.');
     await doLogout();
@@ -4386,17 +4365,7 @@ function openInviteUser() {
 async function createUserAccount(email, password) {
   try {
     setSyncStatus('loading', 'Creando cuenta...');
-    const res = await fetch(`${SUPABASE_URL}/auth/v1/admin/users`, {
-      method: 'POST',
-      headers: {
-        'apikey': SUPABASE_SERVICE_KEY,
-        'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-        'Content-Type': 'application/json'
-      },
-      body: JSON.stringify({ email, password, email_confirm: true })
-    });
-    const data = await res.json();
-    if (!res.ok) throw new Error(data.message || data.error || 'Error creando usuario');
+    await callAdminFn({ action: 'create', email, password });
 
     setSyncStatus('ok', 'Sincronizado ✓');
     showSuccess(`✅ Cuenta creada para ${email}. El usuario ya puede iniciar sesión.`);
@@ -4405,6 +4374,18 @@ async function createUserAccount(email, password) {
     setSyncStatus('error', 'Error');
     showError('Error: ' + e.message);
   }
+}
+
+// ── Llamada a la Edge Function admin-users (auth con JWT del usuario) ──
+async function callAdminFn(payload) {
+  const r = await fetch(`${SUPABASE_URL}/functions/v1/admin-users`, {
+    method: 'POST',
+    headers: api._h(),
+    body: JSON.stringify(payload)
+  });
+  const data = await r.json().catch(() => ({}));
+  if (!r.ok) throw new Error(data.error || 'Error en la operación');
+  return data;
 }
 
 // ════════════════════════════════════════════════
@@ -4494,40 +4475,16 @@ async function deleteWorkspace(wsId) {
   try {
     setSyncStatus('loading', 'Eliminando...');
 
-    // Usar service key para bypasear RLS y respetar el orden de FK
-    const svcHeaders = {
-      'apikey': SUPABASE_SERVICE_KEY,
-      'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-      'Content-Type': 'application/json'
-    };
+    // sync_log no cuelga de workspaces por FK: limpiarlo aparte (con el JWT del usuario)
+    try {
+      await fetch(`${SUPABASE_URL}/rest/v1/sync_log?id=like.last_sync_${wsId}%`, {
+        method: 'DELETE', headers: api._h()
+      });
+    } catch(e) { console.warn('sync_log cleanup:', e); }
 
-    const svcDelete = async (tabla, filtro) => {
-      try {
-        const r = await fetch(`${SUPABASE_URL}/rest/v1/${tabla}?${filtro}`, {
-          method: 'DELETE', headers: svcHeaders
-        });
-        if (!r.ok) {
-          const err = await r.text();
-          console.warn(`Delete ${tabla}: ${r.status} ${err}`);
-        }
-      } catch(e) { console.warn(`Delete ${tabla} error:`, e); }
-    };
-
-    const byWs = `workspace_id=eq.${wsId}`;
-
-    // Orden estricto: primero hijos, después padres
-    await svcDelete('notas',             byWs);
-    await svcDelete('notas_campanas',    byWs);
-    await svcDelete('crm_ventas',        byWs);
-    await svcDelete('registros',         byWs);
-    await svcDelete('conjuntos',         byWs);
-    await svcDelete('anuncios',          byWs);
-    await svcDelete('campanas',          byWs);
-    await svcDelete('cuentas_pub',       byWs);
-    await svcDelete('business_managers', byWs);
-    await svcDelete('config',            byWs);  // config ANTES de workspace
-    await svcDelete('sync_log',          `id=like.last_sync_${wsId}%`);  // limpiar sync log
-    await svcDelete('workspaces',        `id=eq.${wsId}`);
+    // Borrar el workspace. Las FK ON DELETE CASCADE eliminan en cadena
+    // registros, anuncios, campañas, conjuntos, crm_ventas, config, notas, etc.
+    await api.delete('workspaces', wsId);
 
     DB.workspaces = DB.workspaces.filter(w => w.id !== wsId);
     if (CURRENT_WORKSPACE?.id === wsId) {
@@ -6742,7 +6699,7 @@ async function reconstruirCrmVentas() {
         // Limpiar crm_ventas del workspace
         await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas?workspace_id=eq.${CURRENT_WORKSPACE?.id}`, {
           method: 'DELETE',
-          headers: { 'apikey': SUPABASE_SERVICE_KEY, 'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}` }
+          headers: api._h()
         });
 
         btn.textContent = `⏳ Escribiendo ${crmRowsUniq.length} horarios...`;
@@ -6753,9 +6710,7 @@ async function reconstruirCrmVentas() {
           await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas`, {
             method: 'POST',
             headers: {
-              'apikey': SUPABASE_SERVICE_KEY,
-              'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-              'Content-Type': 'application/json',
+              ...api._h(),
               'Prefer': 'resolution=ignore-duplicates,return=minimal'
             },
             body: JSON.stringify(lote)
@@ -10101,9 +10056,7 @@ async function importarTodo() {
           await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas`, {
             method: 'POST',
             headers: {
-              'apikey': SUPABASE_SERVICE_KEY,
-              'Authorization': `Bearer ${SUPABASE_SERVICE_KEY}`,
-              'Content-Type': 'application/json',
+              ...api._h(),
               'Prefer': 'resolution=ignore-duplicates,return=minimal'
             },
             body: JSON.stringify(lote)
