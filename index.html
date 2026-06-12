@@ -1744,6 +1744,19 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div id="cruce-resumen-pills" style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;margin-left:auto"></div>
   </div>
 
+  <!-- VERIFICAR VENTAS DEL SISTEMA (Etapa 3) -->
+  <div class="panel" style="margin-bottom:18px;border-left:3px solid var(--green)">
+    <div class="panel-header">
+      <span class="panel-title">✅ Verificar ventas del sistema (contra Yape)</span>
+      <button class="btn btn-primary btn-sm" onclick="verificarVentas()">🔎 Verificar ventas</button>
+    </div>
+    <div class="panel-body">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Cruza las <strong>ventas ya registradas en el sistema</strong> (del producto activo) contra el reporte de Yape de arriba. Marca cada venta como verificada, con monto distinto, fantasma o duplicada, y detecta pagos huérfanos. Usa la fecha de arriba o, si la dejas vacía, todo el rango del archivo Yape.</div>
+      <div id="verif-resumen" style="display:none;margin-bottom:14px"></div>
+      <div id="verif-cola"></div>
+    </div>
+  </div>
+
   <!-- RESULTADOS -->
   <div id="cruce-resultado" style="display:none">
     <!-- KPIs -->
@@ -10818,6 +10831,171 @@ init();
     }
     const { matches, fantasmas, huerfanos } = matchPagos(crmFiltrado, yapeFiltrado);
     renderResultado(matches, fantasmas, huerfanos, crmFiltrado);
+  };
+
+  // ════════════════════════════════════════════
+  // VERIFICACIÓN DE VENTAS DEL SISTEMA (Etapa 3)
+  // ════════════════════════════════════════════
+  const VERIF_TOL_MIN  = 180; // tolerancia extendida monto exacto (±3h)
+  const VERIF_NEAR_MIN  = 10;  // ventana para "monto difiere" (±10min)
+  const VERIF_DUP_MIN   = 20;  // ventana para considerar duplicada
+
+  window.verificarVentas = async function() {
+    if (!CRUCE.yape || !CRUCE.yape.length) { alert('Primero carga el reporte de Yape/Plin arriba.'); return; }
+    const wsId = CURRENT_WORKSPACE?.id;
+    if (!wsId) { alert('Selecciona un producto.'); return; }
+    const fecha = document.getElementById('cruce-fecha').value;
+
+    const resumenEl = document.getElementById('verif-resumen');
+    const colaEl    = document.getElementById('verif-cola');
+    colaEl.innerHTML = '<div style="padding:14px;color:var(--text3)">⏳ Verificando...</div>';
+
+    try {
+      // 1. Pool de pagos Yape (solo fechas relevantes)
+      const yapeRel = CRUCE.yape.filter(p => !fecha || p.fechaDia === fecha);
+      if (!yapeRel.length) { colaEl.innerHTML = '<div class="alert alert-warn">No hay pagos Yape para esa fecha.</div>'; return; }
+      const dias = [...new Set(yapeRel.map(p => p.fechaDia))].sort();
+
+      // 2. Ventas del sistema (crm_ventas) para el producto + rango
+      let filtro = `workspace_id=eq.${wsId}&select=id,fecha,ad_id,hora,precio,estado_verif`;
+      if (fecha) filtro += `&fecha=eq.${fecha}`;
+      else filtro += `&fecha=gte.${dias[0]}&fecha=lte.${dias[dias.length-1]}`;
+      const ventas = await api.get('crm_ventas', filtro);
+      if (!ventas.length) { colaEl.innerHTML = '<div class="alert alert-info">No hay ventas registradas del sistema en ese período. Sincroniza primero.</div>'; resumenEl.style.display='none'; return; }
+
+      const pool = yapeRel.map((p, i) => ({ ...p, _i: i, used: false }));
+      const vts  = ventas.map(v => ({ ...v, _dt: new Date(v.hora), estado: null, pago: null }))
+                         .sort((a, b) => a._dt - b._dt);
+
+      // 3. Matching: monto exacto dentro de ventana
+      for (const v of vts) {
+        const precio = +v.precio;
+        let best = -1, bestDiff = Infinity;
+        for (let i = 0; i < pool.length; i++) {
+          if (pool[i].used || Math.abs(pool[i].monto - precio) > 0.01) continue;
+          const d = Math.abs(pool[i].fecha - v._dt) / 60000;
+          if (d <= VERIF_TOL_MIN && d < bestDiff) { bestDiff = d; best = i; }
+        }
+        if (best >= 0) { pool[best].used = true; v.estado = 'verificada'; v.pago = pool[best]; continue; }
+        // monto distinto pero pago muy cercano en tiempo → monto_difiere
+        let bt = -1, btd = Infinity;
+        for (let i = 0; i < pool.length; i++) {
+          if (pool[i].used) continue;
+          const d = Math.abs(pool[i].fecha - v._dt) / 60000;
+          if (d <= VERIF_NEAR_MIN && d < btd) { btd = d; bt = i; }
+        }
+        if (bt >= 0) { pool[bt].used = true; v.estado = 'monto_difiere'; v.pago = pool[bt]; continue; }
+        v.estado = 'fantasma';
+      }
+
+      // 4. Reclasificar fantasmas que son duplicados de una venta verificada
+      for (const v of vts) {
+        if (v.estado !== 'fantasma') continue;
+        const gemela = vts.find(o => o !== v && o.estado === 'verificada' &&
+          Math.abs(+o.precio - +v.precio) < 0.01 && o.ad_id === v.ad_id &&
+          Math.abs(o._dt - v._dt) / 60000 <= VERIF_DUP_MIN);
+        if (gemela) v.estado = 'duplicada';
+      }
+
+      const huerfanos = pool.filter(p => !p.used);
+
+      // 5. Persistir estado_verif (por lotes según estado)
+      const nowISO = new Date().toISOString();
+      const grupos = {};
+      vts.forEach(v => { (grupos[v.estado] = grupos[v.estado] || []).push(v); });
+      for (const [estado, lista] of Object.entries(grupos)) {
+        for (let i = 0; i < lista.length; i += 100) {
+          const ids = lista.slice(i, i + 100).map(v => v.id);
+          await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas?id=in.(${ids.join(',')})`, {
+            method: 'PATCH', headers: { ...api._h(), 'Prefer': 'return=minimal' },
+            body: JSON.stringify({ estado_verif: estado, verificado_at: nowISO })
+          }).catch(()=>{});
+        }
+      }
+
+      renderVerifResultado(vts, huerfanos, fecha || `${dias[0]} → ${dias[dias.length-1]}`);
+    } catch(e) {
+      colaEl.innerHTML = `<div class="alert alert-warn">Error: ${escH(e.message)}</div>`;
+    }
+  };
+
+  function renderVerifResultado(vts, huerfanos, periodoTxt) {
+    const resumenEl = document.getElementById('verif-resumen');
+    const colaEl    = document.getElementById('verif-cola');
+    const cuenta = e => vts.filter(v => v.estado === e).length;
+    const nVerif = cuenta('verificada'), nDifi = cuenta('monto_difiere'),
+          nFant = cuenta('fantasma'),  nDup  = cuenta('duplicada');
+    const total = vts.length;
+    const pct = total ? Math.round(nVerif / total * 100) : 0;
+    const code = wsCurrencyCode();
+
+    resumenEl.style.display = 'block';
+    resumenEl.innerHTML = `
+      <div style="display:flex;gap:10px;flex-wrap:wrap;align-items:center;margin-bottom:6px">
+        <span style="font-size:18px;font-weight:800;color:${pct>=90?'var(--green)':pct>=70?'var(--orange)':'var(--red)'}">${pct}% verificado</span>
+        <span style="font-size:11px;color:var(--text3)">${nVerif}/${total} ventas · ${periodoTxt}</span>
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;font-size:11px">
+        <span class="badge green">✅ ${nVerif} verificadas</span>
+        ${nDifi?`<span class="badge orange">🟠 ${nDifi} monto difiere</span>`:''}
+        ${nDup?`<span class="badge purple">🟣 ${nDup} duplicadas</span>`:''}
+        ${nFant?`<span class="badge red">🔴 ${nFant} fantasma</span>`:''}
+        ${huerfanos.length?`<span class="badge yellow">🟡 ${huerfanos.length} huérfanas (pago sin venta)</span>`:''}
+      </div>`;
+
+    const problemas = vts.filter(v => v.estado !== 'verificada');
+    if (!problemas.length && !huerfanos.length) {
+      colaEl.innerHTML = '<div class="empty" style="padding:20px"><div class="empty-icon">🎉</div><div class="empty-title">Todas las ventas verificadas</div><div style="font-size:11px;color:var(--text3);margin-top:4px">Cada venta tiene su pago real correspondiente.</div></div>';
+      return;
+    }
+
+    const adNombre = id => (DB.anuncios.find(a => a.ad_id === id)?.nombre) || id;
+    const hhmm = dt => dt.toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit',hour12:false});
+    const cfgEstado = {
+      monto_difiere: { emoji:'🟠', color:'var(--orange)', t:'Monto difiere' },
+      duplicada:     { emoji:'🟣', color:'var(--purple)', t:'Duplicada' },
+      fantasma:      { emoji:'🔴', color:'var(--red)',    t:'Fantasma (sin pago)' },
+    };
+
+    let html = '<div style="font-size:12px;font-weight:700;color:var(--text2);margin:8px 0">📋 Cola de Revisión</div><div style="display:grid;gap:8px">';
+    problemas.sort((a,b)=>a._dt-b._dt).forEach(v => {
+      const c = cfgEstado[v.estado] || cfgEstado.fantasma;
+      let detalle = '';
+      if (v.estado === 'monto_difiere' && v.pago)
+        detalle = `Venta registrada: <strong>${fmtMoney(+v.precio, code)}</strong> · Pago real: <strong style="color:var(--green)">${fmtMoney(v.pago.monto, code)}</strong> (${v.pago.hora}). Corrige el monto en tu Sheet.`;
+      else if (v.estado === 'duplicada')
+        detalle = `Hay otra venta idéntica con su pago real — esta no tiene pago propio. Probable doble registro del bot. Elimínala del Sheet.`;
+      else
+        detalle = `No se encontró ningún pago Yape para esta venta. Posible captura falsa o monto mal detectado.`;
+      html += `
+        <div style="padding:10px 14px;background:var(--bg3);border-radius:var(--radius-sm);border-left:3px solid ${c.color}">
+          <div style="display:flex;justify-content:space-between;gap:8px;flex-wrap:wrap;align-items:center">
+            <div style="font-size:12px;font-weight:700;color:${c.color}">${c.emoji} ${c.t} — ${fmtMoney(+v.precio, code)} · ${hhmm(v._dt)}</div>
+            <button class="btn btn-ghost btn-sm" style="font-size:10px" onclick="verifMarcar('${v.id}',this)">✅ Marcar verificada</button>
+          </div>
+          <div style="font-size:11px;color:var(--text2);margin-top:4px">📢 ${escH(adNombre(v.ad_id))} · ${escH(fmt.date(v.fecha))}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">${detalle}</div>
+        </div>`;
+    });
+    huerfanos.forEach(p => {
+      html += `
+        <div style="padding:10px 14px;background:var(--bg3);border-radius:var(--radius-sm);border-left:3px solid var(--yellow)">
+          <div style="font-size:12px;font-weight:700;color:var(--yellow)">🟡 Pago huérfano — ${fmtMoney(p.monto, code)} · ${p.hora}</div>
+          <div style="font-size:11px;color:var(--text3);margin-top:3px">Entró un pago real pero no hay venta registrada. El bot se saltó este registro — agrégalo en tu Sheet.</div>
+        </div>`;
+    });
+    html += '</div>';
+    colaEl.innerHTML = html;
+  }
+
+  // Override manual: marcar una venta como verificada
+  window.verifMarcar = async function(id, btn) {
+    btn.disabled = true; btn.textContent = '⏳';
+    try {
+      await api.patch('crm_ventas', id, { estado_verif: 'verificada', verificado_at: new Date().toISOString() });
+      const card = btn.closest('div[style*="border-left"]');
+      if (card) { card.style.opacity = '0.5'; btn.textContent = '✅ Hecho'; }
+    } catch(e) { btn.disabled = false; btn.textContent = '✅ Marcar verificada'; }
   };
 
   // ── Limpiar ──────────────────────────────────
