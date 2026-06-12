@@ -516,6 +516,8 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   <div class="cards-row cards-5" id="dash-kpis-soles"></div>
   <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">🇺🇸 En Dólares (USD)</div>
   <div class="cards-row cards-5" id="dash-kpis-dolares"></div>
+  <!-- FRANJA DE CONFIANZA (consolidación) -->
+  <div id="dash-confianza" style="margin:4px 0 14px;font-size:11.5px"></div>
   <!-- PANEL DE ALERTAS -->
   <div id="dash-alertas-box" style="display:none;margin-bottom:18px"></div>
 
@@ -3060,6 +3062,80 @@ const SUPABASE_ANON_KEY = 'sb_publishable_K1WeBEacSJKm5CA8cv-FPQ_zOdQw79s';
 // (crear/borrar usuarios) viven ahora en la Edge Function 'admin-users'.
 const APPS_SCRIPT_URL ='https://script.google.com/macros/s/AKfycbxi-QGLR8I0_cbOxA21bszBnMULjrXpOcasl4FnPc3trOc1DzJdYk2bPYhAOZcG_0p2ag/exec';
 
+// ════════════════════════════════════════════════
+// MOTOR DE CONSOLIDACIÓN DE GASTO (Etapa 2)
+// Un día se consolida cuando: el gasto no cambió durante 24h+ entre syncs,
+// o pasaron 48h desde el primer registro. Al consolidar, congela la tasa USD.
+// ════════════════════════════════════════════════
+const CONSOLIDA_HORAS     = 24;
+const CONSOLIDA_MAX_HORAS = 48;
+
+// Helper para leer el estado de un día desde el cache local
+function diaEstadoDe(wsId, fecha) {
+  return (DB.diaEstado || []).find(e => e.workspace_id === wsId && e.fecha === fecha) || null;
+}
+// ¿Está consolidado este día? (días viejos sin registro se asumen consolidados)
+function diaConsolidado(wsId, fecha) {
+  const e = diaEstadoDe(wsId, fecha);
+  if (e) return !!e.consolidado;
+  return fecha < nDaysAgo(2); // sin estado y con +2 días → ya firme
+}
+
+// Recalcula el estado de consolidación de los días recientes de cada workspace dado
+async function actualizarConsolidacion(wsIds) {
+  const desde = nDaysAgo(6);
+  const ahora = new Date();
+  const ahoraISO = ahora.toISOString();
+  for (const wsId of [...new Set(wsIds)].filter(Boolean)) {
+    const ws = DB.workspaces.find(w => w.id === wsId);
+    if (!ws) continue;
+    const rate = wsUsdRate(ws);
+    let regs, estados;
+    try {
+      regs = await api.get('registros', `workspace_id=eq.${wsId}&fecha=gte.${desde}&select=fecha,gasto_meta,gasto_tiktok`);
+      estados = await api.get('dia_estado', `workspace_id=eq.${wsId}&fecha=gte.${desde}`);
+    } catch(e) { continue; } // tabla aún no creada → omitir
+    const gastoPorFecha = {};
+    regs.forEach(r => { gastoPorFecha[r.fecha] = (gastoPorFecha[r.fecha]||0) + (+r.gasto_meta||0) + (+r.gasto_tiktok||0); });
+    const estMap = {}; estados.forEach(e => estMap[e.fecha] = e);
+
+    for (const [fecha, gastoRaw] of Object.entries(gastoPorFecha)) {
+      const g = +(+gastoRaw).toFixed(2);
+      const e = estMap[fecha];
+      if (!e) {
+        await api.post('dia_estado', {
+          workspace_id: wsId, user_id: CURRENT_USER?.id, fecha,
+          gasto_total: g, gasto_anterior: g, gasto_provisional: g,
+          primer_sync_at: ahoraISO, ultimo_cambio_at: ahoraISO,
+          consolidado: false, usd_rate: rate
+        }).catch(()=>{});
+        continue;
+      }
+      if (e.consolidado) continue; // ya firme → gasto congelado
+      const cambio    = Math.abs(g - (+e.gasto_total||0)) > 0.001;
+      const primer    = new Date(e.primer_sync_at || e.created_at || ahora);
+      const ultCambio = new Date(e.ultimo_cambio_at || primer);
+      const hCambio   = (ahora - ultCambio) / 36e5;
+      const hPrimer   = (ahora - primer) / 36e5;
+      const patch = {};
+      if (cambio) {
+        patch.gasto_anterior  = e.gasto_total;
+        patch.gasto_total     = g;
+        patch.ultimo_cambio_at = ahoraISO;
+      }
+      const estable = !cambio && hCambio >= CONSOLIDA_HORAS;
+      const maxTime = hPrimer >= CONSOLIDA_MAX_HORAS;
+      if (estable || maxTime) {
+        patch.consolidado    = true;
+        patch.consolidado_at = ahoraISO;
+        patch.usd_rate       = rate;
+        patch.gasto_total    = g;
+      }
+      if (Object.keys(patch).length) await api.patch('dia_estado', e.id, patch).catch(()=>{});
+    }
+  }
+}
+
 async function syncGoogleSheets() {
   const btn    = document.getElementById('btn-sheets-sync');
   const icon   = document.getElementById('sheets-sync-icon');
@@ -3102,6 +3178,10 @@ async function syncGoogleSheets() {
       totVentas += r.ventas; totRegs += r.registros; totCrm += r.crm;
       r.wsIds.forEach(id => totWs.add(id));
     }
+
+    // Actualizar estado de consolidación de los días afectados
+    label.textContent = 'Actualizando estados de día...';
+    await actualizarConsolidacion([...totWs]);
 
     // Recargar y mostrar resultado global
     await loadAll();
@@ -3242,6 +3322,16 @@ async function _syncOneSheet(job, ui) {
     }
     const registros = Object.values(registrosMap);
 
+    // Blindaje: registros corregidos a mano no se sobrescriben en sus ventas
+    const protegidos = new Set();
+    try {
+      const wsIdsJob = [...new Set(registros.map(r => r.wsId))];
+      for (const wsId of wsIdsJob) {
+        const prot = await api.get('registros', `workspace_id=eq.${wsId}&corregido_manual=eq.true&fecha=gte.${fechaMinima}&select=ad_id,fecha`);
+        prot.forEach(p => protegidos.add(`${wsId}||${p.ad_id}||${p.fecha}`));
+      }
+    } catch(e) { /* columna aún no existe → sin protección */ }
+
     // ── 7. Upsert registros — per workspace ──
     status.textContent = `Escribiendo ${registros.length} registros (todos los productos)...`;
     label.textContent = 'Guardando...';
@@ -3261,12 +3351,14 @@ async function _syncOneSheet(job, ui) {
         body: JSON.stringify(creates)
       });
 
-      await Promise.all(lote.map(r =>
-        fetch(`${SUPABASE_URL}/rest/v1/registros?workspace_id=eq.${r.wsId}&fecha=eq.${r.fecha}&ad_id=eq.${encodeURIComponent(r.adId)}`, {
-          method: 'PATCH', headers: { ...api._h(), 'Prefer': 'return=minimal' },
-          body: JSON.stringify({ v1: r.v1, v2: r.v2, v3: r.v3, v4: r.v4, upsell_total: r.upsell })
-        })
-      ));
+      await Promise.all(lote
+        .filter(r => !protegidos.has(`${r.wsId}||${r.adId}||${r.fecha}`))
+        .map(r =>
+          fetch(`${SUPABASE_URL}/rest/v1/registros?workspace_id=eq.${r.wsId}&fecha=eq.${r.fecha}&ad_id=eq.${encodeURIComponent(r.adId)}`, {
+            method: 'PATCH', headers: { ...api._h(), 'Prefer': 'return=minimal' },
+            body: JSON.stringify({ v1: r.v1, v2: r.v2, v3: r.v3, v4: r.v4, upsell_total: r.upsell })
+          })
+        ));
     }
 
     // ── 8. Reescribir crm_ventas — per workspace ──
@@ -3527,6 +3619,7 @@ const api = {
 let DB = {
   workspaces: [],
   fuentes: [],
+  diaEstado: [],
   config: { id:null, p1:10, p2:7, p3:5, p4:3, igv:0.18, tc:4.0, sat_caida:0.30, sat_dias:3, estados:[], alerta_gasto_min:5, alerta_roas_min:1, roas_gasto_min:1 },
   campanas: [],
   anuncios: [],
@@ -7120,6 +7213,9 @@ async function loadAll() {
     api.get('conjuntos', `order=created_at.asc${baseFilter}`).catch(()=>[]),
   ]);
 
+  // Estado de consolidación por día (Etapa 2) — tolerante a tabla aún no creada
+  DB.diaEstado = await api.get('dia_estado', `order=fecha.desc&limit=400${baseFilter}`).catch(() => []);
+
   if (cfgArr.length) DB.config = cfgArr[0];
   else DB.config = { id:null, p1:10, p2:7, p3:5, p4:3, igv:0.18, tc:4.0, sat_caida:0.30, sat_dias:3, estados:[], alerta_gasto_min:5, alerta_roas_min:1, roas_gasto_min:1, gastos_extras:[] };
 
@@ -7517,12 +7613,36 @@ function renderDashboard() {
     kpiCard('CPA',M.ventas>0?fmt.s(M.cpv):'—', M.ventas>0&&M.cpv<(DB.config.p1??10)?'green':'orange','Costo por venta real'),
   ].join('');
 
+  renderConfianza(desde, hasta);
   renderMainChart(regs);
   renderDonut(M);
   renderDashTable(desde,hasta);
   renderAlertas();
   renderProyeccion();
   renderMetaMensual();
+}
+
+// Franja de confianza: cuántos días del período están consolidados vs provisionales
+function renderConfianza(desde, hasta) {
+  const box = document.getElementById('dash-confianza');
+  if (!box) return;
+  const wsId = CURRENT_WORKSPACE?.id;
+  // Días con datos en el período
+  const dias = [...new Set(DB.registros.filter(r => r.fecha >= desde && r.fecha <= hasta).map(r => r.fecha))].sort();
+  if (!dias.length || !wsId) { box.innerHTML = ''; return; }
+  let consolidados = 0; const provis = [];
+  dias.forEach(f => { if (diaConsolidado(wsId, f)) consolidados++; else provis.push(f); });
+  if (!provis.length) {
+    box.innerHTML = `<span style="color:var(--green);font-weight:600">✅ ${consolidados} día${consolidados===1?'':'s'} consolidado${consolidados===1?'':'s'}</span> <span style="color:var(--text3)">— cifras finales</span>`;
+    return;
+  }
+  const provisOrden = provis.sort();
+  const lista = provisOrden.map(f => fmt.date(f)).join(', ');
+  box.innerHTML = `
+    <span style="color:var(--green);font-weight:600">✅ ${consolidados} consolidado${consolidados===1?'':'s'}</span>
+    <span style="color:var(--text3)">·</span>
+    <span style="color:var(--orange);font-weight:600">⏳ ${provis.length} provisional${provis.length===1?'':'es'}</span>
+    <span style="color:var(--text3)">(${lista}) — el gasto puede ajustarse en 24-48h</span>`;
 }
 
 function renderMainChart(regs) {
@@ -8115,6 +8235,8 @@ async function saveRegistro() {
   try {
     setSyncStatus('loading','Guardando...');
     if(editId) {
+      // Corrección manual: el sync de Sheets ya no sobrescribirá las ventas de esta fila
+      data.corregido_manual = true;
       const res=await api.patch('registros',editId,data);
       DB.registros=DB.registros.map(r=>r.id===editId?res[0]:r);
     } else {
@@ -10027,6 +10149,9 @@ async function aplicarMetaAPI() {
       console.error('Error aplicando fila:', r, e);
     }
   }
+
+  // Recalcular consolidación del workspace activo (el gasto acaba de cambiar)
+  await actualizarConsolidacion([CURRENT_WORKSPACE?.id]);
 
   await loadAll();
   setSyncStatus('ok', 'Sincronizado ✓');
