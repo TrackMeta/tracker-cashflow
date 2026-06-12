@@ -7346,7 +7346,7 @@ async function conectarTelegram() {
     // 1. Registrar webhook en Telegram apuntando a nuestra función
     const r = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ url: TG_WEBHOOK(CURRENT_USER.id), allowed_updates: ['message'] })
+      body: JSON.stringify({ url: TG_WEBHOOK(CURRENT_USER.id), allowed_updates: ['message','callback_query'] })
     });
     const jd = await r.json();
     if (!jd.ok) throw new Error(jd.description || 'Telegram rechazó el webhook');

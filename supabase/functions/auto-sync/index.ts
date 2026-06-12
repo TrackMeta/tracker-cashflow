@@ -230,19 +230,31 @@ async function syncMeta(fuente: any, wsList: any[]) {
   return { filas: aplicadas };
 }
 
-// ── Consolidación (portada) ──
-async function consolidar(wsId: string, ws: any) {
+// ── Consolidación + detección de eventos de alerta (devuelve alertas) ──
+async function consolidar(wsId: string, ws: any): Promise<string[]> {
   const desde = nDaysAgo(6); const ahora = new Date(); const iso = ahora.toISOString();
   const rate = (ws.currency_code === "USD") ? 1 : (+ws.usd_rate || 3.7);
-  const regs = await sb("GET", `registros?workspace_id=eq.${wsId}&fecha=gte.${desde}&select=fecha,gasto_meta,gasto_tiktok`);
+  const emoji = ws.emoji || "📦";
+  const cfg = (await sb("GET", `config?workspace_id=eq.${wsId}&select=p1,p2,p3,p4&limit=1`))?.[0] || { p1: 10, p2: 7, p3: 5, p4: 3 };
+  const regs = await sb("GET", `registros?workspace_id=eq.${wsId}&fecha=gte.${desde}&select=fecha,gasto_meta,gasto_tiktok,v1,v2,v3,v4,upsell_total`);
   const estados = await sb("GET", `dia_estado?workspace_id=eq.${wsId}&fecha=gte.${desde}`);
-  const porFecha: Record<string, number> = {};
-  (regs || []).forEach((r: any) => { porFecha[r.fecha] = (porFecha[r.fecha] || 0) + (+r.gasto_meta || 0) + (+r.gasto_tiktok || 0); });
+  const agg: Record<string, { gasto: number; ing: number }> = {};
+  (regs || []).forEach((r: any) => {
+    const a = agg[r.fecha] || (agg[r.fecha] = { gasto: 0, ing: 0 });
+    a.gasto += (+r.gasto_meta || 0) + (+r.gasto_tiktok || 0);
+    a.ing += (+r.v1 || 0) * (+cfg.p1) + (+r.v2 || 0) * (+cfg.p2) + (+r.v3 || 0) * (+cfg.p3) + (+r.v4 || 0) * (+cfg.p4) + (+r.upsell_total || 0);
+  });
   const estMap: Record<string, any> = {}; (estados || []).forEach((e: any) => { estMap[e.fecha] = e; });
-  for (const [fecha, gRaw] of Object.entries(porFecha)) {
-    const g = +(+gRaw).toFixed(2); const e = estMap[fecha];
+  const alertas: string[] = [];
+  let algoConsolido = false;
+
+  for (const [fecha, a] of Object.entries(agg)) {
+    const g = +a.gasto.toFixed(2);
+    const profitUsd = +((a.ing - g) / rate).toFixed(2);
+    const ingUsd = +(a.ing / rate).toFixed(2);
+    const e = estMap[fecha];
     if (!e) {
-      await sb("POST", "dia_estado", [{ workspace_id: wsId, user_id: ws.user_id, fecha, gasto_total: g, gasto_anterior: g, gasto_provisional: g, primer_sync_at: iso, ultimo_cambio_at: iso, consolidado: false, usd_rate: rate }], "return=minimal").catch(() => {});
+      await sb("POST", "dia_estado", [{ workspace_id: wsId, user_id: ws.user_id, fecha, gasto_total: g, gasto_anterior: g, gasto_provisional: g, ingresos_usd: ingUsd, profit_usd: profitUsd, primer_sync_at: iso, ultimo_cambio_at: iso, consolidado: false, usd_rate: rate }], "return=minimal").catch(() => {});
       continue;
     }
     if (e.consolidado) continue;
@@ -250,11 +262,41 @@ async function consolidar(wsId: string, ws: any) {
     const primer = new Date(e.primer_sync_at || e.created_at || ahora);
     const ult = new Date(e.ultimo_cambio_at || primer);
     const hC = (+ahora - +ult) / 36e5, hP = (+ahora - +primer) / 36e5;
-    const patch: any = {};
+    const patch: any = { ingresos_usd: ingUsd, profit_usd: profitUsd };
     if (cambio) { patch.gasto_anterior = e.gasto_total; patch.gasto_total = g; patch.ultimo_cambio_at = iso; }
-    if ((!cambio && hC >= 24) || hP >= 48) { patch.consolidado = true; patch.consolidado_at = iso; patch.usd_rate = rate; patch.gasto_total = g; }
-    if (Object.keys(patch).length) await sb("PATCH", `dia_estado?id=eq.${e.id}`, patch, "return=minimal").catch(() => {});
+    const consolidaAhora = (!cambio && hC >= 24) || hP >= 48;
+    if (consolidaAhora) { patch.consolidado = true; patch.consolidado_at = iso; patch.usd_rate = rate; patch.gasto_total = g; }
+    await sb("PATCH", `dia_estado?id=eq.${e.id}`, patch, "return=minimal").catch(() => {});
+
+    if (consolidaAhora) {
+      algoConsolido = true;
+      // 🔴 Cambio de signo: profit con gasto provisional vs gasto final
+      const profProv = +((a.ing - (+e.gasto_provisional || g)) / rate).toFixed(2);
+      if ((profProv >= 0) !== (profitUsd >= 0) && Math.abs(profProv - profitUsd) > 0.01) {
+        alertas.push(`⚠️ *Cambio de signo* — ${emoji} ${ws.nombre}\nEl ${fecha} se consolidó en *${profitUsd >= 0 ? "GANANCIA" : "PÉRDIDA"}*: ${fUsd(profitUsd)} (provisional decía ${fUsd(profProv)}).`);
+      }
+      // 🏆 Récord del mes
+      if (profitUsd > 0) {
+        try {
+          const mesIni = fecha.slice(0, 8) + "01";
+          const mesDias = await sb("GET", `dia_estado?workspace_id=eq.${wsId}&fecha=gte.${mesIni}&fecha=lte.${fecha}&consolidado=eq.true&select=fecha,profit_usd`);
+          const maxOtros = Math.max(0, ...(mesDias || []).filter((d: any) => d.fecha !== fecha).map((d: any) => +d.profit_usd || 0));
+          if (maxOtros > 0 && profitUsd > maxOtros) alertas.push(`🏆 *Récord del mes* — ${emoji} ${ws.nombre}\nEl ${fecha} es tu mejor día del mes: *${fUsd(profitUsd)}* de profit.`);
+        } catch (_) { /* */ }
+      }
+    }
   }
+
+  // 📉 Racha negativa (solo si algo se consolidó en este run, para no repetir)
+  if (algoConsolido) {
+    try {
+      const rec = await sb("GET", `dia_estado?workspace_id=eq.${wsId}&consolidado=eq.true&order=fecha.desc&limit=6&select=fecha,profit_usd`);
+      let racha = 0, acum = 0;
+      for (const d of (rec || [])) { if ((+d.profit_usd || 0) < 0) { racha++; acum += (+d.profit_usd || 0); } else break; }
+      if (racha >= 2) alertas.push(`📉 *Racha negativa* — ${emoji} ${ws.nombre}\n${racha} días consolidados seguidos en pérdida (${fUsd(acum)} acumulado). Revisa tus anuncios activos.`);
+    } catch (_) { /* */ }
+  }
+  return alertas;
 }
 
 // Procesa todas las fuentes de un usuario (ventas + opcional Meta + consolidación)
@@ -277,11 +319,12 @@ async function procesarUsuario(userId: string, conMeta: boolean) {
       catch (e) { console.error("syncMeta", f.nombre, e); }
     }
   }
+  const alertas: string[] = [];
   for (const wsId of wsTouched) {
     const ws = (workspaces || []).find((w: any) => w.id === wsId);
-    if (ws) await consolidar(wsId, ws).catch((e) => console.error("consolidar", e));
+    if (ws) { const al = await consolidar(wsId, ws).catch(() => [] as string[]); alertas.push(...al); }
   }
-  return { userId, ventas: totVentas, workspaces: wsTouched.size };
+  return { userId, ventas: totVentas, workspaces: wsTouched.size, alertas };
 }
 
 // Modo programado: lee sync_config de cada usuario y dispara según sus horas (Perú UTC-5)
@@ -294,15 +337,21 @@ async function runScheduled() {
   const ejecutados: any[] = [];
   for (const cfg of (cfgs || [])) {
     // Noche (con Meta) tiene prioridad; luego mañana (solo ventas)
+    const enviarAlertas = async (r: any) => {
+      if (cfg.tg_token && cfg.tg_chat_id && cfg.tg_activo !== false)
+        for (const a of (r.alertas || [])) await tgSend(cfg.tg_token, cfg.tg_chat_id, a);
+    };
     if (nowMin >= toMin(cfg.hora_noche || "23:00") && cfg.ultima_noche !== hoy) {
       const r = await procesarUsuario(cfg.user_id, true);
       await sb("PATCH", `sync_config?user_id=eq.${cfg.user_id}`, { ultima_noche: hoy }, "return=minimal").catch(() => {});
+      await enviarAlertas(r);
       await enviarReporteSlot(cfg, "noche").catch((e) => console.error("reporte noche", e));
       ejecutados.push({ ...r, slot: "noche" });
     } else if (nowMin >= toMin(cfg.hora_manana || "06:30") && cfg.ultima_manana !== hoy) {
       // La mañana también trae Meta: captura el gasto ya consolidado durante la noche
       const r = await procesarUsuario(cfg.user_id, true);
       await sb("PATCH", `sync_config?user_id=eq.${cfg.user_id}`, { ultima_manana: hoy }, "return=minimal").catch(() => {});
+      await enviarAlertas(r);
       await enviarReporteSlot(cfg, "manana").catch((e) => console.error("reporte manana", e));
       ejecutados.push({ ...r, slot: "manana" });
     }
@@ -324,12 +373,19 @@ const fRoas = (n: number) => isFinite(n) && n > 0 ? `${n.toFixed(2)}x` : "—";
 const diaPeru = (off = 0) => { const d = new Date(Date.now() - 5 * 3600 * 1000); d.setUTCDate(d.getUTCDate() + off); return d.toISOString().slice(0, 10); };
 const lunesDe = (fechaStr: string) => { const d = new Date(fechaStr + "T12:00:00Z"); const dow = (d.getUTCDay() + 6) % 7; d.setUTCDate(d.getUTCDate() - dow); return d.toISOString().slice(0, 10); };
 
-async function tgSend(token: string, chatId: string, text: string) {
+async function tgSend(token: string, chatId: string, text: string, keyboard?: any[]) {
+  const body: any = { chat_id: chatId, text, parse_mode: "Markdown", disable_web_page_preview: true };
+  if (keyboard) body.reply_markup = { inline_keyboard: keyboard };
   await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
     method: "POST", headers: { "Content-Type": "application/json" },
-    body: JSON.stringify({ chat_id: chatId, text, parse_mode: "Markdown", disable_web_page_preview: true }),
+    body: JSON.stringify(body),
   }).catch(() => {});
 }
+// Teclado de acciones rápidas bajo los reportes
+const reportKb = () => [
+  [{ text: "📅 Semana", callback_data: "semana" }, { text: "🗓️ Mes", callback_data: "mes" }],
+  [{ text: "⏳ Pendientes", callback_data: "pendientes" }, { text: "🏆 Mejores", callback_data: "mejores" }],
+];
 async function sbCount(path: string): Promise<number> {
   const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
     method: "HEAD", headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, Prefer: "count=exact", Range: "0-0" },
@@ -393,39 +449,133 @@ async function enviarReporteSlot(cfg: any, slot: "noche" | "manana") {
   if (slot === "noche") {
     const hoy = diaPeru(0);
     const data = await reportData(cfg.user_id, hoy, hoy);
-    await tgSend(cfg.tg_token, cfg.tg_chat_id, formatReport("🌙 *CIERRE DEL DÍA*", `Hoy ${hoy}`, data));
+    await tgSend(cfg.tg_token, cfg.tg_chat_id, formatReport("🌙 *CIERRE DEL DÍA*", `Hoy ${hoy}`, data), reportKb());
   } else {
     const ayer = diaPeru(-1);
     const data = await reportData(cfg.user_id, ayer, ayer);
-    await tgSend(cfg.tg_token, cfg.tg_chat_id, formatReport("☀️ *BUENOS DÍAS*", `Ayer ${ayer}`, data));
+    await tgSend(cfg.tg_token, cfg.tg_chat_id, formatReport("☀️ *BUENOS DÍAS*", `Ayer ${ayer}`, data), reportKb());
   }
 }
 
-// Webhook de Telegram (comandos)
+const AYUDA = `🤖 *Comandos de Tracker Pro*\n\n📊 *Reportes:*\n/hoy · /ayer · /semana · /mes · /año\n/dia DD/MM — un día específico\n\n🔎 *Detalle:*\n/producto <nombre> — un producto\n/bot <nombre> — una fuente/bot\n/mejores — top y peores anuncios (7 días)\n/pendientes — días provisionales + ventas sin verificar\n\n_Recibes el cierre nocturno y el buenos días automáticamente, más alertas de cambio de signo, récords y rachas._`;
+
+// /pendientes — días provisionales + ventas sin verificar
+async function cmdPendientes(userId: string) {
+  const desde = diaPeru(-30);
+  const workspaces = await sb("GET", `workspaces?user_id=eq.${userId}&select=id,nombre,emoji`);
+  let msg = "⏳ *PENDIENTES (últimos 30 días)*";
+  let nada = true;
+  for (const ws of (workspaces || [])) {
+    const prov = await sb("GET", `dia_estado?workspace_id=eq.${ws.id}&fecha=gte.${desde}&consolidado=eq.false&select=fecha&order=fecha.desc`);
+    const sinVerif = await sbCount(`crm_ventas?workspace_id=eq.${ws.id}&fecha=gte.${desde}&estado_verif=neq.verificada`);
+    if ((prov || []).length || sinVerif) {
+      nada = false;
+      msg += `\n\n📦 *${ws.emoji || "📦"} ${ws.nombre}*`;
+      if ((prov || []).length) msg += `\n⏳ ${prov.length} día(s) provisional(es): ${prov.slice(0, 6).map((d: any) => d.fecha).join(", ")}`;
+      if (sinVerif) msg += `\n🔎 ${sinVerif} venta(s) sin verificar contra pagos`;
+    }
+  }
+  if (nada) msg += "\n\n✅ Todo consolidado y verificado.";
+  return msg;
+}
+
+// /mejores — top y peores anuncios del período
+async function cmdMejores(userId: string, desde: string, hasta: string) {
+  const workspaces = await sb("GET", `workspaces?user_id=eq.${userId}&select=id,nombre,emoji,currency_code`);
+  const all: any[] = [];
+  for (const ws of (workspaces || [])) {
+    const cfg = (await sb("GET", `config?workspace_id=eq.${ws.id}&select=p1,p2,p3,p4&limit=1`))?.[0] || { p1: 10, p2: 7, p3: 5, p4: 3 };
+    const ads = await sb("GET", `anuncios?workspace_id=eq.${ws.id}&select=ad_id,nombre`);
+    const nm: Record<string, string> = {}; (ads || []).forEach((a: any) => { nm[a.ad_id] = a.nombre || a.ad_id; });
+    const regs = await sb("GET", `registros?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&select=ad_id,gasto_meta,gasto_tiktok,v1,v2,v3,v4,upsell_total`);
+    const byAd: Record<string, { g: number; ing: number }> = {};
+    (regs || []).forEach((r: any) => {
+      const a = byAd[r.ad_id] || (byAd[r.ad_id] = { g: 0, ing: 0 });
+      a.g += (+r.gasto_meta || 0) + (+r.gasto_tiktok || 0);
+      a.ing += (+r.v1 || 0) * (+cfg.p1) + (+r.v2 || 0) * (+cfg.p2) + (+r.v3 || 0) * (+cfg.p3) + (+r.v4 || 0) * (+cfg.p4) + (+r.upsell_total || 0);
+    });
+    for (const [adId, a] of Object.entries(byAd)) {
+      if (a.g < 1) continue;
+      all.push({ nombre: nm[adId] || adId, emoji: ws.emoji || "📦", roas: a.g > 0 ? a.ing / a.g : 0, code: ws.currency_code || "PEN" });
+    }
+  }
+  if (!all.length) return "🏆 *MEJORES*\n\nSin datos con gasto en el período.";
+  all.sort((x, y) => y.roas - x.roas);
+  const top = all.slice(0, 3), peor = all.slice(-3).reverse();
+  let msg = `🏆 *MEJORES Y PEORES* (${desde} → ${hasta})\n\n✅ *Top ROAS:*`;
+  top.forEach((a, i) => { msg += `\n${i + 1}. ${a.emoji} ${a.nombre} — ${fRoas(a.roas)}`; });
+  msg += `\n\n🔻 *Peores ROAS:*`;
+  peor.forEach((a) => { msg += `\n• ${a.emoji} ${a.nombre} — ${fRoas(a.roas)}`; });
+  return msg;
+}
+
+// Ejecuta un comando y envía la respuesta
+async function tgRunCommand(userId: string, cfg: any, chatId: string, cmd: string, arg: string) {
+  if (cmd === "/ayuda" || cmd === "/help") { await tgSend(cfg.tg_token, chatId, AYUDA); return; }
+
+  let titulo = "", desde = "", hasta = "", per = "";
+  if (cmd === "/hoy") { desde = hasta = diaPeru(0); titulo = "📊 *HOY*"; per = `Hoy ${desde}`; }
+  else if (cmd === "/ayer") { desde = hasta = diaPeru(-1); titulo = "📊 *AYER*"; per = `Ayer ${desde}`; }
+  else if (cmd === "/semana") { desde = lunesDe(diaPeru(0)); hasta = diaPeru(0); titulo = "📊 *SEMANA*"; per = `${desde} → ${hasta}`; }
+  else if (cmd === "/mes") { desde = diaPeru(0).slice(0, 8) + "01"; hasta = diaPeru(0); titulo = "📊 *MES*"; per = `${desde} → ${hasta}`; }
+  else if (cmd === "/año" || cmd === "/anio") { desde = diaPeru(0).slice(0, 4) + "-01-01"; hasta = diaPeru(0); titulo = "📊 *AÑO*"; per = `${desde} → ${hasta}`; }
+  else if (cmd === "/dia") {
+    const mm = arg.match(/(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?/);
+    if (!mm) { await tgSend(cfg.tg_token, chatId, "Formato: /dia DD/MM (ej. /dia 03/06)"); return; }
+    const yy = mm[3] ? (mm[3].length === 2 ? "20" + mm[3] : mm[3]) : diaPeru(0).slice(0, 4);
+    desde = hasta = `${yy}-${mm[2].padStart(2, "0")}-${mm[1].padStart(2, "0")}`;
+    titulo = "📊 *DÍA*"; per = desde;
+  } else if (cmd === "/pendientes") { await tgSend(cfg.tg_token, chatId, await cmdPendientes(userId), reportKb()); return; }
+  else if (cmd === "/mejores") { await tgSend(cfg.tg_token, chatId, await cmdMejores(userId, diaPeru(-7), diaPeru(0)), reportKb()); return; }
+  else if (cmd === "/producto" || cmd === "/bot") {
+    if (!arg) { await tgSend(cfg.tg_token, chatId, `Usa: ${cmd} <nombre>`); return; }
+    desde = lunesDe(diaPeru(0)); hasta = diaPeru(0);
+    const data = await reportData(userId, desde, hasta);
+    const q = arg.toLowerCase();
+    const filtrado = cmd === "/producto"
+      ? data.perWs.filter((w: any) => (w.ws.nombre || "").toLowerCase().includes(q))
+      : data.perWs.filter((w: any) => (data.fuenteName[w.ws.fuente_id] || "").toLowerCase().includes(q));
+    if (!filtrado.length) { await tgSend(cfg.tg_token, chatId, `No encontré "${arg}".`); return; }
+    await tgSend(cfg.tg_token, chatId, formatReport(`📊 *${cmd === "/producto" ? "PRODUCTO" : "BOT"}: ${arg}*`, `${desde} → ${hasta}`, { perWs: filtrado, fuenteName: data.fuenteName }), reportKb());
+    return;
+  } else { await tgSend(cfg.tg_token, chatId, AYUDA); return; }
+
+  const data = await reportData(userId, desde, hasta);
+  await tgSend(cfg.tg_token, chatId, formatReport(titulo, per, data), reportKb());
+}
+
+// Webhook de Telegram (mensajes + botones)
 async function handleTelegram(userId: string, update: any) {
-  const m = update.message || update.edited_message;
-  if (!m || !m.text) return json({ ok: true });
-  const chatId = String(m.chat.id);
-  const cmd = m.text.trim().toLowerCase().split(/\s+/)[0].replace(/@.*/, "");
   const cfgs = await sb("GET", `sync_config?user_id=eq.${userId}&limit=1`);
   const cfg = cfgs?.[0];
   if (!cfg || !cfg.tg_token) return json({ ok: true });
 
+  // Botón presionado (callback_query)
+  if (update.callback_query) {
+    const cq = update.callback_query;
+    const chatId = String(cq.message?.chat?.id || cfg.tg_chat_id);
+    await fetch(`https://api.telegram.org/bot${cfg.tg_token}/answerCallbackQuery`, {
+      method: "POST", headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ callback_query_id: cq.id }),
+    }).catch(() => {});
+    await tgRunCommand(userId, cfg, chatId, "/" + (cq.data || ""), "");
+    return json({ ok: true });
+  }
+
+  const m = update.message || update.edited_message;
+  if (!m || !m.text) return json({ ok: true });
+  const chatId = String(m.chat.id);
+  const parts = m.text.trim().split(/\s+/);
+  const cmd = parts[0].toLowerCase().replace(/@.*/, "");
+  const arg = parts.slice(1).join(" ");
+
   // /start → vincular este chat
   if (cmd === "/start") {
     await sb("PATCH", `sync_config?user_id=eq.${userId}`, { tg_chat_id: chatId }, "return=minimal").catch(() => {});
-    await tgSend(cfg.tg_token, chatId, "✅ *Conectado a Tracker Pro*\n\nComandos:\n/hoy /ayer · /semana · /mes\nRecibirás el cierre nocturno y el buenos días automáticamente.");
+    await tgSend(cfg.tg_token, chatId, "✅ *Conectado a Tracker Pro*\n\n" + AYUDA, reportKb());
     return json({ ok: true });
   }
-  let titulo = "", desde = "", hasta = "", per = "";
-  if (cmd === "/hoy")      { desde = hasta = diaPeru(0);  titulo = "📊 *HOY*";    per = `Hoy ${desde}`; }
-  else if (cmd === "/ayer"){ desde = hasta = diaPeru(-1); titulo = "📊 *AYER*";   per = `Ayer ${desde}`; }
-  else if (cmd === "/semana"){ desde = lunesDe(diaPeru(0)); hasta = diaPeru(0); titulo = "📊 *SEMANA*"; per = `${desde} → ${hasta}`; }
-  else if (cmd === "/mes") { desde = diaPeru(0).slice(0, 8) + "01"; hasta = diaPeru(0); titulo = "📊 *MES*"; per = `${desde} → ${hasta}`; }
-  else { await tgSend(cfg.tg_token, chatId, "Comandos: /hoy /ayer /semana /mes"); return json({ ok: true }); }
-
-  const data = await reportData(userId, desde, hasta);
-  await tgSend(cfg.tg_token, chatId, formatReport(titulo, per, data));
+  await tgRunCommand(userId, cfg, chatId, cmd, arg);
   return json({ ok: true });
 }
 
