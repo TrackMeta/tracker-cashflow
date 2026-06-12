@@ -7302,20 +7302,27 @@ async function loadAutosyncConfig() {
   }
   loadTelegramUI();
 }
+// sync_config usa user_id como PK (no tiene columna id) → upsert por user_id
+async function _upsertSyncCfg(patch) {
+  const row = { user_id: CURRENT_USER?.id, ...patch };
+  const r = await fetch(`${SUPABASE_URL}/rest/v1/sync_config?on_conflict=user_id`, {
+    method: 'POST',
+    headers: { ...api._h(), 'Prefer': 'resolution=merge-duplicates,return=representation' },
+    body: JSON.stringify(row)
+  });
+  if (!r.ok) throw new Error(await r.text());
+  const d = await r.json().catch(() => []);
+  AUTOSYNC_CFG = { ...(AUTOSYNC_CFG || {}), ...(d[0] || row) };
+  return AUTOSYNC_CFG;
+}
+
 async function saveAutosyncConfig() {
   const activo = document.getElementById('autosync-activo').checked;
   const hora_noche  = document.getElementById('autosync-noche').value  || '23:00';
   const hora_manana = document.getElementById('autosync-manana').value || '06:30';
   document.getElementById('autosync-activo-label').textContent = activo ? 'Activada' : 'Pausada';
-  const data = { activo, hora_noche, hora_manana, user_id: CURRENT_USER?.id };
   try {
-    if (AUTOSYNC_CFG?.user_id) {
-      await api.patch('sync_config', AUTOSYNC_CFG.user_id, { activo, hora_noche, hora_manana });
-      Object.assign(AUTOSYNC_CFG, data);
-    } else {
-      const r = await api.post('sync_config', data);
-      AUTOSYNC_CFG = r[0];
-    }
+    await _upsertSyncCfg({ activo, hora_noche, hora_manana });
     showSuccess('✅ Horarios guardados');
   } catch(e) { showError('Error guardando horarios: ' + e.message); }
 }
@@ -7333,9 +7340,7 @@ function loadTelegramUI() {
   if (est) est.textContent = AUTOSYNC_CFG?.tg_chat_id ? '✅ Chat vinculado' : (AUTOSYNC_CFG?.tg_token ? '⚠️ Falta enviar /start al bot' : '');
 }
 async function _tgSaveCfg(patch) {
-  const data = { ...patch, user_id: CURRENT_USER?.id };
-  if (AUTOSYNC_CFG?.user_id) { await api.patch('sync_config', AUTOSYNC_CFG.user_id, patch); Object.assign(AUTOSYNC_CFG, patch); }
-  else { const r = await api.post('sync_config', data); AUTOSYNC_CFG = r[0]; }
+  await _upsertSyncCfg(patch);
 }
 async function conectarTelegram() {
   const token = document.getElementById('tg-token').value.trim();
