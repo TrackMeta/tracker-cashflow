@@ -457,7 +457,7 @@ async function enviarReporteSlot(cfg: any, slot: "noche" | "manana") {
   }
 }
 
-const AYUDA = `🤖 *Comandos de Tracker Pro*\n\n📊 *Reportes:*\n/hoy · /ayer · /semana · /mes · /año\n/dia DD/MM — un día específico\n\n🔎 *Detalle:*\n/producto <nombre> — un producto\n/bot <nombre> — una fuente/bot\n/mejores — top y peores anuncios (7 días)\n/pendientes — días provisionales + ventas sin verificar\n\n_Recibes el cierre nocturno y el buenos días automáticamente, más alertas de cambio de signo, récords y rachas._`;
+const AYUDA = `🤖 *Comandos de Tracker Pro*\n\n📊 *Reportes:*\n/hoy · /ayer · /semana · /mes · /año\n/dia DD/MM — un día (año actual)\n/dia DD/MM/AAAA — un día con año\n\n🔎 *Detalle:*\n/producto <nombre> — un producto\n/bot <nombre> — una fuente/bot\n/mejores — top y peores anuncios (7 días)\n/pendientes — días provisionales + ventas sin verificar\n\n_Recibes el cierre nocturno y el buenos días automáticamente, más alertas de cambio de signo, récords y rachas._`;
 
 // /pendientes — días provisionales + ventas sin verificar
 async function cmdPendientes(userId: string) {
@@ -521,7 +521,7 @@ async function tgRunCommand(userId: string, cfg: any, chatId: string, cmd: strin
   else if (cmd === "/año" || cmd === "/anio") { desde = diaPeru(0).slice(0, 4) + "-01-01"; hasta = diaPeru(0); titulo = "📊 *AÑO*"; per = `${desde} → ${hasta}`; }
   else if (cmd === "/dia") {
     const mm = arg.match(/(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?/);
-    if (!mm) { await tgSend(cfg.tg_token, chatId, "Formato: /dia DD/MM (ej. /dia 03/06)"); return; }
+    if (!mm) { await tgSend(cfg.tg_token, chatId, "Formato: /dia DD/MM (año actual) o /dia DD/MM/AAAA\nEj: /dia 03/06 · /dia 03/06/2025"); return; }
     const yy = mm[3] ? (mm[3].length === 2 ? "20" + mm[3] : mm[3]) : diaPeru(0).slice(0, 4);
     desde = hasta = `${yy}-${mm[2].padStart(2, "0")}-${mm[1].padStart(2, "0")}`;
     titulo = "📊 *DÍA*"; per = desde;
