@@ -257,6 +257,56 @@ async function consolidar(wsId: string, ws: any) {
   }
 }
 
+// Procesa todas las fuentes de un usuario (ventas + opcional Meta + consolidación)
+async function procesarUsuario(userId: string, conMeta: boolean) {
+  const fuentes = await sb("GET", `fuentes?user_id=eq.${userId}`);
+  const workspaces = await sb("GET", `workspaces?user_id=eq.${userId}`);
+  const wsTouched = new Set<string>();
+  let totVentas = 0;
+  for (const f of (fuentes || [])) {
+    const wsList = (workspaces || []).filter((w: any) => w.fuente_id === f.id);
+    const wsForJob = wsList.length ? wsList : workspaces;
+    if (f.sheets_url) {
+      try {
+        const r = await syncSheet({ url: f.sheets_url, wsList: wsForJob, userId });
+        totVentas += r.ventas; r.wsIds.forEach((id) => wsTouched.add(id));
+      } catch (e) { console.error("syncSheet", f.nombre, e); }
+    }
+    if (conMeta) {
+      try { await syncMeta(f, wsForJob); (wsForJob || []).forEach((w: any) => wsTouched.add(w.id)); }
+      catch (e) { console.error("syncMeta", f.nombre, e); }
+    }
+  }
+  for (const wsId of wsTouched) {
+    const ws = (workspaces || []).find((w: any) => w.id === wsId);
+    if (ws) await consolidar(wsId, ws).catch((e) => console.error("consolidar", e));
+  }
+  return { userId, ventas: totVentas, workspaces: wsTouched.size };
+}
+
+// Modo programado: lee sync_config de cada usuario y dispara según sus horas (Perú UTC-5)
+async function runScheduled() {
+  const peru = new Date(Date.now() - 5 * 3600 * 1000);
+  const nowMin = peru.getUTCHours() * 60 + peru.getUTCMinutes();
+  const hoy = peru.toISOString().slice(0, 10);
+  const toMin = (hhmm: string) => { const [h, m] = (hhmm || "").split(":").map(Number); return (h || 0) * 60 + (m || 0); };
+  const cfgs = await sb("GET", "sync_config?activo=eq.true").catch(() => []);
+  const ejecutados: any[] = [];
+  for (const cfg of (cfgs || [])) {
+    // Noche (con Meta) tiene prioridad; luego mañana (solo ventas)
+    if (nowMin >= toMin(cfg.hora_noche || "23:00") && cfg.ultima_noche !== hoy) {
+      const r = await procesarUsuario(cfg.user_id, true);
+      await sb("PATCH", `sync_config?user_id=eq.${cfg.user_id}`, { ultima_noche: hoy }, "return=minimal").catch(() => {});
+      ejecutados.push({ ...r, slot: "noche" });
+    } else if (nowMin >= toMin(cfg.hora_manana || "06:30") && cfg.ultima_manana !== hoy) {
+      const r = await procesarUsuario(cfg.user_id, false);
+      await sb("PATCH", `sync_config?user_id=eq.${cfg.user_id}`, { ultima_manana: hoy }, "return=minimal").catch(() => {});
+      ejecutados.push({ ...r, slot: "manana" });
+    }
+  }
+  return json({ ok: true, scheduled: true, hora_peru: `${String(peru.getUTCHours()).padStart(2, "0")}:${String(peru.getUTCMinutes()).padStart(2, "0")}`, ejecutados });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Método no permitido" }, 405);
@@ -269,44 +319,20 @@ Deno.serve(async (req) => {
 
   try {
     const body = await req.json().catch(() => ({}));
-    const conMeta = body.meta !== false; // por defecto sí (opción C)
 
-    // Usuarios a procesar
+    // Modo programado (lo invoca el cron cada 15 min)
+    if (body.scheduled) return await runScheduled();
+
+    // Modo manual / directo
+    const conMeta = body.meta !== false;
     let userIds: string[];
     if (body.user_id) userIds = [body.user_id];
     else {
       const fs = await sb("GET", "fuentes?select=user_id");
       userIds = [...new Set((fs || []).map((f: any) => f.user_id))];
     }
-
     const resumen: any[] = [];
-    for (const userId of userIds) {
-      const fuentes = await sb("GET", `fuentes?user_id=eq.${userId}`);
-      const workspaces = await sb("GET", `workspaces?user_id=eq.${userId}`);
-      const wsTouched = new Set<string>();
-      let totVentas = 0;
-      for (const f of (fuentes || [])) {
-        const wsList = (workspaces || []).filter((w: any) => w.fuente_id === f.id);
-        const wsForJob = wsList.length ? wsList : workspaces;
-        if (f.sheets_url) {
-          try {
-            const r = await syncSheet({ url: f.sheets_url, wsList: wsForJob, userId });
-            totVentas += r.ventas; r.wsIds.forEach((id) => wsTouched.add(id));
-          } catch (e) { console.error("syncSheet", f.nombre, e); }
-        }
-        if (conMeta) {
-          try { await syncMeta(f, wsForJob); (wsForJob || []).forEach((w: any) => wsTouched.add(w.id)); }
-          catch (e) { console.error("syncMeta", f.nombre, e); }
-        }
-      }
-      // Consolidar días afectados
-      for (const wsId of wsTouched) {
-        const ws = (workspaces || []).find((w: any) => w.id === wsId);
-        if (ws) await consolidar(wsId, ws).catch((e) => console.error("consolidar", e));
-      }
-      resumen.push({ userId, ventas: totVentas, workspaces: wsTouched.size });
-    }
-
+    for (const userId of userIds) resumen.push(await procesarUsuario(userId, conMeta));
     return json({ ok: true, procesados: resumen.length, resumen });
   } catch (e) {
     return json({ error: String((e as Error)?.message || e) }, 500);
