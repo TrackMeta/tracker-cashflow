@@ -7428,6 +7428,9 @@ async function loadAll() {
   // Estado de consolidación por día (Etapa 2) — tolerante a tabla aún no creada
   DB.diaEstado = await api.get('dia_estado', `order=fecha.desc&limit=400${baseFilter}`).catch(() => []);
 
+  // Resumen de verificación de ventas (Etapa 3) — ligero: solo fecha + estado
+  DB.crmVerif = await api.get('crm_ventas', `select=fecha,estado_verif&order=fecha.desc&limit=8000${baseFilter}`).catch(() => []);
+
   if (cfgArr.length) DB.config = cfgArr[0];
   else DB.config = { id:null, p1:10, p2:7, p3:5, p4:3, igv:0.18, tc:4.0, sat_caida:0.30, sat_dias:3, estados:[], alerta_gasto_min:5, alerta_roas_min:1, roas_gasto_min:1, gastos_extras:[] };
 
@@ -7845,8 +7848,19 @@ function renderConfianza(desde, hasta) {
   if (!dias.length || !wsId) { box.innerHTML = ''; return; }
   let consolidados = 0; const provis = [];
   dias.forEach(f => { if (diaConsolidado(wsId, f)) consolidados++; else provis.push(f); });
+
+  // % de ventas verificadas en el período (Etapa 3) — desde el cache ligero
+  let verifTxt = '';
+  const cv = (DB.crmVerif || []).filter(v => v.fecha >= desde && v.fecha <= hasta);
+  if (cv.length) {
+    const ok = cv.filter(v => v.estado_verif === 'verificada').length;
+    const pct = Math.round(ok / cv.length * 100);
+    const col = pct >= 90 ? 'var(--green)' : pct >= 70 ? 'var(--orange)' : 'var(--red)';
+    verifTxt = ` <span style="color:var(--text3)">·</span> <span style="color:${col};font-weight:600">✅ ${pct}% ventas verificadas</span> <span style="color:var(--text3)">(${ok}/${cv.length})</span>`;
+  }
+
   if (!provis.length) {
-    box.innerHTML = `<span style="color:var(--green);font-weight:600">✅ ${consolidados} día${consolidados===1?'':'s'} consolidado${consolidados===1?'':'s'}</span> <span style="color:var(--text3)">— cifras finales</span>`;
+    box.innerHTML = `<span style="color:var(--green);font-weight:600">✅ ${consolidados} día${consolidados===1?'':'s'} consolidado${consolidados===1?'':'s'}</span> <span style="color:var(--text3)">— cifras finales</span>${verifTxt}`;
     return;
   }
   const provisOrden = provis.sort();
@@ -7855,7 +7869,7 @@ function renderConfianza(desde, hasta) {
     <span style="color:var(--green);font-weight:600">✅ ${consolidados} consolidado${consolidados===1?'':'s'}</span>
     <span style="color:var(--text3)">·</span>
     <span style="color:var(--orange);font-weight:600">⏳ ${provis.length} provisional${provis.length===1?'':'es'}</span>
-    <span style="color:var(--text3)">(${lista}) — el gasto puede ajustarse en 24-48h</span>`;
+    <span style="color:var(--text3)">(${lista}) — el gasto puede ajustarse en 24-48h</span>${verifTxt}`;
 }
 
 // ════════════════════════════════════════════════
@@ -8109,9 +8123,18 @@ function bitaConfianza(regs){
   if (!dias.length || !wsId){ box.innerHTML=''; return; }
   let cons = 0; const prov = [];
   dias.forEach(f => { if (diaConsolidado(wsId, f)) cons++; else prov.push(f); });
-  box.innerHTML = prov.length
+  const desde = dias.sort()[0], hasta = dias.sort()[dias.length-1];
+  let verifTxt = '';
+  const cv = (DB.crmVerif || []).filter(v => v.fecha >= desde && v.fecha <= hasta);
+  if (cv.length) {
+    const ok = cv.filter(v => v.estado_verif === 'verificada').length;
+    const pct = Math.round(ok / cv.length * 100);
+    const col = pct >= 90 ? 'var(--green)' : pct >= 70 ? 'var(--orange)' : 'var(--red)';
+    verifTxt = ` <span style="color:var(--text3)">·</span> <span style="color:${col};font-weight:600">✅ ${pct}% verificado</span>`;
+  }
+  box.innerHTML = (prov.length
     ? `<span style="color:var(--green);font-weight:600">✅ ${cons} consolidados</span> · <span style="color:var(--orange);font-weight:600">⏳ ${prov.length} provisionales</span> <span style="color:var(--text3)">(pueden ajustarse)</span>`
-    : `<span style="color:var(--green);font-weight:600">✅ ${cons} días consolidados — cifras finales</span>`;
+    : `<span style="color:var(--green);font-weight:600">✅ ${cons} días consolidados — cifras finales</span>`) + verifTxt;
 }
 
 function bitaDelta(prev, actual, etiqueta, modo, code){
