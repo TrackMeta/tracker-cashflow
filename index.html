@@ -1073,6 +1073,32 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     </div>
   </div>
 
+  <!-- TELEGRAM -->
+  <div class="panel" style="margin-bottom:20px" id="telegram-panel">
+    <div class="panel-header">
+      <span class="panel-title">📱 Reportes por Telegram</span>
+      <label style="display:flex;align-items:center;gap:6px;font-size:12px;cursor:pointer">
+        <input type="checkbox" id="tg-activo" onchange="saveTelegramActivo()" style="accent-color:var(--accent)">
+        <span id="tg-activo-label">Activado</span>
+      </label>
+    </div>
+    <div class="panel-body">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px">Recibe el cierre nocturno y el buenos días automáticamente, y pide reportes cuando quieras con <code>/hoy</code> <code>/ayer</code> <code>/semana</code> <code>/mes</code>. Crea tu bot con <strong>@BotFather</strong> en Telegram, copia su token y pégalo aquí.</div>
+      <div class="field" style="margin-bottom:10px">
+        <label>Token del bot (de @BotFather)</label>
+        <input type="password" id="tg-token" placeholder="123456789:AAE..." style="font-family:var(--mono);font-size:11px" autocomplete="off">
+      </div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+        <button class="btn btn-primary btn-sm" onclick="conectarTelegram()">🔗 Conectar bot</button>
+        <button class="btn btn-ghost btn-sm" onclick="testTelegram()">✉️ Enviar prueba</button>
+        <span id="tg-estado" style="font-size:11px;color:var(--text3)"></span>
+      </div>
+      <div style="font-size:11px;color:var(--text2);margin-top:10px;line-height:1.7">
+        <strong>Después de conectar:</strong> abre tu bot en Telegram y envíale <code>/start</code> — eso vincula tu chat para recibir los reportes.
+      </div>
+    </div>
+  </div>
+
   <!-- SYNC GOOGLE SHEETS -->
   <div style="margin-bottom:20px;padding:16px 18px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
     <div style="display:flex;align-items:center;gap:12px">
@@ -7274,6 +7300,7 @@ async function loadAutosyncConfig() {
     if (AUTOSYNC_CFG?.ultima_manana) partes.push(`última mañana: ${fmt.date(AUTOSYNC_CFG.ultima_manana)}`);
     est.textContent = partes.length ? `Estado — ${partes.join(' · ')}` : 'Aún sin ejecuciones automáticas registradas.';
   }
+  loadTelegramUI();
 }
 async function saveAutosyncConfig() {
   const activo = document.getElementById('autosync-activo').checked;
@@ -7291,6 +7318,65 @@ async function saveAutosyncConfig() {
     }
     showSuccess('✅ Horarios guardados');
   } catch(e) { showError('Error guardando horarios: ' + e.message); }
+}
+
+// ── Telegram ──
+const TG_WEBHOOK = uid => `${SUPABASE_URL}/functions/v1/auto-sync?tg=${uid}`;
+function loadTelegramUI() {
+  const tok = document.getElementById('tg-token');
+  const act = document.getElementById('tg-activo');
+  if (!tok) return;
+  if (AUTOSYNC_CFG?.tg_token) tok.value = AUTOSYNC_CFG.tg_token;
+  act.checked = AUTOSYNC_CFG ? AUTOSYNC_CFG.tg_activo !== false : true;
+  document.getElementById('tg-activo-label').textContent = act.checked ? 'Activado' : 'Pausado';
+  const est = document.getElementById('tg-estado');
+  if (est) est.textContent = AUTOSYNC_CFG?.tg_chat_id ? '✅ Chat vinculado' : (AUTOSYNC_CFG?.tg_token ? '⚠️ Falta enviar /start al bot' : '');
+}
+async function _tgSaveCfg(patch) {
+  const data = { ...patch, user_id: CURRENT_USER?.id };
+  if (AUTOSYNC_CFG?.user_id) { await api.patch('sync_config', AUTOSYNC_CFG.user_id, patch); Object.assign(AUTOSYNC_CFG, patch); }
+  else { const r = await api.post('sync_config', data); AUTOSYNC_CFG = r[0]; }
+}
+async function conectarTelegram() {
+  const token = document.getElementById('tg-token').value.trim();
+  if (!token || !token.includes(':')) { showError('Pega el token del bot (de @BotFather)'); return; }
+  const est = document.getElementById('tg-estado');
+  est.textContent = '⏳ Conectando...';
+  try {
+    // 1. Registrar webhook en Telegram apuntando a nuestra función
+    const r = await fetch(`https://api.telegram.org/bot${token}/setWebhook`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ url: TG_WEBHOOK(CURRENT_USER.id), allowed_updates: ['message'] })
+    });
+    const jd = await r.json();
+    if (!jd.ok) throw new Error(jd.description || 'Telegram rechazó el webhook');
+    // 2. Guardar token + activar
+    await _tgSaveCfg({ tg_token: token, tg_activo: true });
+    est.textContent = '✅ Bot conectado — ahora envíale /start en Telegram';
+    showSuccess('✅ Bot conectado. Abre tu bot y envíale /start.');
+  } catch(e) { est.textContent = '❌ ' + e.message; showError('Error: ' + e.message); }
+}
+async function testTelegram() {
+  // Recargar config para tener el chat_id más reciente (capturado al hacer /start)
+  await loadAutosyncConfig();
+  const token = AUTOSYNC_CFG?.tg_token, chat = AUTOSYNC_CFG?.tg_chat_id;
+  if (!token) { showError('Conecta el bot primero'); return; }
+  if (!chat)  { showError('Primero envía /start a tu bot en Telegram'); return; }
+  try {
+    const r = await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ chat_id: chat, text: '✅ Prueba de Tracker Pro — los reportes llegarán aquí.' })
+    });
+    const jd = await r.json();
+    if (!jd.ok) throw new Error(jd.description || 'Error');
+    showSuccess('✅ Mensaje de prueba enviado a tu Telegram');
+  } catch(e) { showError('Error: ' + e.message); }
+}
+async function saveTelegramActivo() {
+  const activo = document.getElementById('tg-activo').checked;
+  document.getElementById('tg-activo-label').textContent = activo ? 'Activado' : 'Pausado';
+  try { await _tgSaveCfg({ tg_activo: activo }); showSuccess('✅ Guardado'); }
+  catch(e) { showError('Error: ' + e.message); }
 }
 
 async function loadAll() {

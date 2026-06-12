@@ -297,20 +297,152 @@ async function runScheduled() {
     if (nowMin >= toMin(cfg.hora_noche || "23:00") && cfg.ultima_noche !== hoy) {
       const r = await procesarUsuario(cfg.user_id, true);
       await sb("PATCH", `sync_config?user_id=eq.${cfg.user_id}`, { ultima_noche: hoy }, "return=minimal").catch(() => {});
+      await enviarReporteSlot(cfg, "noche").catch((e) => console.error("reporte noche", e));
       ejecutados.push({ ...r, slot: "noche" });
     } else if (nowMin >= toMin(cfg.hora_manana || "06:30") && cfg.ultima_manana !== hoy) {
       // La mañana también trae Meta: captura el gasto ya consolidado durante la noche
       const r = await procesarUsuario(cfg.user_id, true);
       await sb("PATCH", `sync_config?user_id=eq.${cfg.user_id}`, { ultima_manana: hoy }, "return=minimal").catch(() => {});
+      await enviarReporteSlot(cfg, "manana").catch((e) => console.error("reporte manana", e));
       ejecutados.push({ ...r, slot: "manana" });
     }
   }
   return json({ ok: true, scheduled: true, hora_peru: `${String(peru.getUTCHours()).padStart(2, "0")}:${String(peru.getUTCMinutes()).padStart(2, "0")}`, ejecutados });
 }
 
+// ════════════════════════════════════════════════
+// TELEGRAM — Reportes (Etapa 6)
+// ════════════════════════════════════════════════
+const CUR: Record<string, { s: string; d: number }> = {
+  USD: { s: "$", d: 2 }, PEN: { s: "S/", d: 2 }, COP: { s: "$", d: 0 }, MXN: { s: "$", d: 2 },
+  CLP: { s: "$", d: 0 }, ARS: { s: "$", d: 0 }, BOB: { s: "Bs", d: 2 }, BRL: { s: "R$", d: 2 },
+  GTQ: { s: "Q", d: 2 }, DOP: { s: "RD$", d: 2 }, EUR: { s: "€", d: 2 },
+};
+const fMoney = (n: number, code: string) => { const c = CUR[code] || CUR.PEN; return `${c.s} ${(+n || 0).toFixed(c.d).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`; };
+const fUsd = (n: number) => `$ ${(+n || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
+const fRoas = (n: number) => isFinite(n) && n > 0 ? `${n.toFixed(2)}x` : "—";
+const diaPeru = (off = 0) => { const d = new Date(Date.now() - 5 * 3600 * 1000); d.setUTCDate(d.getUTCDate() + off); return d.toISOString().slice(0, 10); };
+const lunesDe = (fechaStr: string) => { const d = new Date(fechaStr + "T12:00:00Z"); const dow = (d.getUTCDay() + 6) % 7; d.setUTCDate(d.getUTCDate() - dow); return d.toISOString().slice(0, 10); };
+
+async function tgSend(token: string, chatId: string, text: string) {
+  await fetch(`https://api.telegram.org/bot${token}/sendMessage`, {
+    method: "POST", headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ chat_id: chatId, text, parse_mode: "Markdown", disable_web_page_preview: true }),
+  }).catch(() => {});
+}
+async function sbCount(path: string): Promise<number> {
+  const res = await fetch(`${SUPABASE_URL}/rest/v1/${path}`, {
+    method: "HEAD", headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${SERVICE_KEY}`, Prefer: "count=exact", Range: "0-0" },
+  });
+  const cr = res.headers.get("content-range") || "*/0";
+  return parseInt(cr.split("/")[1] || "0") || 0;
+}
+
+// Reúne métricas por workspace para un rango
+async function reportData(userId: string, desde: string, hasta: string) {
+  const workspaces = await sb("GET", `workspaces?user_id=eq.${userId}`);
+  const fuentes = await sb("GET", `fuentes?user_id=eq.${userId}`);
+  const fuenteName: Record<string, string> = {};
+  (fuentes || []).forEach((f: any) => { fuenteName[f.id] = `${f.emoji || "🤖"} ${f.nombre}`; });
+  const perWs: any[] = [];
+  for (const ws of (workspaces || [])) {
+    const cfg = (await sb("GET", `config?workspace_id=eq.${ws.id}&select=p1,p2,p3,p4&limit=1`))?.[0] || { p1: 10, p2: 7, p3: 5, p4: 3 };
+    const regs = await sb("GET", `registros?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&select=fecha,gasto_meta,gasto_tiktok,v1,v2,v3,v4,upsell_total`) || [];
+    let inv = 0, up = 0, v1 = 0, v2 = 0, v3 = 0, v4 = 0;
+    regs.forEach((r: any) => { inv += (+r.gasto_meta || 0) + (+r.gasto_tiktok || 0); v1 += +r.v1 || 0; v2 += +r.v2 || 0; v3 += +r.v3 || 0; v4 += +r.v4 || 0; up += +r.upsell_total || 0; });
+    const ing = v1 * (+cfg.p1) + v2 * (+cfg.p2) + v3 * (+cfg.p3) + v4 * (+cfg.p4) + up;
+    const profit = ing - inv, roas = inv > 0 ? ing / inv : 0, roi = inv > 0 ? profit / inv * 100 : 0;
+    const rate = ws.currency_code === "USD" ? 1 : (+ws.usd_rate || 3.7);
+    const estados = await sb("GET", `dia_estado?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&select=fecha,consolidado`) || [];
+    const consMap: Record<string, boolean> = {}; estados.forEach((e: any) => { consMap[e.fecha] = e.consolidado; });
+    const diasData = [...new Set(regs.map((r: any) => r.fecha))] as string[];
+    let prov = 0; diasData.forEach((f) => { const c = consMap[f] !== undefined ? consMap[f] : (f < diaPeru(-2)); if (!c) prov++; });
+    const totalV = await sbCount(`crm_ventas?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}`);
+    const okV = await sbCount(`crm_ventas?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&estado_verif=eq.verificada`);
+    perWs.push({ ws, inv, ing, profit, roas, roi, ventas: v1 + v2 + v3 + v4, v1, v2, v3, v4, rate, prov, totalV, okV, dias: diasData.length });
+  }
+  return { perWs, fuenteName };
+}
+
+function formatReport(titulo: string, periodoTxt: string, data: any) {
+  const { perWs, fuenteName } = data;
+  let gInv = 0, gIng = 0, gProf = 0, gVen = 0, prov = 0;
+  perWs.forEach((w: any) => { gInv += w.inv / w.rate; gIng += w.ing / w.rate; gProf += w.profit / w.rate; gVen += w.ventas; prov += w.prov; });
+  const gRoas = gInv > 0 ? gIng / gInv : 0, gRoi = gInv > 0 ? gProf / gInv * 100 : 0;
+  let msg = `${titulo}\n_${periodoTxt}_\n\n🌍 *GLOBAL (USD)*\nInversión ${fUsd(gInv)} · Ingresos ${fUsd(gIng)}\n*Profit ${fUsd(gProf)}* · ROAS ${fRoas(gRoas)} · ROI ${gRoi.toFixed(1)}%\nVentas ${gVen}`;
+  const byF: Record<string, any[]> = {};
+  perWs.forEach((w: any) => { const k = w.ws.fuente_id || "_"; (byF[k] = byF[k] || []).push(w); });
+  const multi = Object.keys(byF).length > 1;
+  for (const [fid, list] of Object.entries(byF)) {
+    if (multi) { let fp = 0; list.forEach((w) => fp += w.profit / w.rate); msg += `\n\n━━━━━━━━\n🤖 *${fuenteName[fid] || "Sin fuente"}* — Profit ${fUsd(fp)}`; }
+    else msg += `\n\n━━━━━━━━`;
+    for (const w of list) {
+      const code = w.ws.currency_code || "PEN";
+      const loc = code === "USD" ? "" : ` (${fMoney(w.profit, code)})`;
+      msg += `\n\n📦 *${w.ws.emoji || "📦"} ${w.ws.nombre}* (${code})\nInv ${fUsd(w.inv / w.rate)} · Ing ${fUsd(w.ing / w.rate)}\nProfit ${fUsd(w.profit / w.rate)}${loc}\nROAS ${fRoas(w.roas)} · ROI ${w.roi.toFixed(1)}% · Ventas ${w.ventas} (P1:${w.v1} P2:${w.v2} P3:${w.v3} P4:${w.v4})`;
+      if (w.totalV > 0) msg += `\n✅ Verificado: ${Math.round(w.okV / w.totalV * 100)}% (${w.okV}/${w.totalV})`;
+    }
+  }
+  if (prov > 0) msg += `\n\n⏳ _${prov} día(s) provisional(es) — el gasto puede ajustarse._`;
+  return msg;
+}
+
+// Envía el reporte de un slot tras la sync programada
+async function enviarReporteSlot(cfg: any, slot: "noche" | "manana") {
+  if (!cfg.tg_token || !cfg.tg_chat_id || cfg.tg_activo === false) return;
+  if (slot === "noche") {
+    const hoy = diaPeru(0);
+    const data = await reportData(cfg.user_id, hoy, hoy);
+    await tgSend(cfg.tg_token, cfg.tg_chat_id, formatReport("🌙 *CIERRE DEL DÍA*", `Hoy ${hoy}`, data));
+  } else {
+    const ayer = diaPeru(-1);
+    const data = await reportData(cfg.user_id, ayer, ayer);
+    await tgSend(cfg.tg_token, cfg.tg_chat_id, formatReport("☀️ *BUENOS DÍAS*", `Ayer ${ayer}`, data));
+  }
+}
+
+// Webhook de Telegram (comandos)
+async function handleTelegram(userId: string, update: any) {
+  const m = update.message || update.edited_message;
+  if (!m || !m.text) return json({ ok: true });
+  const chatId = String(m.chat.id);
+  const cmd = m.text.trim().toLowerCase().split(/\s+/)[0].replace(/@.*/, "");
+  const cfgs = await sb("GET", `sync_config?user_id=eq.${userId}&limit=1`);
+  const cfg = cfgs?.[0];
+  if (!cfg || !cfg.tg_token) return json({ ok: true });
+
+  // /start → vincular este chat
+  if (cmd === "/start") {
+    await sb("PATCH", `sync_config?user_id=eq.${userId}`, { tg_chat_id: chatId }, "return=minimal").catch(() => {});
+    await tgSend(cfg.tg_token, chatId, "✅ *Conectado a Tracker Pro*\n\nComandos:\n/hoy /ayer · /semana · /mes\nRecibirás el cierre nocturno y el buenos días automáticamente.");
+    return json({ ok: true });
+  }
+  let titulo = "", desde = "", hasta = "", per = "";
+  if (cmd === "/hoy")      { desde = hasta = diaPeru(0);  titulo = "📊 *HOY*";    per = `Hoy ${desde}`; }
+  else if (cmd === "/ayer"){ desde = hasta = diaPeru(-1); titulo = "📊 *AYER*";   per = `Ayer ${desde}`; }
+  else if (cmd === "/semana"){ desde = lunesDe(diaPeru(0)); hasta = diaPeru(0); titulo = "📊 *SEMANA*"; per = `${desde} → ${hasta}`; }
+  else if (cmd === "/mes") { desde = diaPeru(0).slice(0, 8) + "01"; hasta = diaPeru(0); titulo = "📊 *MES*"; per = `${desde} → ${hasta}`; }
+  else { await tgSend(cfg.tg_token, chatId, "Comandos: /hoy /ayer /semana /mes"); return json({ ok: true }); }
+
+  const data = await reportData(userId, desde, hasta);
+  await tgSend(cfg.tg_token, chatId, formatReport(titulo, per, data));
+  return json({ ok: true });
+}
+
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response("ok", { headers: cors });
   if (req.method !== "POST") return json({ error: "Método no permitido" }, 405);
+
+  const url = new URL(req.url);
+  const tgUser = url.searchParams.get("tg");
+  const rawBody = await req.text();
+  let body: any = {};
+  try { body = rawBody ? JSON.parse(rawBody) : {}; } catch { body = {}; }
+
+  // Webhook de Telegram (identificado por ?tg=<userId>)
+  if (tgUser && (body.update_id || body.message)) {
+    try { return await handleTelegram(tgUser, body); } catch (e) { console.error("tg", e); return json({ ok: true }); }
+  }
 
   // Auth por secreto compartido (cron) o service role en Authorization
   const secret = req.headers.get("x-autosync-secret") || "";
@@ -319,8 +451,6 @@ Deno.serve(async (req) => {
     return json({ error: "No autorizado" }, 401);
 
   try {
-    const body = await req.json().catch(() => ({}));
-
     // Modo programado (lo invoca el cron cada 15 min)
     if (body.scheduled) return await runScheduled();
 
