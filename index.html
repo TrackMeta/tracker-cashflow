@@ -439,6 +439,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   <nav class="nav">
     <div class="nav-section">Análisis</div>
     <div class="nav-item active" onclick="navTo('dashboard',this)"><span class="icon">📈</span> Dashboard</div>
+    <div class="nav-item" onclick="navTo('bitacora',this)"><span class="icon">📅</span> Bitácora</div>
     <div class="nav-item" onclick="navTo('global',this)" id="nav-global"><span class="icon">🌐</span> Global</div>
     <div class="nav-item" onclick="navTo('comparar',this)"><span class="icon">⚖️</span> Comparar períodos</div>
     <div class="nav-item" onclick="navTo('comparar-productos',this)"><span class="icon">📦</span> Comparar productos</div>
@@ -575,6 +576,58 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       </div>
     </div>
 
+  </div>
+</div>
+
+<!-- BITÁCORA (Año → Mes → Día) -->
+<div class="page" id="page-bitacora">
+  <div class="page-header">
+    <div>
+      <div class="page-title">📅 Bitácora</div>
+      <div class="page-sub" id="bita-sub">Tu registro mensual y diario — producto activo</div>
+    </div>
+    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
+      <button class="btn btn-ghost btn-sm" id="bita-tab-anio" onclick="bitaSetVista('anio')">📊 Año</button>
+      <button class="btn btn-ghost btn-sm" id="bita-tab-mes" onclick="bitaSetVista('mes')">🗓️ Mes</button>
+    </div>
+  </div>
+
+  <!-- Navegador temporal -->
+  <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap">
+    <button class="btn btn-ghost btn-sm" onclick="bitaNav(-1)">◀</button>
+    <div style="font-size:16px;font-weight:800;color:var(--text);min-width:160px;text-align:center" id="bita-periodo-label">—</div>
+    <button class="btn btn-ghost btn-sm" onclick="bitaNav(1)">▶</button>
+    <span id="bita-delta" style="font-size:12px;margin-left:8px"></span>
+  </div>
+
+  <!-- KPIs del período -->
+  <div class="cards-row cards-5" id="bita-kpis" style="margin-bottom:8px"></div>
+  <div id="bita-confianza" style="margin:4px 0 16px;font-size:11.5px"></div>
+
+  <!-- Vista AÑO: tabla mensual -->
+  <div id="bita-vista-anio">
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Resumen mensual</span><span style="font-size:11px;color:var(--text3)">Clic en un mes para ver su detalle</span></div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th class="left">Mes</th><th>Inversión</th><th>Ingresos</th><th>Profit (USD)</th><th>ROAS</th><th>ROI%</th><th>Días +/−</th><th>Mejor/Peor</th></tr></thead>
+        <tbody id="bita-anio-tbody"></tbody>
+      </table></div>
+    </div>
+  </div>
+
+  <!-- Vista MES: calendario + tabla diaria -->
+  <div id="bita-vista-mes" style="display:none">
+    <div class="panel" style="margin-bottom:16px">
+      <div class="panel-header"><span class="panel-title">Calendario de profit</span><span style="font-size:11px;color:var(--text3)">🟩 alto · 🟢 positivo · 🟥 pérdida · ⬜ sin datos · ⏳ provisional</span></div>
+      <div class="panel-body"><div id="bita-calendario"></div></div>
+    </div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Bitácora diaria</span></div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th class="left">Fecha</th><th>Estado</th><th>Inversión</th><th>Ingresos</th><th>Profit</th><th>ROAS</th><th>ROI%</th><th>Ventas</th></tr></thead>
+        <tbody id="bita-mes-tbody"></tbody>
+      </table></div>
+    </div>
   </div>
 </div>
 
@@ -7327,6 +7380,7 @@ function updateSheetsStatus() {
 
 function renderPage(page) {
   if (page==='dashboard')    renderDashboard();
+  if (page==='bitacora')     renderBitacora();
   if (page==='global')       renderGlobal();
   if (page==='kpis')         { initKPIDate(); renderKPIs(); }
   if (page==='por-anuncio')  { initFiltros(); renderPorAnuncio(); }
@@ -7656,6 +7710,273 @@ function renderConfianza(desde, hasta) {
     <span style="color:var(--text3)">·</span>
     <span style="color:var(--orange);font-weight:600">⏳ ${provis.length} provisional${provis.length===1?'':'es'}</span>
     <span style="color:var(--text3)">(${lista}) — el gasto puede ajustarse en 24-48h</span>`;
+}
+
+// ════════════════════════════════════════════════
+// BITÁCORA (Año → Mes → Día) — Etapa 4
+// ════════════════════════════════════════════════
+let BITA_VISTA = 'mes';
+let BITA_ANIO  = new Date().getFullYear();
+let BITA_MES   = new Date().getMonth(); // 0-11
+const BITA_MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Agosto','Septiembre','Octubre','Noviembre','Diciembre'];
+
+function _pad2(n){ return String(n).padStart(2,'0'); }
+// Métricas + ROI de un set de registros
+function bitaMetrics(regs){
+  const M = calcMetrics(regs);
+  M.roi = M.inversion > 0 ? M.profit / M.inversion * 100 : 0;
+  return M;
+}
+// Agrupa por día: devuelve [{fecha, M}] ordenado
+function bitaPorDia(regs){
+  const byDay = {};
+  regs.forEach(r => { (byDay[r.fecha] = byDay[r.fecha] || []).push(r); });
+  return Object.entries(byDay).map(([fecha, rs]) => ({ fecha, M: bitaMetrics(rs) }))
+    .sort((a,b) => a.fecha.localeCompare(b.fecha));
+}
+// Resumen de días +/− y mejor/peor ROAS
+function bitaResumenDias(dias){
+  let mas = 0, menos = 0, mejor = null, peor = null;
+  dias.forEach(d => {
+    if (d.M.inversion <= 0 && d.M.ingresos <= 0) return;
+    if (d.M.profit >= 0) mas++; else menos++;
+    if (!mejor || d.M.roas > mejor.M.roas) mejor = d;
+    if (!peor  || d.M.roas < peor.M.roas)  peor  = d;
+  });
+  return { mas, menos, mejor, peor };
+}
+
+function renderBitacora(){
+  bitaSetVista(BITA_VISTA, true);
+}
+
+function bitaSetVista(v, keep){
+  BITA_VISTA = v;
+  document.getElementById('bita-vista-anio').style.display = v === 'anio' ? 'block' : 'none';
+  document.getElementById('bita-vista-mes').style.display  = v === 'mes'  ? 'block' : 'none';
+  const ba = document.getElementById('bita-tab-anio'), bm = document.getElementById('bita-tab-mes');
+  [ba, bm].forEach(b => { b.style.borderColor=''; b.style.color=''; });
+  const act = v === 'anio' ? ba : bm;
+  act.style.borderColor = 'var(--accent)'; act.style.color = 'var(--accent)';
+  bitaRender();
+}
+
+function bitaNav(dir){
+  if (BITA_VISTA === 'anio') {
+    BITA_ANIO += dir;
+  } else {
+    BITA_MES += dir;
+    if (BITA_MES < 0) { BITA_MES = 11; BITA_ANIO--; }
+    if (BITA_MES > 11){ BITA_MES = 0;  BITA_ANIO++; }
+  }
+  bitaRender();
+}
+
+function bitaRender(){
+  document.getElementById('bita-sub').textContent =
+    `${CURRENT_WORKSPACE?.emoji||'📦'} ${CURRENT_WORKSPACE?.nombre||'—'} · ${wsCurrencyCode()}`;
+  if (BITA_VISTA === 'anio') bitaRenderAnio();
+  else bitaRenderMes();
+}
+
+function bitaRenderAnio(){
+  document.getElementById('bita-periodo-label').textContent = BITA_ANIO;
+  const code = wsCurrencyCode();
+  const regsAnio = DB.registros.filter(r => r.fecha.startsWith(`${BITA_ANIO}-`));
+  const M = bitaMetrics(regsAnio);
+  const dias = bitaPorDia(regsAnio);
+  const rd = bitaResumenDias(dias);
+
+  document.getElementById('bita-kpis').innerHTML = [
+    kpiCard('Inversión', fmt.d(toUSD(M.inversion)), 'orange', fmtMoney(M.inversion, code)),
+    kpiCard('Ingresos',  fmt.d(toUSD(M.ingresos)),  'green',  fmtMoney(M.ingresos, code)),
+    kpiCard('Profit',    fmt.d(toUSD(M.profit)),    M.profit>=0?'teal':'red', fmtMoney(M.profit, code)),
+    kpiCard('ROAS',      fmt.roas(M.roas),          'accent', `ROI ${M.roi.toFixed(1)}%`),
+    kpiCard('Días +/−',  `${rd.mas} / ${rd.menos}`, 'purple', `${dias.length} días con datos`),
+  ].join('');
+  bitaConfianza(regsAnio);
+
+  // Delta vs año anterior
+  const regsPrev = DB.registros.filter(r => r.fecha.startsWith(`${BITA_ANIO-1}-`));
+  bitaDelta(bitaMetrics(regsPrev).profit, M.profit, `${BITA_ANIO-1}`, 'usd', code);
+
+  // Tabla mensual
+  const tb = document.getElementById('bita-anio-tbody');
+  let rows = '';
+  for (let mes = 0; mes < 12; mes++){
+    const rm = regsAnio.filter(r => r.fecha.startsWith(`${BITA_ANIO}-${_pad2(mes+1)}`));
+    if (!rm.length){
+      rows += `<tr style="opacity:0.4"><td class="left">${BITA_MESES[mes]}</td><td colspan="7" style="color:var(--text3)">—</td></tr>`;
+      continue;
+    }
+    const Mm = bitaMetrics(rm);
+    const rdm = bitaResumenDias(bitaPorDia(rm));
+    const roasColor = Mm.roas>=2?'var(--green)':Mm.roas>=1?'var(--orange)':'var(--red)';
+    rows += `<tr style="cursor:pointer" onclick="bitaAbrirMes(${mes})">
+      <td class="left" style="font-weight:600">${BITA_MESES[mes]}</td>
+      <td>${fmt.d(toUSD(Mm.inversion))}</td>
+      <td style="color:var(--green)">${fmt.d(toUSD(Mm.ingresos))}</td>
+      <td style="color:${Mm.profit>=0?'var(--teal)':'var(--red)'};font-weight:600">${fmt.d(toUSD(Mm.profit))}</td>
+      <td style="color:${roasColor};font-weight:700">${fmt.roas(Mm.roas)}</td>
+      <td style="color:${Mm.roi>=0?'var(--green)':'var(--red)'}">${Mm.roi.toFixed(1)}%</td>
+      <td><span style="color:var(--green)">${rdm.mas}</span> / <span style="color:var(--red)">${rdm.menos}</span></td>
+      <td style="font-size:10px;color:var(--text3)">${rdm.mejor?fmt.roas(rdm.mejor.M.roas):'—'} / ${rdm.peor?fmt.roas(rdm.peor.M.roas):'—'}</td>
+    </tr>`;
+  }
+  // Total anual
+  const roasColorT = M.roas>=2?'var(--green)':M.roas>=1?'var(--orange)':'var(--red)';
+  rows += `<tr style="background:var(--bg3);font-weight:800">
+    <td class="left">TOTAL ${BITA_ANIO}</td>
+    <td>${fmt.d(toUSD(M.inversion))}</td>
+    <td style="color:var(--green)">${fmt.d(toUSD(M.ingresos))}</td>
+    <td style="color:${M.profit>=0?'var(--teal)':'var(--red)'}">${fmt.d(toUSD(M.profit))}</td>
+    <td style="color:${roasColorT}">${fmt.roas(M.roas)}</td>
+    <td>${M.roi.toFixed(1)}%</td>
+    <td><span style="color:var(--green)">${rd.mas}</span> / <span style="color:var(--red)">${rd.menos}</span></td>
+    <td></td></tr>`;
+  tb.innerHTML = rows;
+}
+
+function bitaAbrirMes(mes){
+  BITA_MES = mes;
+  bitaSetVista('mes');
+}
+
+function bitaRenderMes(){
+  document.getElementById('bita-periodo-label').textContent = `${BITA_MESES[BITA_MES]} ${BITA_ANIO}`;
+  const code = wsCurrencyCode();
+  const prefijo = `${BITA_ANIO}-${_pad2(BITA_MES+1)}`;
+  const regsMes = DB.registros.filter(r => r.fecha.startsWith(prefijo));
+  const M = bitaMetrics(regsMes);
+  const dias = bitaPorDia(regsMes);
+  const rd = bitaResumenDias(dias);
+
+  document.getElementById('bita-kpis').innerHTML = [
+    kpiCard('Inversión', fmtMoney(M.inversion, code), 'orange', fmt.d(toUSD(M.inversion))),
+    kpiCard('Ingresos',  fmtMoney(M.ingresos, code),  'green',  fmt.d(toUSD(M.ingresos))),
+    kpiCard('Profit',    fmtMoney(M.profit, code),    M.profit>=0?'teal':'red', fmt.d(toUSD(M.profit))),
+    kpiCard('ROAS · ROI',`${fmt.roas(M.roas)} · ${M.roi.toFixed(1)}%`, 'accent', `${rd.mas}+ / ${rd.menos}−`),
+    kpiCard('Mejor día', rd.mejor?fmt.roas(rd.mejor.M.roas):'—', 'purple', rd.mejor?fmt.date(rd.mejor.fecha):'sin datos'),
+  ].join('');
+  bitaConfianza(regsMes);
+
+  // Delta vs mes anterior
+  let pm = BITA_MES-1, pa = BITA_ANIO; if (pm<0){ pm=11; pa--; }
+  const regsPrev = DB.registros.filter(r => r.fecha.startsWith(`${pa}-${_pad2(pm+1)}`));
+  bitaDelta(bitaMetrics(regsPrev).profit, M.profit, BITA_MESES[pm], 'local', code);
+
+  bitaCalendario(dias);
+
+  // Tabla diaria
+  const diaMap = {}; dias.forEach(d => diaMap[d.fecha] = d);
+  const wsId = CURRENT_WORKSPACE?.id;
+  const tb = document.getElementById('bita-mes-tbody');
+  const diasEnMes = new Date(BITA_ANIO, BITA_MES+1, 0).getDate();
+  let rows = '';
+  for (let dia = 1; dia <= diasEnMes; dia++){
+    const fecha = `${prefijo}-${_pad2(dia)}`;
+    const d = diaMap[fecha];
+    if (!d){ continue; }
+    const cons = diaConsolidado(wsId, fecha);
+    const roasColor = d.M.roas>=2?'var(--green)':d.M.roas>=1?'var(--orange)':'var(--red)';
+    const tilde = cons ? '' : '~';
+    rows += `<tr>
+      <td class="left" style="font-weight:600">${fmt.date(fecha)}</td>
+      <td>${cons?'<span class="badge green" style="font-size:9px">✅</span>':'<span class="badge orange" style="font-size:9px">⏳</span>'}</td>
+      <td>${tilde}${fmtMoney(d.M.inversion, code)}</td>
+      <td style="color:var(--green)">${fmtMoney(d.M.ingresos, code)}</td>
+      <td style="color:${d.M.profit>=0?'var(--teal)':'var(--red)'};font-weight:600">${tilde}${fmtMoney(d.M.profit, code)}</td>
+      <td style="color:${roasColor};font-weight:700">${tilde}${fmt.roas(d.M.roas)}</td>
+      <td style="color:${d.M.roi>=0?'var(--green)':'var(--red)'}">${d.M.roi.toFixed(1)}%</td>
+      <td>${d.M.ventas}</td>
+    </tr>`;
+  }
+  // TOTAL y PROMEDIO
+  const nd = dias.length || 1;
+  rows += `<tr style="background:var(--bg3);font-weight:800">
+    <td class="left">TOTAL</td><td></td>
+    <td>${fmtMoney(M.inversion, code)}</td>
+    <td style="color:var(--green)">${fmtMoney(M.ingresos, code)}</td>
+    <td style="color:${M.profit>=0?'var(--teal)':'var(--red)'}">${fmtMoney(M.profit, code)}</td>
+    <td>${fmt.roas(M.roas)}</td><td>${M.roi.toFixed(1)}%</td><td>${M.ventas}</td></tr>`;
+  rows += `<tr style="font-weight:600;color:var(--text2)">
+    <td class="left">PROMEDIO/día</td><td></td>
+    <td>${fmtMoney(M.inversion/nd, code)}</td>
+    <td>${fmtMoney(M.ingresos/nd, code)}</td>
+    <td>${fmtMoney(M.profit/nd, code)}</td>
+    <td>—</td><td>—</td><td>${(M.ventas/nd).toFixed(1)}</td></tr>`;
+  tb.innerHTML = rows || '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:24px">Sin datos este mes</td></tr>';
+}
+
+function bitaCalendario(dias){
+  const diaMap = {}; dias.forEach(d => diaMap[d.fecha] = d);
+  const wsId = CURRENT_WORKSPACE?.id;
+  const prefijo = `${BITA_ANIO}-${_pad2(BITA_MES+1)}`;
+  const diasEnMes = new Date(BITA_ANIO, BITA_MES+1, 0).getDate();
+  // Lunes = 0
+  let primerDow = new Date(BITA_ANIO, BITA_MES, 1).getDay(); // 0=dom
+  primerDow = (primerDow + 6) % 7;
+  // Escala de profit para colores
+  const profits = dias.map(d => d.M.profit);
+  const maxP = Math.max(1, ...profits.filter(p => p > 0));
+  const colorDe = M => {
+    if (M.inversion <= 0 && M.ingresos <= 0) return { bg:'var(--bg3)', fg:'var(--text3)' };
+    if (M.profit < 0) return { bg:'var(--red-dim)', fg:'var(--red)' };
+    const fuerte = M.profit >= maxP * 0.6;
+    return fuerte ? { bg:'var(--green-dim)', fg:'var(--green)', borde:'var(--green)' } : { bg:'rgba(16,185,129,0.10)', fg:'var(--teal)' };
+  };
+  const dows = ['L','M','X','J','V','S','D'];
+  let html = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px">';
+  dows.forEach(d => html += `<div style="text-align:center;font-size:10px;font-weight:700;color:var(--text3);padding:2px">${d}</div>`);
+  for (let i = 0; i < primerDow; i++) html += '<div></div>';
+  const code = wsCurrencyCode();
+  for (let dia = 1; dia <= diasEnMes; dia++){
+    const fecha = `${prefijo}-${_pad2(dia)}`;
+    const d = diaMap[fecha];
+    if (!d){
+      html += `<div style="aspect-ratio:1;border-radius:8px;background:var(--bg3);opacity:0.4;display:flex;flex-direction:column;align-items:center;justify-content:center"><span style="font-size:11px;color:var(--text3)">${dia}</span></div>`;
+      continue;
+    }
+    const c = colorDe(d.M);
+    const cons = diaConsolidado(wsId, fecha);
+    html += `<div onclick="bitaAbrirDia('${fecha}')" title="${fecha}" style="aspect-ratio:1;border-radius:8px;background:${c.bg};border:1px solid ${c.borde||'transparent'};display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:2px">
+      <span style="font-size:10px;color:var(--text3)">${dia}${cons?'':' ⏳'}</span>
+      <span style="font-size:11px;font-weight:800;color:${c.fg};font-family:var(--mono);line-height:1.2">${fmtMoney(d.M.profit, code).replace(/\.\d+$/,'')}</span>
+    </div>`;
+  }
+  html += '</div>';
+  document.getElementById('bita-calendario').innerHTML = html;
+}
+
+function bitaAbrirDia(fecha){
+  // Saltar al Dashboard en modo día específico
+  const sel = document.getElementById('dash-periodo');
+  if (sel){ sel.value = 'dia'; onDashPeriodo(); const di = document.getElementById('dash-dia-especifico'); if (di){ di.value = fecha; renderDashboard(); } }
+  navTo('dashboard', null);
+}
+
+function bitaConfianza(regs){
+  const box = document.getElementById('bita-confianza');
+  if (!box) return;
+  const wsId = CURRENT_WORKSPACE?.id;
+  const dias = [...new Set(regs.map(r => r.fecha))];
+  if (!dias.length || !wsId){ box.innerHTML=''; return; }
+  let cons = 0; const prov = [];
+  dias.forEach(f => { if (diaConsolidado(wsId, f)) cons++; else prov.push(f); });
+  box.innerHTML = prov.length
+    ? `<span style="color:var(--green);font-weight:600">✅ ${cons} consolidados</span> · <span style="color:var(--orange);font-weight:600">⏳ ${prov.length} provisionales</span> <span style="color:var(--text3)">(pueden ajustarse)</span>`
+    : `<span style="color:var(--green);font-weight:600">✅ ${cons} días consolidados — cifras finales</span>`;
+}
+
+function bitaDelta(prev, actual, etiqueta, modo, code){
+  const el = document.getElementById('bita-delta');
+  if (!el) return;
+  if (!prev && !actual){ el.innerHTML=''; return; }
+  const diff = actual - prev;
+  const pct = prev !== 0 ? (diff/Math.abs(prev)*100) : (actual>0?100:0);
+  const up = diff >= 0;
+  const val = modo === 'usd' ? fmt.d(toUSD(Math.abs(diff))) : fmtMoney(Math.abs(diff), code);
+  el.innerHTML = `<span style="color:${up?'var(--green)':'var(--red)'};font-weight:600">${up?'▲':'▼'} ${pct>=0?'+':''}${pct.toFixed(0)}%</span> <span style="color:var(--text3)">vs ${etiqueta} (${up?'+':'−'}${val})</span>`;
 }
 
 function renderMainChart(regs) {
@@ -11051,6 +11372,7 @@ init();
     <div class="mobile-more-btn" onclick="mobileNav('mejor-anuncio');closeMobileMore()"><span class="mmb-icon">🏆</span><span class="mmb-label">Mejor Anuncio</span></div>
     <div class="mobile-more-btn" onclick="mobileNav('vida-util');closeMobileMore()"><span class="mmb-icon">⏱️</span><span class="mmb-label">Vida Útil</span></div>
     <div class="mobile-more-btn" onclick="mobileNav('horarios');closeMobileMore()"><span class="mmb-icon">🕐</span><span class="mmb-label">Horarios</span></div>
+    <div class="mobile-more-btn" onclick="mobileNav('bitacora');closeMobileMore()"><span class="mmb-icon">📅</span><span class="mmb-label">Bitácora</span></div>
     <div class="mobile-more-btn" onclick="mobileNav('comparar-productos');closeMobileMore()"><span class="mmb-icon">📦</span><span class="mmb-label">Comparar productos</span></div>
     <div class="mobile-more-btn" onclick="mobileNav('catalogo');closeMobileMore()"><span class="mmb-icon">📋</span><span class="mmb-label">Catálogo</span></div>
     <div class="mobile-more-btn" onclick="mobileNav('dashboard-global');closeMobileMore()"><span class="mmb-icon">🌐</span><span class="mmb-label">Global</span></div>
