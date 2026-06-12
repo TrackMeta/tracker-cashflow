@@ -1102,48 +1102,10 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <button onclick="openModal('modal-meta-setup')" style="background:var(--bg3);color:var(--accent);border:1px solid var(--accent);border-radius:8px;padding:6px 12px;font-size:11px;font-weight:700;cursor:pointer;white-space:nowrap;flex-shrink:0">❓ Guía</button>
   </div>
 
-  <!-- Config token (colapsable) -->
-  <div style="margin-bottom:12px;padding:12px 14px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius)">
-    <div style="display:flex;align-items:center;justify-content:space-between;cursor:pointer" onclick="toggleMetaApiConfig()">
-      <span style="font-size:12px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.05em">⚙️ Configuración de credenciales</span>
-      <span id="meta-api-cfg-arrow" style="font-size:11px;color:var(--text3)">▼</span>
-    </div>
-    <div id="meta-api-cfg-body" style="display:none;margin-top:12px">
-      <div class="alert alert-info" style="margin-bottom:10px;font-size:11px">
-        Tu token caduca cada ~60 días. Cuando expire, genera uno nuevo en
-        <strong>developers.facebook.com/tools/explorer</strong> con permisos <code>ads_read</code> y <code>read_insights</code>.
-      </div>
-      <div class="form-row form-2" style="margin-bottom:12px">
-        <div class="field" style="grid-column:1/-1">
-          <label>Access Token de Meta</label>
-          <input type="password" id="meta-api-token" placeholder="EAAe..." style="font-family:var(--mono);font-size:11px">
-        </div>
-        <div class="field">
-          <label>Tipo de cambio S/x$ (pon 1 si Meta cobra en soles)</label>
-          <input type="number" id="meta-api-tc" placeholder="1" step="0.01" style="font-family:var(--mono)">
-        </div>
-      </div>
-
-      <!-- Cuentas publicitarias -->
-      <div style="font-size:11px;font-weight:700;color:var(--text2);text-transform:uppercase;letter-spacing:0.05em;margin-bottom:8px">
-        📋 Cuentas publicitarias
-      </div>
-      <div id="meta-api-cuentas-lista" style="display:flex;flex-direction:column;gap:6px;margin-bottom:8px"></div>
-      <div style="display:flex;gap:8px;align-items:flex-end;margin-bottom:12px">
-        <div class="field" style="flex:1">
-          <label>Ad Account ID</label>
-          <input type="text" id="meta-api-cuenta-nueva" placeholder="act_822131967374142" style="font-family:var(--mono)">
-        </div>
-        <div class="field" style="flex:1">
-          <label>Nombre (opcional)</label>
-          <input type="text" id="meta-api-cuenta-nombre" placeholder="Ej: Cuenta principal">
-        </div>
-        <button class="btn btn-ghost btn-sm" style="margin-bottom:1px" onclick="agregarCuentaMeta()">+ Agregar</button>
-      </div>
-
-      <button class="btn btn-primary btn-sm" onclick="saveMetaApiConfig()">💾 Guardar configuración</button>
-      <span id="meta-api-cfg-ok" style="font-size:11px;color:var(--green);margin-left:10px;display:none">✅ Guardado</span>
-    </div>
+  <!-- Las credenciales viven en las Fuentes (arriba) -->
+  <div class="alert alert-info" style="margin-bottom:12px;font-size:12px">
+    🔑 Usa el <strong>token y las cuentas de tus Fuentes</strong> (panel 🤖 arriba). La descarga consulta automáticamente todas las fuentes configuradas.
+    <span id="meta-api-fuentes-estado" style="display:block;margin-top:4px;color:var(--text3);font-size:11px"></span>
   </div>
 
   <!-- Selector de fechas y botón principal -->
@@ -2771,8 +2733,8 @@ function checkShowOnboarding() {
 
 function onbUpdateSteps() {
   const hasWorkspace = DB.workspaces?.length > 0;
-  const hasSheets    = !!DB.config?.sheets_url;
-  const hasMeta      = !!DB.config?.meta_token || !!localStorage.getItem('meta_api_token');
+  const hasSheets    = !!DB.config?.sheets_url || (DB.fuentes || []).some(f => f.sheets_url);
+  const hasMeta      = !!DB.config?.meta_token || !!localStorage.getItem('meta_api_token') || (DB.fuentes || []).some(f => f.meta_token);
 
   const steps = [
     { num: 1, done: hasWorkspace, label: 'Empezar — Paso 1', action: 1 },
@@ -9832,97 +9794,29 @@ function renderCpTabla() {
 // META ADS API — BOTÓN MANUAL (multi-cuenta)
 // ════════════════════════════════════════════════
 
-function toggleMetaApiConfig() {
-  const body  = document.getElementById('meta-api-cfg-body');
-  const arrow = document.getElementById('meta-api-cfg-arrow');
-  const open  = body.style.display !== 'none';
-  body.style.display = open ? 'none' : 'block';
-  arrow.textContent  = open ? '▼' : '▲';
-}
-
-// Cargar cuentas guardadas
+// Cuentas legado (fallback si no hay Fuentes con token)
 function getMetaCuentas() {
   try { return JSON.parse(localStorage.getItem('meta_api_cuentas') || '[]'); } catch(e) { return []; }
 }
-function saveMetaCuentas(cuentas) {
-  localStorage.setItem('meta_api_cuentas', JSON.stringify(cuentas));
-}
-
-function renderMetaCuentasLista() {
-  const cuentas = getMetaCuentas();
-  const lista   = document.getElementById('meta-api-cuentas-lista');
-  if (!lista) return;
-  if (!cuentas.length) {
-    lista.innerHTML = '<div style="font-size:11px;color:var(--text3);padding:6px 0">Sin cuentas agregadas aún</div>';
-    return;
-  }
-  lista.innerHTML = cuentas.map((c, i) => `
-    <div style="display:flex;align-items:center;gap:8px;padding:7px 10px;background:var(--bg3);border-radius:var(--radius-sm);border:1px solid var(--border)">
-      <span style="font-size:13px">📋</span>
-      <div style="flex:1">
-        <div style="font-size:12px;font-weight:600;color:var(--text)">${c.nombre || c.id}</div>
-        <div style="font-size:10px;color:var(--text3);font-family:var(--mono)">${c.id}</div>
-      </div>
-      <button class="btn btn-red btn-sm btn-icon" onclick="eliminarCuentaMeta(${i})" title="Eliminar">🗑️</button>
-    </div>`).join('');
-}
-
-function agregarCuentaMeta() {
-  const id     = document.getElementById('meta-api-cuenta-nueva').value.trim();
-  const nombre = document.getElementById('meta-api-cuenta-nombre').value.trim();
-  if (!id) { showError('Ingresa el Ad Account ID'); return; }
-  // Normalizar — agregar act_ si no lo tiene
-  const idNorm = id.startsWith('act_') ? id : `act_${id}`;
-  const cuentas = getMetaCuentas();
-  if (cuentas.find(c => c.id === idNorm)) { showError('Esa cuenta ya está agregada'); return; }
-  cuentas.push({ id: idNorm, nombre: nombre || idNorm });
-  saveMetaCuentas(cuentas);
-  document.getElementById('meta-api-cuenta-nueva').value  = '';
-  document.getElementById('meta-api-cuenta-nombre').value = '';
-  renderMetaCuentasLista();
-  showSuccess(`✅ Cuenta ${idNorm} agregada`);
-}
-
-function eliminarCuentaMeta(idx) {
-  const cuentas = getMetaCuentas();
-  cuentas.splice(idx, 1);
-  saveMetaCuentas(cuentas);
-  renderMetaCuentasLista();
-}
-
-function saveMetaApiConfig() {
-  const token = document.getElementById('meta-api-token').value.trim();
-  const tc    = document.getElementById('meta-api-tc').value.trim();
-  if (!token) { showError('Ingresa el Access Token'); return; }
-  if (!getMetaCuentas().length) { showError('Agrega al menos una cuenta publicitaria'); return; }
-  localStorage.setItem('meta_api_token', token);
-  if (tc) localStorage.setItem('meta_api_tc', tc);
-
-  // Guardar en Supabase para que el admin pueda ver el estado
-  if (DB.config?.id) {
-    api.patch('config', DB.config.id, { meta_token: token.substring(0,10) + '...' }).catch(()=>{});
-  }
-  DB.config.meta_token = token.substring(0,10) + '...';
-
-  const ok = document.getElementById('meta-api-cfg-ok');
-  ok.style.display = 'inline';
-  setTimeout(() => ok.style.display = 'none', 3000);
-  showSuccess('✅ Configuración guardada');
-
-  // Actualizar onboarding si está activo
-  onbUpdateSteps();
-}
 
 function loadMetaApiConfig() {
-  const token = localStorage.getItem('meta_api_token') || '';
-  const tc    = localStorage.getItem('meta_api_tc')    || '1';
-  if (token) document.getElementById('meta-api-token').value = token;
-  document.getElementById('meta-api-tc').value = tc;
   if (!document.getElementById('meta-api-desde').value) {
     document.getElementById('meta-api-desde').value = nDaysAgo(7);
     document.getElementById('meta-api-hasta').value = today();
   }
-  renderMetaCuentasLista();
+  // Mostrar estado de credenciales según las Fuentes configuradas
+  const est = document.getElementById('meta-api-fuentes-estado');
+  if (est) {
+    const fuentesMeta = (DB.fuentes || []).filter(f => f.meta_token && Array.isArray(f.meta_cuentas) && f.meta_cuentas.length);
+    if (fuentesMeta.length) {
+      const totCuentas = fuentesMeta.reduce((s,f) => s + f.meta_cuentas.length, 0);
+      est.textContent = `✅ ${fuentesMeta.length} fuente(s) con token · ${totCuentas} cuenta(s) lista(s)`;
+      est.style.color = 'var(--green)';
+    } else {
+      est.textContent = '⚠️ Ninguna fuente tiene token + cuentas. Edita una Fuente arriba para configurarlo.';
+      est.style.color = 'var(--orange)';
+    }
+  }
 }
 
 // Datos acumulados para aplicar
@@ -9941,7 +9835,7 @@ async function fetchMetaAdsAPI() {
       id: c.id || c, nombre: c.nombre || c.id || c, _token: f.meta_token, _fuente: f.nombre
     })));
   } else {
-    const tokenLegacy = localStorage.getItem('meta_api_token') || document.getElementById('meta-api-token').value.trim();
+    const tokenLegacy = localStorage.getItem('meta_api_token') || '';
     if (!tokenLegacy) { showError('Configura el token de Meta en tu Fuente (panel 🤖 Fuentes)'); return; }
     cuentas = getMetaCuentas().map(c => ({ ...c, _token: tokenLegacy }));
   }
