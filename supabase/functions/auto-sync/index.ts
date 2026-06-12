@@ -457,7 +457,7 @@ async function enviarReporteSlot(cfg: any, slot: "noche" | "manana") {
   }
 }
 
-const AYUDA = `🤖 *Comandos de Tracker Pro*\n\n📊 *Reportes:*\n/hoy · /ayer · /semana · /mes · /año\n/dia DD/MM — un día (año actual)\n/dia DD/MM/AAAA — un día con año\n\n🔎 *Detalle:*\n/producto <nombre> — un producto\n/bot <nombre> — una fuente/bot\n/mejores — top y peores anuncios (7 días)\n/pendientes — días provisionales + ventas sin verificar\n\n_Recibes el cierre nocturno y el buenos días automáticamente, más alertas de cambio de signo, récords y rachas._`;
+const AYUDA = `🤖 *Comandos de Tracker Pro*\n\n📊 *Reportes:*\n/hoy · /ayer · /año\n/semana — semana actual\n/semana DD/MM — semana de esa fecha\n/mes — mes actual\n/mes mayo · /mes 05/2025 — mes específico\n/dia DD/MM — un día (año actual)\n/dia DD/MM/AAAA — un día con año\n\n🔎 *Detalle:*\n/producto <nombre> — un producto\n/bot <nombre> — una fuente/bot\n/mejores — top y peores anuncios (7 días)\n/pendientes — días provisionales + ventas sin verificar\n\n_Recibes el cierre nocturno y el buenos días automáticamente, más alertas de cambio de signo, récords y rachas._`;
 
 // /pendientes — días provisionales + ventas sin verificar
 async function cmdPendientes(userId: string) {
@@ -516,8 +516,31 @@ async function tgRunCommand(userId: string, cfg: any, chatId: string, cmd: strin
   let titulo = "", desde = "", hasta = "", per = "";
   if (cmd === "/hoy") { desde = hasta = diaPeru(0); titulo = "📊 *HOY*"; per = `Hoy ${desde}`; }
   else if (cmd === "/ayer") { desde = hasta = diaPeru(-1); titulo = "📊 *AYER*"; per = `Ayer ${desde}`; }
-  else if (cmd === "/semana") { desde = lunesDe(diaPeru(0)); hasta = diaPeru(0); titulo = "📊 *SEMANA*"; per = `${desde} → ${hasta}`; }
-  else if (cmd === "/mes") { desde = diaPeru(0).slice(0, 8) + "01"; hasta = diaPeru(0); titulo = "📊 *MES*"; per = `${desde} → ${hasta}`; }
+  else if (cmd === "/semana") {
+    let ref = diaPeru(0);
+    const mm = arg.match(/(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?/);
+    if (mm) { const yy = mm[3] ? (mm[3].length === 2 ? "20" + mm[3] : mm[3]) : diaPeru(0).slice(0, 4); ref = `${yy}-${mm[2].padStart(2, "0")}-${mm[1].padStart(2, "0")}`; }
+    desde = lunesDe(ref);
+    const dom = new Date(desde + "T12:00:00Z"); dom.setUTCDate(dom.getUTCDate() + 6);
+    hasta = dom.toISOString().slice(0, 10); if (hasta > diaPeru(0)) hasta = diaPeru(0);
+    titulo = "📊 *SEMANA*"; per = `${desde} → ${hasta}`;
+  }
+  else if (cmd === "/mes") {
+    let y = +diaPeru(0).slice(0, 4), mo = +diaPeru(0).slice(5, 7);
+    if (arg) {
+      const meses = ["enero", "febrero", "marzo", "abril", "mayo", "junio", "julio", "agosto", "septiembre", "octubre", "noviembre", "diciembre"];
+      const byName = meses.findIndex((n) => arg.toLowerCase().startsWith(n.slice(0, 4)));
+      const mm = arg.match(/(\d{1,2})(?:[\/-](\d{2,4}))?/);
+      if (byName >= 0) mo = byName + 1;
+      else if (mm) { mo = +mm[1]; if (mm[2]) y = mm[2].length === 2 ? 2000 + +mm[2] : +mm[2]; }
+    }
+    if (mo < 1 || mo > 12) mo = +diaPeru(0).slice(5, 7);
+    const m2 = String(mo).padStart(2, "0");
+    const lastDay = new Date(Date.UTC(y, mo, 0)).getUTCDate();
+    desde = `${y}-${m2}-01`; hasta = `${y}-${m2}-${String(lastDay).padStart(2, "0")}`;
+    if (hasta > diaPeru(0)) hasta = diaPeru(0);
+    titulo = "📊 *MES*"; per = `${desde} → ${hasta}`;
+  }
   else if (cmd === "/año" || cmd === "/anio") { desde = diaPeru(0).slice(0, 4) + "-01-01"; hasta = diaPeru(0); titulo = "📊 *AÑO*"; per = `${desde} → ${hasta}`; }
   else if (cmd === "/dia") {
     const mm = arg.match(/(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?/);
