@@ -512,9 +512,9 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       </div>
     </div>
   </div>
-  <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">🇵🇪 En Soles (S/)</div>
+  <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;" id="dash-moneda-local-label">💵 Moneda local</div>
   <div class="cards-row cards-5" id="dash-kpis-soles"></div>
-  <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">🇺🇸 En Dólares ($)</div>
+  <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">🇺🇸 En Dólares (USD)</div>
   <div class="cards-row cards-5" id="dash-kpis-dolares"></div>
   <!-- PANEL DE ALERTAS -->
   <div id="dash-alertas-box" style="display:none;margin-bottom:18px"></div>
@@ -986,6 +986,18 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 <!-- IMPORTAR CRM -->
 <div class="page" id="page-importar">
   <div class="page-header"><div><div class="page-title">📥 Importar Datos</div><div class="page-sub">Importa las ventas del CRM y las métricas de Meta Ads</div></div></div>
+
+  <!-- FUENTES (BOTS) -->
+  <div class="panel" style="margin-bottom:20px" id="fuentes-panel">
+    <div class="panel-header">
+      <span class="panel-title">🤖 Fuentes (Bots)</span>
+      <button class="btn btn-primary btn-sm" onclick="openNuevaFuente()">+ Nueva fuente</button>
+    </div>
+    <div class="panel-body">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:10px">Cada fuente agrupa un bot: su Google Sheet de ventas, su token de Meta y sus cuentas publicitarias. Los productos se asignan a su fuente en el editor de producto.</div>
+      <div id="fuentes-lista" style="display:grid;gap:8px"></div>
+    </div>
+  </div>
 
   <!-- SYNC GOOGLE SHEETS -->
   <div style="margin-bottom:20px;padding:16px 18px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
@@ -1966,10 +1978,53 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <div class="field"><label>Emoji</label><input type="text" id="ws-emoji-input" placeholder="📦" maxlength="4" value="📦"></div>
       <div class="field"><label>Nombre del producto</label><input type="text" id="ws-nombre-input" placeholder="Ej: Protocolo Calistenia"></div>
     </div>
+    <div class="form-row form-2" style="margin-top:10px">
+      <div class="field"><label>Moneda de venta</label><select id="ws-currency" onchange="if(this.value==='USD')document.getElementById('ws-usd-rate').value=1"></select></div>
+      <div class="field"><label>Tasa de cambio → USD</label><input type="number" id="ws-usd-rate" step="0.01" min="0" placeholder="3.7">
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">Cuántas unidades locales = 1 USD. Editable siempre.</div>
+      </div>
+    </div>
+    <div class="form-row form-2" style="margin-top:10px">
+      <div class="field"><label>Impuesto % (IGV/IVA)</label><input type="number" id="ws-tax" step="0.5" min="0" placeholder="18"></div>
+      <div class="field"><label>Fuente (bot)</label><select id="ws-fuente"></select></div>
+    </div>
     <input type="hidden" id="ws-edit-id" value="">
     <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
       <button class="btn btn-ghost" onclick="closeModal('modal-workspace')">Cancelar</button>
       <button class="btn btn-primary" onclick="saveWorkspace()">Guardar</button>
+    </div>
+  </div>
+</div>
+
+<div class="modal-overlay" id="modal-fuente">
+  <div class="modal">
+    <div class="modal-header">
+      <span class="modal-title" id="fuente-modal-title">🤖 Nueva Fuente</span>
+      <button class="modal-close" onclick="closeModal('modal-fuente')">×</button>
+    </div>
+    <div class="form-row form-2">
+      <div class="field"><label>Emoji</label><input type="text" id="fuente-emoji" maxlength="4" value="🤖"></div>
+      <div class="field"><label>Nombre del bot</label><input type="text" id="fuente-nombre" placeholder="Ej: Bot Principal"></div>
+    </div>
+    <div class="field" style="margin-top:10px">
+      <label>URL del Google Sheet (ventas)</label>
+      <input type="url" id="fuente-sheet" placeholder="https://docs.google.com/spreadsheets/d/..." style="font-family:var(--mono);font-size:11px">
+    </div>
+    <div class="field" style="margin-top:10px">
+      <label>Token de Meta (Access Token)</label>
+      <input type="password" id="fuente-token" placeholder="EAAG..." style="font-family:var(--mono);font-size:11px" autocomplete="off">
+    </div>
+    <div class="field" style="margin-top:10px">
+      <label>Cuentas publicitarias (IDs separados por coma)</label>
+      <input type="text" id="fuente-cuentas" placeholder="act_123456789, act_987654321" style="font-family:var(--mono);font-size:11px">
+    </div>
+    <input type="hidden" id="fuente-edit-id" value="">
+    <div style="display:flex;justify-content:space-between;gap:8px;margin-top:14px">
+      <button class="btn btn-red btn-sm" id="fuente-delete-btn" style="display:none" onclick="deleteFuente()">🗑️ Eliminar</button>
+      <div style="display:flex;gap:8px;margin-left:auto">
+        <button class="btn btn-ghost" onclick="closeModal('modal-fuente')">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveFuente()">Guardar</button>
+      </div>
     </div>
   </div>
 </div>
@@ -3049,32 +3104,83 @@ async function syncGoogleSheets() {
   const label  = document.getElementById('sheets-sync-label');
   const status = document.getElementById('sheets-sync-status');
 
-  const cfg = DB.config;
-  const sheetsUrl = cfg.sheets_url || cfg.sheets_id || '';
+  // Un trabajo por fuente con Sheet. Sin fuentes → Sheet de config (modo legado).
+  const fuentesConSheet = (DB.fuentes || []).filter(f => f.sheets_url);
+  const jobs = fuentesConSheet.length
+    ? fuentesConSheet.map(f => ({
+        nombre: f.nombre || 'Fuente',
+        url: f.sheets_url,
+        wsList: DB.workspaces.filter(w => w.fuente_id === f.id)
+      }))
+    : ((DB.config.sheets_url || DB.config.sheets_id)
+        ? [{ nombre: 'Principal', url: DB.config.sheets_url || DB.config.sheets_id, wsList: DB.workspaces }]
+        : []);
+  // Fuente sin productos asignados aún → abarca todos (transición)
+  jobs.forEach(j => { if (!j.wsList.length) j.wsList = DB.workspaces; });
 
-  if (!sheetsUrl) {
-    status.textContent = '⚠️ Configura tu Google Sheet primero';
+  if (!jobs.length) {
+    status.textContent = '⚠️ Configura el Google Sheet de tu fuente primero';
     status.style.color = 'var(--orange)';
     return;
   }
 
-  // Extraer Sheet ID
-  const sheetIdMatch = sheetsUrl.match(/\/d\/([a-zA-Z0-9_-]+)/);
-  const sheetId = sheetIdMatch ? sheetIdMatch[1] : sheetsUrl;
-
   btn.disabled = true;
   btn.style.opacity = '0.7';
   icon.textContent  = '⏳';
-  label.textContent = 'Leyendo Sheet...';
-  status.textContent = 'Conectando con Google Sheets...';
   status.style.color = 'var(--orange)';
   setSyncStatus('loading', 'Sincronizando Sheets...');
 
+  let totVentas = 0, totRegs = 0, totCrm = 0;
+  const totWs = new Set();
   try {
+    for (const job of jobs) {
+      label.textContent  = `Leyendo ${job.nombre}...`;
+      status.textContent = `Conectando con Google Sheets (${job.nombre})...`;
+      const r = await _syncOneSheet(job, { status, label });
+      totVentas += r.ventas; totRegs += r.registros; totCrm += r.crm;
+      r.wsIds.forEach(id => totWs.add(id));
+    }
+
+    // Recargar y mostrar resultado global
+    await loadAll();
+    renderPriceChips();
+    const activePage = document.querySelector('.page.active')?.id?.replace('page-','');
+    if (activePage) renderPage(activePage);
+
+    status.textContent = `✅ ${totVentas} ventas → ${totRegs} registros (${totWs.size} productos · ${jobs.length} fuente${jobs.length > 1 ? 's' : ''})`;
+    status.style.color = 'var(--green)';
+    icon.textContent  = '✅';
+    label.textContent = 'Completado';
+    setSyncStatus('ok', 'Sincronizado ✓');
+    showSuccess(`✅ Sync completado: ${totVentas} ventas → ${totRegs} registros, ${totCrm} horarios`);
+  } catch(e) {
+    console.error('Sync error:', e);
+    status.textContent = '❌ ' + e.message;
+    status.style.color = 'var(--red)';
+    icon.textContent   = '❌';
+    label.textContent  = 'Error';
+    setSyncStatus('error', 'Error de sync');
+    showError('Error de sync: ' + e.message);
+  } finally {
+    setTimeout(() => {
+      btn.disabled      = false;
+      btn.style.opacity = '1';
+      icon.textContent  = '⚡';
+      label.textContent = 'Sincronizar ahora';
+    }, 3000);
+  }
+}
+
+// Procesa UN Sheet, enrutando filas solo entre los workspaces de su fuente
+async function _syncOneSheet(job, ui) {
+  const { status, label } = ui;
+  const sheetIdMatch = job.url.match(/\/d\/([a-zA-Z0-9_-]+)/);
+  const sheetId = sheetIdMatch ? sheetIdMatch[1] : job.url;
+
     // ── 1. Leer Sheet vía API pública (CSV) ──
     const apiUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
     const res = await fetch(apiUrl);
-    if (!res.ok) throw new Error(`No se pudo leer el Sheet (${res.status}). ¿Es público con enlace?`);
+    if (!res.ok) throw new Error(`No se pudo leer el Sheet de ${job.nombre} (${res.status}). ¿Es público con enlace?`);
     const csvText = await res.text();
 
     // ── 2. Parsear CSV ──
@@ -3094,8 +3200,8 @@ async function syncGoogleSheets() {
     const adIdToWs = {};
     const wsCfgMap = {};
     const wsNombreToId = {}; // nombre exacto del workspace → id
-    const wsNames = DB.workspaces.map(ws => ws.nombre || ''); // para fuzzy match
-    for (const ws of DB.workspaces) {
+    const wsNames = job.wsList.map(ws => ws.nombre || ''); // para fuzzy match (solo productos de esta fuente)
+    for (const ws of job.wsList) {
       try {
         const wsAds = await api.get('anuncios', `workspace_id=eq.${ws.id}&select=ad_id`);
         wsAds.forEach(a => { adIdToWs[a.ad_id] = ws.id; });
@@ -3111,15 +3217,7 @@ async function syncGoogleSheets() {
       ? allRowsRecientes.filter(r => allAdIds.has(r.adId))
       : allRowsRecientes;
 
-    if (!rows.length) {
-      status.textContent = '⚠️ No hay ventas con Ad IDs de ningún producto';
-      status.style.color = 'var(--orange)';
-      icon.textContent = '⚠️';
-      label.textContent = 'Sin datos';
-      setTimeout(() => { btn.disabled=false; btn.style.opacity='1'; icon.textContent='⚡'; label.textContent='Sincronizar ahora'; }, 3000);
-      setSyncStatus('ok', 'Sin datos nuevos');
-      return;
-    }
+    if (!rows.length) return { ventas: 0, registros: 0, crm: 0, wsIds: [] };
 
     // ── 5. Deduplicar (misma persona, ventana de 10 seg) ──
     const seenKeys = new Set();
@@ -3144,7 +3242,7 @@ async function syncGoogleSheets() {
       const wsIdPorProd = wsNombreToId[prodNorm];
       const wsIdPorAdId = adIdToWs[r.adId];
       // El nombre del producto tiene prioridad sobre el Ad ID cuando hay match
-      const wsId = wsIdPorProd || wsIdPorAdId || CURRENT_WORKSPACE?.id;
+      const wsId = wsIdPorProd || wsIdPorAdId || job.wsList[0]?.id;
       const wsCfg = wsCfgMap[wsId] || DB.config;
       const P = { p1: +(wsCfg.p1??10), p2: +(wsCfg.p2??7), p3: +(wsCfg.p3??5), p4: +(wsCfg.p4??3) };
 
@@ -3245,38 +3343,13 @@ async function syncGoogleSheets() {
       });
     }
 
-    // ── 10. Recargar y mostrar resultado ──
-    await loadAll();
-    renderPriceChips();
-    const activePage = document.querySelector('.page.active')?.id?.replace('page-','');
-    if (activePage) renderPage(activePage);
-
-    const totalVentas = ventasUnicas.length;
-    const totalRegs = registros.length;
-    const wsCount = Object.keys(wsSyncCounts).length;
-    status.textContent = `✅ ${totalVentas} ventas → ${totalRegs} registros (${wsCount} productos)`;
-    status.style.color = 'var(--green)';
-    icon.textContent  = '✅';
-    label.textContent = 'Completado';
-    setSyncStatus('ok', 'Sincronizado ✓');
-    showSuccess(`✅ Sync completado: ${totalVentas} ventas → ${totalRegs} registros, ${crmRows.length} horarios`);
-
-  } catch(e) {
-    console.error('Sync error:', e);
-    status.textContent = '❌ ' + e.message;
-    status.style.color = 'var(--red)';
-    icon.textContent   = '❌';
-    label.textContent  = 'Error';
-    setSyncStatus('error', 'Error de sync');
-    showError('Error de sync: ' + e.message);
-  } finally {
-    setTimeout(() => {
-      btn.disabled      = false;
-      btn.style.opacity = '1';
-      icon.textContent  = '⚡';
-      label.textContent = 'Sincronizar ahora';
-    }, 3000);
-  }
+    // ── 10. Devolver totales de esta fuente ──
+    return {
+      ventas: ventasUnicas.length,
+      registros: registros.length,
+      crm: crmRows.length,
+      wsIds: Object.keys(wsSyncCounts)
+    };
 }
 
 // ════════════════════════════════════════════════
@@ -3491,6 +3564,7 @@ const api = {
 // ════════════════════════════════════════════════
 let DB = {
   workspaces: [],
+  fuentes: [],
   config: { id:null, p1:10, p2:7, p3:5, p4:3, igv:0.18, tc:4.0, sat_caida:0.30, sat_dias:3, estados:[], alerta_gasto_min:5, alerta_roas_min:1, roas_gasto_min:1 },
   campanas: [],
   anuncios: [],
@@ -3883,11 +3957,25 @@ async function switchWorkspace(wsId) {
   } catch(e) { hideLoading(); setSyncStatus('error','Error'); showError('Error: ' + e.message); }
 }
 
+function populateWsModalSelects(ws) {
+  const curSel = document.getElementById('ws-currency');
+  curSel.innerHTML = Object.entries(CURRENCIES).map(([code, c]) =>
+    `<option value="${code}">${code} — ${c.name} (${c.symbol})</option>`).join('');
+  curSel.value = ws?.currency_code && CURRENCIES[ws.currency_code] ? ws.currency_code : 'PEN';
+  document.getElementById('ws-usd-rate').value = ws?.usd_rate ?? 3.7;
+  document.getElementById('ws-tax').value = ws?.tax_pct ?? 18;
+  const fSel = document.getElementById('ws-fuente');
+  fSel.innerHTML = '<option value="">— Sin fuente —</option>' +
+    (DB.fuentes || []).map(f => `<option value="${f.id}">${f.emoji || '🤖'} ${f.nombre}</option>`).join('');
+  fSel.value = ws?.fuente_id || (DB.fuentes?.[0]?.id || '');
+}
+
 function openNuevoWorkspace() {
   document.getElementById('ws-modal-title').textContent = '📦 Nuevo Producto';
   document.getElementById('ws-emoji-input').value  = '📦';
   document.getElementById('ws-nombre-input').value = '';
   document.getElementById('ws-edit-id').value = '';
+  populateWsModalSelects(null);
   document.getElementById('ws-dropdown').classList.add('hidden');
   openModal('modal-workspace');
 }
@@ -3899,6 +3987,7 @@ function editWorkspace(wsId) {
   document.getElementById('ws-emoji-input').value  = ws.emoji || '📦';
   document.getElementById('ws-nombre-input').value = ws.nombre;
   document.getElementById('ws-edit-id').value = wsId;
+  populateWsModalSelects(ws);
   document.getElementById('ws-dropdown').classList.add('hidden');
   openModal('modal-workspace');
 }
@@ -3939,15 +4028,20 @@ async function saveWorkspace() {
   const emoji  = document.getElementById('ws-emoji-input').value.trim() || '📦';
   const editId = document.getElementById('ws-edit-id').value;
   if (!nombre) { alert('Ingresa el nombre del producto'); return; }
+  const currency_code = document.getElementById('ws-currency').value || 'PEN';
+  const usd_rate = currency_code === 'USD' ? 1 : (+document.getElementById('ws-usd-rate').value || 3.7);
+  const tax_pct  = +document.getElementById('ws-tax').value || 0;
+  const fuente_id = document.getElementById('ws-fuente').value || null;
+  const wsData = { nombre, emoji, currency_code, usd_rate, tax_pct, fuente_id };
   try {
     setSyncStatus('loading', 'Guardando...');
     if (editId) {
-      const res = await api.patch('workspaces', editId, { nombre, emoji });
+      const res = await api.patch('workspaces', editId, wsData);
       const idx = DB.workspaces.findIndex(w => w.id === editId);
       if (idx >= 0) DB.workspaces[idx] = res[0];
       if (CURRENT_WORKSPACE?.id === editId) CURRENT_WORKSPACE = res[0];
     } else {
-      const res = await api.post('workspaces', { nombre, emoji, user_id: CURRENT_USER?.id });
+      const res = await api.post('workspaces', { ...wsData, user_id: CURRENT_USER?.id });
       DB.workspaces.push(res[0]);
       CURRENT_WORKSPACE = res[0];
       localStorage.setItem('tracker_workspace', res[0].id);
@@ -4056,70 +4150,113 @@ async function renderGlobal() {
       return;
     }
 
-    // Totales globales
-    const totalInv    = wsData.reduce((s,d) => s + d.m.inversion, 0);
-    const totalIng    = wsData.reduce((s,d) => s + d.m.ingresos,  0);
-    const totalProfit = wsData.reduce((s,d) => s + d.m.profit,    0);
-    const totalVentas = wsData.reduce((s,d) => s + d.m.ventas,    0);
-    const totalUpsells= wsData.reduce((s,d) => s + (d.m.upsells||0), 0);
+    // Totales globales — consolidados en USD (cada producto con su propia tasa)
+    wsData.forEach(d => {
+      const rate = wsUsdRate(d.ws);
+      d.usd = {
+        inversion: d.m.inversion / rate,
+        ingresos:  d.m.ingresos  / rate,
+        profit:    d.m.profit    / rate,
+        upsells:   (d.m.upsells || 0) / rate,
+      };
+    });
+    const totalInv    = wsData.reduce((s,d) => s + d.usd.inversion, 0);
+    const totalIng    = wsData.reduce((s,d) => s + d.usd.ingresos,  0);
+    const totalProfit = wsData.reduce((s,d) => s + d.usd.profit,    0);
+    const totalVentas = wsData.reduce((s,d) => s + d.m.ventas,      0);
+    const totalUpsells= wsData.reduce((s,d) => s + d.usd.upsells,   0);
     const globalRoas  = totalInv > 0 ? totalIng / totalInv : 0;
 
-    // Descontar gastos extras del profit neto
+    // Gastos extras (en moneda del producto activo) → USD
     const gastosExtras = getGastos();
-    const totalGastosExtra = gastosExtras.reduce((s,g) => s + g.monto, 0);
+    const totalGastosExtra = gastosExtras.reduce((s,g) => s + g.monto, 0) / wsUsdRate(CURRENT_WORKSPACE);
     const profitNeto = totalProfit - totalGastosExtra;
 
-    // KPIs globales
+    // KPIs globales (USD)
     document.getElementById('global-kpis').innerHTML = [
-      kpiCard('Ingresos Totales', fmt.s(totalIng), 'green', `${wsData.length} productos activos`),
-      kpiCard('Inversión Total',  fmt.s(totalInv), 'orange', `ROAS global: ${fmt.roas(globalRoas)}`),
-      kpiCard('Profit Bruto',     fmt.s(totalProfit), totalProfit>=0?'teal':'red', `${totalVentas} ventas totales`),
-      kpiCard('Profit Neto',      fmt.s(profitNeto), profitNeto>=0?'green':'red', `Gastos extras: −${fmt.s(totalGastosExtra)}`),
-      kpiCard('Upsells Totales',  fmt.s(totalUpsells), 'purple', `${(totalUpsells/totalIng*100||0).toFixed(1)}% de ingresos`),
+      kpiCard('Ingresos Totales', fmt.d(totalIng), 'green', `${wsData.length} productos · consolidado en USD`),
+      kpiCard('Inversión Total',  fmt.d(totalInv), 'orange', `ROAS global: ${fmt.roas(globalRoas)}`),
+      kpiCard('Profit Bruto',     fmt.d(totalProfit), totalProfit>=0?'teal':'red', `${totalVentas} ventas totales`),
+      kpiCard('Profit Neto',      fmt.d(profitNeto), profitNeto>=0?'green':'red', `Gastos extras: −${fmt.d(totalGastosExtra)}`),
+      kpiCard('Upsells Totales',  fmt.d(totalUpsells), 'purple', `${(totalUpsells/totalIng*100||0).toFixed(1)}% de ingresos`),
     ].join('');
 
-    // Tabla comparativa
-    document.getElementById('global-tbody').innerHTML = wsData
-      .sort((a,b) => b.m.ingresos - a.m.ingresos)
-      .map(d => {
-        const pct = totalIng > 0 ? (d.m.ingresos/totalIng*100).toFixed(1) : '0.0';
-        const roasColor = d.m.roas>=2?'var(--green)':d.m.roas>=1?'var(--orange)':'var(--red)';
-        return `<tr>
-          <td class="left" style="font-weight:600">${d.ws.emoji||'📦'} ${d.ws.nombre}</td>
-          <td>${fmt.s(d.m.inversion)}</td>
-          <td style="color:var(--green);font-weight:600">${fmt.s(d.m.ingresos)}</td>
-          <td style="color:${d.m.profit>=0?'var(--teal)':'var(--red)'};font-weight:600">${fmt.s(d.m.profit)}</td>
-          <td style="color:${roasColor};font-weight:700">${fmt.roas(d.m.roas)}</td>
-          <td>${d.m.ventas}</td>
-          <td>${fmt.pct(d.m.conv)}</td>
-          <td style="color:var(--purple)">${fmt.s(d.m.upsells||0)}</td>
-          <td>
-            <div style="display:flex;align-items:center;gap:6px">
-              <div style="flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden;min-width:60px">
-                <div style="height:100%;width:${pct}%;background:var(--accent);border-radius:4px"></div>
-              </div>
-              <span style="font-size:11px;font-weight:600;color:var(--text2);min-width:34px">${pct}%</span>
+    // Tabla comparativa — agrupada por fuente con subtotales (USD + moneda local)
+    const gruposF = new Map();
+    for (const d of wsData) {
+      const fid = d.ws.fuente_id || '_sin';
+      if (!gruposF.has(fid)) {
+        const f = (DB.fuentes || []).find(x => x.id === fid);
+        gruposF.set(fid, { nombre: f ? `${f.emoji||'🤖'} ${f.nombre}` : '🤖 Sin fuente', items: [] });
+      }
+      gruposF.get(fid).items.push(d);
+    }
+    const multiFuente = gruposF.size > 1;
+    const rowHtml = d => {
+      const pct = totalIng > 0 ? (d.usd.ingresos/totalIng*100).toFixed(1) : '0.0';
+      const roasColor = d.m.roas>=2?'var(--green)':d.m.roas>=1?'var(--orange)':'var(--red)';
+      const code = wsCurrencyCode(d.ws);
+      const loc = n => code === 'USD' ? '' : `<div style="font-size:9px;color:var(--text3)">${fmtMoney(n, code)}</div>`;
+      return `<tr>
+        <td class="left" style="font-weight:600">${d.ws.emoji||'📦'} ${d.ws.nombre} <span style="font-size:9px;color:var(--text3)">${code}</span></td>
+        <td>${fmt.d(d.usd.inversion)}${loc(d.m.inversion)}</td>
+        <td style="color:var(--green);font-weight:600">${fmt.d(d.usd.ingresos)}${loc(d.m.ingresos)}</td>
+        <td style="color:${d.m.profit>=0?'var(--teal)':'var(--red)'};font-weight:600">${fmt.d(d.usd.profit)}${loc(d.m.profit)}</td>
+        <td style="color:${roasColor};font-weight:700">${fmt.roas(d.m.roas)}</td>
+        <td>${d.m.ventas}</td>
+        <td>${fmt.pct(d.m.conv)}</td>
+        <td style="color:var(--purple)">${fmt.d(d.usd.upsells)}</td>
+        <td>
+          <div style="display:flex;align-items:center;gap:6px">
+            <div style="flex:1;height:8px;background:var(--bg3);border-radius:4px;overflow:hidden;min-width:60px">
+              <div style="height:100%;width:${pct}%;background:var(--accent);border-radius:4px"></div>
             </div>
-          </td>
+            <span style="font-size:11px;font-weight:600;color:var(--text2);min-width:34px">${pct}%</span>
+          </div>
+        </td>
+      </tr>`;
+    };
+    let tbodyHtml = '';
+    for (const [, g] of gruposF) {
+      g.items.sort((a,b) => b.usd.ingresos - a.usd.ingresos);
+      tbodyHtml += g.items.map(rowHtml).join('');
+      if (multiFuente) {
+        const gi = g.items.reduce((s,d) => s + d.usd.inversion, 0);
+        const gg = g.items.reduce((s,d) => s + d.usd.ingresos,  0);
+        const gp = g.items.reduce((s,d) => s + d.usd.profit,    0);
+        const gv = g.items.reduce((s,d) => s + d.m.ventas,      0);
+        tbodyHtml += `<tr style="background:var(--bg3)">
+          <td class="left" style="font-weight:800">${g.nombre} — Subtotal</td>
+          <td style="font-weight:700">${fmt.d(gi)}</td>
+          <td style="font-weight:700;color:var(--green)">${fmt.d(gg)}</td>
+          <td style="font-weight:700;color:${gp>=0?'var(--teal)':'var(--red)'}">${fmt.d(gp)}</td>
+          <td style="font-weight:700">${fmt.roas(gi>0?gg/gi:0)}</td>
+          <td style="font-weight:700">${gv}</td>
+          <td colspan="3"></td>
         </tr>`;
-      }).join('');
+      }
+    }
+    document.getElementById('global-tbody').innerHTML = tbodyHtml;
 
-    // Cards por producto
+    // Cards por producto (moneda local + USD)
     document.getElementById('global-cards').innerHTML = wsData
-      .sort((a,b) => b.m.ingresos - a.m.ingresos)
+      .sort((a,b) => b.usd.ingresos - a.usd.ingresos)
       .map(d => {
         const roasColor = d.m.roas>=2?'var(--green)':d.m.roas>=1?'var(--orange)':'var(--red)';
+        const code = wsCurrencyCode(d.ws);
+        const usdSub = n => code === 'USD' ? '' : `<div style="font-size:10px;color:var(--text3);font-family:var(--mono)">${fmt.d(n)}</div>`;
         return `
         <div class="global-card">
           <div class="global-card-header">
             <span class="global-card-emoji">${d.ws.emoji||'📦'}</span>
-            <span class="global-card-nombre">${d.ws.nombre}</span>
+            <span class="global-card-nombre">${d.ws.nombre} <span style="font-size:9px;color:var(--text3)">${code}</span></span>
             <button class="btn btn-ghost btn-sm" style="margin-left:auto;font-size:10px" onclick="switchWorkspace('${d.ws.id}');navTo('dashboard',null)">Ver →</button>
           </div>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
             <div>
               <div style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase">Ingresos</div>
-              <div style="font-size:16px;font-weight:700;color:var(--green);font-family:var(--mono)">${fmt.s(d.m.ingresos)}</div>
+              <div style="font-size:16px;font-weight:700;color:var(--green);font-family:var(--mono)">${fmtMoney(d.m.ingresos, code)}</div>
+              ${usdSub(d.usd.ingresos)}
             </div>
             <div>
               <div style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase">ROAS</div>
@@ -4127,14 +4264,15 @@ async function renderGlobal() {
             </div>
             <div>
               <div style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase">Profit</div>
-              <div style="font-size:14px;font-weight:700;font-family:var(--mono);color:${d.m.profit>=0?'var(--teal)':'var(--red)'}">${fmt.s(d.m.profit)}</div>
+              <div style="font-size:14px;font-weight:700;font-family:var(--mono);color:${d.m.profit>=0?'var(--teal)':'var(--red)'}">${fmtMoney(d.m.profit, code)}</div>
+              ${usdSub(d.usd.profit)}
             </div>
             <div>
               <div style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase">Ventas</div>
               <div style="font-size:14px;font-weight:700;font-family:var(--mono)">${d.m.ventas}</div>
             </div>
           </div>
-          ${d.m.upsells>0?`<div style="margin-top:8px;padding:6px 8px;background:var(--purple-dim);border-radius:6px;font-size:11px;color:var(--purple);font-weight:600">💜 Upsells: ${fmt.s(d.m.upsells)}</div>`:''}
+          ${d.m.upsells>0?`<div style="margin-top:8px;padding:6px 8px;background:var(--purple-dim);border-radius:6px;font-size:11px;color:var(--purple);font-weight:600">💜 Upsells: ${fmtMoney(d.m.upsells, code)}</div>`:''}
         </div>`;
       }).join('');
 
@@ -6839,6 +6977,141 @@ async function init() {
   }
 }
 
+// Migración única: si el usuario no tiene fuentes, crear "Bot Principal"
+// desde su configuración actual (Sheet + token Meta) y asignarle sus productos.
+async function migrarFuentes() {
+  if ((DB.fuentes || []).length || !DB.workspaces.length) return;
+  try {
+    let sheetUrl = '';
+    try {
+      const cfgs = await api.get('config', 'select=sheets_url&limit=20');
+      sheetUrl = (cfgs.find(c => c.sheets_url) || {}).sheets_url || '';
+    } catch(e) {}
+    const token = localStorage.getItem('meta_api_token') || '';
+    const cuentasLegacy = (() => { try { return JSON.parse(localStorage.getItem('meta_api_cuentas') || '[]'); } catch(e) { return []; } })();
+    const cuentas = cuentasLegacy.map(c => (typeof c === 'string' ? { id: c, nombre: c } : c));
+    const res = await api.post('fuentes', {
+      nombre: 'Bot Principal', emoji: '🤖',
+      sheets_url: sheetUrl, meta_token: token, meta_cuentas: cuentas,
+      user_id: CURRENT_USER?.id
+    });
+    const f = res[0];
+    DB.fuentes = [f];
+    await Promise.all(DB.workspaces.filter(w => !w.fuente_id).map(w =>
+      api.patch('workspaces', w.id, { fuente_id: f.id })
+        .then(() => { w.fuente_id = f.id; }).catch(() => {})
+    ));
+    console.info('Migración de fuentes completada: "Bot Principal" creada');
+  } catch(e) { console.warn('migrarFuentes:', e); }
+}
+
+// ════════════════════════════════════════════════
+// FUENTES (BOTS) — CRUD
+// ════════════════════════════════════════════════
+function renderFuentesPanel() {
+  const lista = document.getElementById('fuentes-lista');
+  if (!lista) return;
+  const fuentes = DB.fuentes || [];
+  if (!fuentes.length) {
+    lista.innerHTML = '<div style="font-size:12px;color:var(--text3);padding:8px">Sin fuentes aún — crea la primera para conectar tu bot.</div>';
+    return;
+  }
+  lista.innerHTML = fuentes.map(f => {
+    const nProds  = DB.workspaces.filter(w => w.fuente_id === f.id).length;
+    const cuentas = Array.isArray(f.meta_cuentas) ? f.meta_cuentas : [];
+    return `
+    <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm)">
+      <span style="font-size:20px">${f.emoji || '🤖'}</span>
+      <div style="flex:1;min-width:0">
+        <div style="font-size:13px;font-weight:700;color:var(--text)">${f.nombre}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:2px">
+          ${f.sheets_url ? '📊 Sheet conectado' : '⚠️ Sin Sheet'} ·
+          ${f.meta_token ? '🔑 Token Meta' : '⚠️ Sin token'} ·
+          ${cuentas.length} cuenta${cuentas.length === 1 ? '' : 's'} ·
+          ${nProds} producto${nProds === 1 ? '' : 's'}
+        </div>
+      </div>
+      <button class="btn btn-ghost btn-sm" onclick="editFuente('${f.id}')">✏️ Editar</button>
+    </div>`;
+  }).join('');
+}
+
+function openNuevaFuente() {
+  document.getElementById('fuente-modal-title').textContent = '🤖 Nueva Fuente';
+  document.getElementById('fuente-emoji').value   = '🤖';
+  document.getElementById('fuente-nombre').value  = '';
+  document.getElementById('fuente-sheet').value   = '';
+  document.getElementById('fuente-token').value   = '';
+  document.getElementById('fuente-cuentas').value = '';
+  document.getElementById('fuente-edit-id').value = '';
+  document.getElementById('fuente-delete-btn').style.display = 'none';
+  openModal('modal-fuente');
+}
+
+function editFuente(id) {
+  const f = (DB.fuentes || []).find(x => x.id === id);
+  if (!f) return;
+  document.getElementById('fuente-modal-title').textContent = '✏️ Editar Fuente';
+  document.getElementById('fuente-emoji').value   = f.emoji || '🤖';
+  document.getElementById('fuente-nombre').value  = f.nombre || '';
+  document.getElementById('fuente-sheet').value   = f.sheets_url || '';
+  document.getElementById('fuente-token').value   = f.meta_token || '';
+  document.getElementById('fuente-cuentas').value = (Array.isArray(f.meta_cuentas) ? f.meta_cuentas : [])
+    .map(c => c.id || c).join(', ');
+  document.getElementById('fuente-edit-id').value = id;
+  document.getElementById('fuente-delete-btn').style.display = 'inline-flex';
+  openModal('modal-fuente');
+}
+
+async function saveFuente() {
+  const nombre = document.getElementById('fuente-nombre').value.trim();
+  if (!nombre) { showError('Ingresa el nombre del bot'); return; }
+  const cuentas = document.getElementById('fuente-cuentas').value
+    .split(',').map(s => s.trim()).filter(Boolean)
+    .map(id => { const n = id.startsWith('act_') ? id : `act_${id}`; return { id: n, nombre: n }; });
+  const data = {
+    nombre,
+    emoji: document.getElementById('fuente-emoji').value.trim() || '🤖',
+    sheets_url: document.getElementById('fuente-sheet').value.trim(),
+    meta_token: document.getElementById('fuente-token').value.trim(),
+    meta_cuentas: cuentas,
+  };
+  const editId = document.getElementById('fuente-edit-id').value;
+  try {
+    setSyncStatus('loading', 'Guardando fuente...');
+    if (editId) {
+      const res = await api.patch('fuentes', editId, data);
+      const idx = DB.fuentes.findIndex(f => f.id === editId);
+      if (idx >= 0) DB.fuentes[idx] = res[0];
+    } else {
+      const res = await api.post('fuentes', { ...data, user_id: CURRENT_USER?.id });
+      DB.fuentes.push(res[0]);
+    }
+    setSyncStatus('ok', 'Sincronizado ✓');
+    closeModal('modal-fuente');
+    renderFuentesPanel();
+    showSuccess(editId ? '✅ Fuente actualizada' : `✅ Fuente "${nombre}" creada`);
+  } catch(e) { setSyncStatus('error', 'Error'); showError('Error: ' + e.message); }
+}
+
+async function deleteFuente() {
+  const id = document.getElementById('fuente-edit-id').value;
+  const f = (DB.fuentes || []).find(x => x.id === id);
+  if (!f) return;
+  const nProds = DB.workspaces.filter(w => w.fuente_id === id).length;
+  if (!confirm(`⚠️ ¿Eliminar la fuente "${f.nombre}"?\n\n${nProds} producto(s) quedarán sin fuente (sus datos NO se borran). Tendrás que reasignarlos a otra fuente.`)) return;
+  try {
+    setSyncStatus('loading', 'Eliminando...');
+    await api.delete('fuentes', id);
+    DB.fuentes = DB.fuentes.filter(x => x.id !== id);
+    DB.workspaces.forEach(w => { if (w.fuente_id === id) w.fuente_id = null; });
+    setSyncStatus('ok', 'Sincronizado ✓');
+    closeModal('modal-fuente');
+    renderFuentesPanel();
+    showSuccess(`✅ Fuente "${f.nombre}" eliminada`);
+  } catch(e) { setSyncStatus('error', 'Error'); showError('Error: ' + e.message); }
+}
+
 async function loadAll() {
   const userFilter = (IS_ADMIN && ADMIN_VIEWING_USER_ID)
     ? `&user_id=eq.${ADMIN_VIEWING_USER_ID}` : '';
@@ -6846,6 +7119,10 @@ async function loadAll() {
   // Cargar workspaces primero
   const wsList = await api.get('workspaces', `order=created_at.asc${userFilter}`);
   DB.workspaces = wsList;
+
+  // Cargar fuentes (bots) del usuario — .catch para tolerar tabla aún no creada
+  DB.fuentes = await api.get('fuentes', `order=created_at.asc${userFilter}`).catch(() => []);
+  if (!ADMIN_VIEWING_USER_ID) await migrarFuentes();
 
   // Seleccionar workspace activo
   if (!CURRENT_WORKSPACE && wsList.length) {
@@ -6987,7 +7264,7 @@ function renderPage(page) {
   if (page==='catalogo')     renderCatalogo();
   if (page==='leyenda')      renderLeyenda();
   if (page==='alertas')      renderAlertas();
-  if (page==='importar')            { initMetaApiPage(); updateSheetsStatus(); }
+  if (page==='importar')            { initMetaApiPage(); updateSheetsStatus(); renderFuentesPanel(); }
   if (page==='comparar')            { initComparar(); renderComparar(); }
   if (page==='comparar-productos')  renderCompararProductos();
   if (page==='admin')        renderAdminPage();
@@ -7004,9 +7281,35 @@ function renderPage(page) {
 // ════════════════════════════════════════════════
 // HELPERS DE CÁLCULO
 // ════════════════════════════════════════════════
+// ── Catálogo de monedas ──────────────────────────
+const CURRENCIES = {
+  USD: { symbol:'$',   name:'Dólar estadounidense', dec:2 },
+  PEN: { symbol:'S/',  name:'Sol peruano',          dec:2 },
+  COP: { symbol:'$',   name:'Peso colombiano',      dec:0 },
+  MXN: { symbol:'$',   name:'Peso mexicano',        dec:2 },
+  CLP: { symbol:'$',   name:'Peso chileno',         dec:0 },
+  ARS: { symbol:'$',   name:'Peso argentino',       dec:0 },
+  BOB: { symbol:'Bs',  name:'Boliviano',            dec:2 },
+  BRL: { symbol:'R$',  name:'Real brasileño',       dec:2 },
+  GTQ: { symbol:'Q',   name:'Quetzal guatemalteco', dec:2 },
+  DOP: { symbol:'RD$', name:'Peso dominicano',      dec:2 },
+  EUR: { symbol:'€',   name:'Euro',                 dec:2 },
+};
+function wsCurrencyCode(ws) { const c=(ws||CURRENT_WORKSPACE)?.currency_code||'PEN'; return CURRENCIES[c]?c:'PEN'; }
+function wsUsdRate(ws) {
+  const w = ws || CURRENT_WORKSPACE;
+  if (wsCurrencyCode(w) === 'USD') return 1;
+  return +(w?.usd_rate) || +(DB.config.tc) || 3.7;
+}
+function fmtMoney(n, code) {
+  const c = CURRENCIES[code] || CURRENCIES.PEN;
+  const v = (+n||0).toFixed(c.dec).replace(/\B(?=(\d{3})+(?!\d))/g,',');
+  return `${c.symbol} ${v}`;
+}
+
 const fmt = {
-  s:    n => `S/ ${(+n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',')}`,
-  d:    n => `$ ${(+n||0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g,',')}`,
+  s:    n => fmtMoney(n, wsCurrencyCode()),  // moneda local del producto activo
+  d:    n => fmtMoney(n, 'USD'),
   roas: n => isFinite(n)&&n>0 ? `${(+n).toFixed(2)}x` : '—',
   pct:  n => isFinite(n)&&n>0 ? `${(+n*100).toFixed(1)}%` : '—',
   num:  n => (+n||0).toLocaleString(),
@@ -7016,7 +7319,7 @@ const fmt = {
   date: d => { if(!d)return'—'; const p=d.split('-'); return `${p[2]}/${p[1]}/${p[0]}`; },
 };
 
-function toUSD(s) { const tc=DB.config.tc||4.0; return s / tc; }
+function toUSD(s, ws) { return s / wsUsdRate(ws); }
 function addIGV(s) { return s * (1 + DB.config.igv); }
 
 function calcMetrics(regs) {
@@ -7229,6 +7532,12 @@ function renderDashboard() {
     label.textContent='Sin datos en el período seleccionado';
   }
   const M=calcMetrics(regs);
+
+  // Etiqueta de moneda local según el producto activo
+  const _curCode = wsCurrencyCode();
+  const _curInfo = CURRENCIES[_curCode];
+  const _curLabel = document.getElementById('dash-moneda-local-label');
+  if (_curLabel) _curLabel.textContent = `💵 ${_curInfo.name} (${_curInfo.symbol} ${_curCode})`;
 
   document.getElementById('dash-kpis-soles').innerHTML=[
     kpiCard('Ingresos Totales',fmt.s(M.ingresos),'green'),
@@ -9620,14 +9929,24 @@ function loadMetaApiConfig() {
 let metaAPIData = [];
 
 async function fetchMetaAdsAPI() {
-  const token   = localStorage.getItem('meta_api_token') || document.getElementById('meta-api-token').value.trim();
   const tc      = parseFloat(localStorage.getItem('meta_api_tc') || '1') || 1;
   const desde   = document.getElementById('meta-api-desde').value;
   const hasta   = document.getElementById('meta-api-hasta').value;
-  const cuentas = getMetaCuentas();
 
-  if (!token)          { showError('Falta el Access Token — configúralo arriba'); toggleMetaApiConfig(); return; }
-  if (!cuentas.length) { showError('Agrega al menos una cuenta publicitaria'); toggleMetaApiConfig(); return; }
+  // Cuentas por fuente (cada una con su token). Sin fuentes → config legado.
+  const fuentesMeta = (DB.fuentes || []).filter(f => f.meta_token && Array.isArray(f.meta_cuentas) && f.meta_cuentas.length);
+  let cuentas;
+  if (fuentesMeta.length) {
+    cuentas = fuentesMeta.flatMap(f => f.meta_cuentas.map(c => ({
+      id: c.id || c, nombre: c.nombre || c.id || c, _token: f.meta_token, _fuente: f.nombre
+    })));
+  } else {
+    const tokenLegacy = localStorage.getItem('meta_api_token') || document.getElementById('meta-api-token').value.trim();
+    if (!tokenLegacy) { showError('Configura el token de Meta en tu Fuente (panel 🤖 Fuentes)'); return; }
+    cuentas = getMetaCuentas().map(c => ({ ...c, _token: tokenLegacy }));
+  }
+
+  if (!cuentas.length) { showError('Agrega cuentas publicitarias a tu Fuente (panel 🤖 Fuentes)'); return; }
   if (!desde || !hasta){ showError('Selecciona el rango de fechas'); return; }
 
   const btn   = document.getElementById('btn-meta-api');
@@ -9649,7 +9968,7 @@ async function fetchMetaAdsAPI() {
     for (const cuenta of cuentas) {
       try {
         label.textContent = `Descargando ${cuenta.nombre || cuenta.id}...`;
-        let nextUrl = `https://graph.facebook.com/v19.0/${cuenta.id}/insights?fields=${fields}&time_range={"since":"${desde}","until":"${hasta}"}&time_increment=1&level=ad&limit=500&access_token=${token}`;
+        let nextUrl = `https://graph.facebook.com/v19.0/${cuenta.id}/insights?fields=${fields}&time_range={"since":"${desde}","until":"${hasta}"}&time_increment=1&level=ad&limit=500&access_token=${cuenta._token}`;
 
         // Paginación — Meta puede devolver múltiples páginas
         while (nextUrl) {
