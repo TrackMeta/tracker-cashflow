@@ -299,7 +299,8 @@ async function runScheduled() {
       await sb("PATCH", `sync_config?user_id=eq.${cfg.user_id}`, { ultima_noche: hoy }, "return=minimal").catch(() => {});
       ejecutados.push({ ...r, slot: "noche" });
     } else if (nowMin >= toMin(cfg.hora_manana || "06:30") && cfg.ultima_manana !== hoy) {
-      const r = await procesarUsuario(cfg.user_id, false);
+      // La mañana también trae Meta: captura el gasto ya consolidado durante la noche
+      const r = await procesarUsuario(cfg.user_id, true);
       await sb("PATCH", `sync_config?user_id=eq.${cfg.user_id}`, { ultima_manana: hoy }, "return=minimal").catch(() => {});
       ejecutados.push({ ...r, slot: "manana" });
     }

@@ -1064,10 +1064,10 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       </label>
     </div>
     <div class="panel-body">
-      <div style="font-size:11px;color:var(--text3);margin-bottom:12px">El servidor sincroniza tus datos solo, a estas horas (Perú), aunque no abras la app. La de la noche también trae el gasto de Meta y consolida; la de la mañana solo refresca ventas.</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px">El servidor sincroniza tus datos solo, a estas horas (Perú), aunque no abras la app. Ambas son sincronizaciones completas (ventas + gasto de Meta + consolidación). La de la mañana captura el gasto ya maduro de la noche anterior, así tu profit y ROAS de ayer quedan exactos.</div>
       <div class="form-row form-2" style="max-width:420px">
-        <div class="field"><label>🌙 Noche (con Meta)</label><input type="time" id="autosync-noche" value="23:00" onchange="saveAutosyncConfig()"></div>
-        <div class="field"><label>☀️ Mañana (solo ventas)</label><input type="time" id="autosync-manana" value="06:30" onchange="saveAutosyncConfig()"></div>
+        <div class="field"><label>🌙 Noche</label><input type="time" id="autosync-noche" value="23:00" onchange="saveAutosyncConfig()"></div>
+        <div class="field"><label>☀️ Mañana</label><input type="time" id="autosync-manana" value="06:30" onchange="saveAutosyncConfig()"></div>
       </div>
       <div id="autosync-estado" style="font-size:11px;color:var(--text3);margin-top:8px"></div>
     </div>
