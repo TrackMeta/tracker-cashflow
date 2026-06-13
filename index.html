@@ -449,7 +449,6 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div class="nav-item" onclick="navTo('kpis',this)"><span class="icon">🗓️</span> KPIs del Día</div>
     <div class="nav-item" onclick="navTo('por-anuncio',this)"><span class="icon">🔍</span> Por Anuncio</div>
     <div class="nav-item" onclick="navTo('por-campana',this)"><span class="icon">📊</span> Por Campaña</div>
-    <div class="nav-item" onclick="navTo('estructura',this)"><span class="icon">🗺️</span> Estructura</div>
     <div class="nav-item" onclick="navTo('remarketing',this)"><span class="icon">🔁</span> Remarketing</div>
     <div class="nav-item" onclick="navTo('horarios',this)"><span class="icon">🕐</span> Horarios</div>
     <div class="nav-section">Datos</div>
@@ -1750,42 +1749,6 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
         <tbody id="horarios-tbody"></tbody>
       </table>
     </div>
-  </div>
-</div>
-
-<!-- ESTRUCTURA -->
-<div class="page" id="page-estructura">
-  <div class="page-header">
-    <div><div class="page-title">🗺️ Estructura de Campañas</div><div class="page-sub">Mapa visual de tu operación publicitaria</div></div>
-    <div style="display:flex;gap:8px">
-      <button class="btn btn-ghost btn-sm" onclick="estructuraExpandAll(true)">↕ Expandir todo</button>
-      <button class="btn btn-ghost btn-sm" onclick="estructuraExpandAll(false)">↕ Colapsar todo</button>
-      <button class="btn btn-primary" onclick="openNuevoBM()">+ Business Manager</button>
-    </div>
-  </div>
-
-  <div class="filters" style="margin-bottom:16px">
-    <div class="field">
-      <label>Filtrar estado</label>
-      <select id="est-filtro-estado" onchange="renderEstructura()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:8px 10px;color:var(--text);font-size:13px">
-        <option value="">Todos</option>
-        <option value="Activo">🟢 Activos</option>
-        <option value="Pausado">🟡 Pausados</option>
-        <option value="Apagado">🔴 Apagados</option>
-      </select>
-    </div>
-    <div class="field">
-      <label>Período de métricas</label>
-      <select id="est-periodo" onchange="renderEstructura()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:var(--radius-sm);padding:8px 10px;color:var(--text);font-size:13px">
-        <option value="7">Últimos 7 días</option>
-        <option value="30" selected>Últimos 30 días</option>
-        <option value="0">Todo el tiempo</option>
-      </select>
-    </div>
-  </div>
-
-  <div id="estructura-content">
-    <div class="empty"><div class="empty-icon">🗺️</div><div class="empty-title">Sin estructura creada</div><div style="font-size:12px;color:var(--text3);margin-top:6px">Comienza agregando un Business Manager</div></div>
   </div>
 </div>
 
@@ -6521,6 +6484,7 @@ function metricsForAds(adIds, desde) {
 
 function renderEstructura() {
   const el = document.getElementById('estructura-content');
+  if (!el) return; // sección Estructura eliminada — no-op seguro
   const filtroEstado = document.getElementById('est-filtro-estado')?.value || '';
   const periodo = +document.getElementById('est-periodo')?.value || 30;
   const desde   = periodo > 0 ? nDaysAgo(periodo) : '2000-01-01';
@@ -7555,7 +7519,6 @@ function renderPage(page) {
   if (page==='remarketing')  renderRemarketing();
   if (page==='vida-util')    renderVidaUtil();
   if (page==='horarios')     renderHorarios();
-  if (page==='estructura')   renderEstructura();
   if (page==='cruce-pagos')  { /* módulo autónomo, no requiere renderizado inicial */ }
 }
 
@@ -11521,9 +11484,6 @@ init();
     </div>
     <div class="mobile-nav-item" id="mnav-registro" onclick="mobileNav('registro')">
       <span class="mni-icon">📅</span><span class="mni-label">Registro</span>
-    </div>
-    <div class="mobile-nav-item" id="mnav-estructura" onclick="mobileNav('estructura')">
-      <span class="mni-icon">🗺️</span><span class="mni-label">Estructura</span>
     </div>
     <div class="mobile-nav-item" id="mnav-importar" onclick="mobileNav('importar')">
       <span class="mni-icon">📥</span><span class="mni-label">Importar</span>
