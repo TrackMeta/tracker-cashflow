@@ -254,17 +254,14 @@ async function consolidar(wsId: string, ws: any): Promise<string[]> {
     const ingUsd = +(a.ing / rate).toFixed(2);
     const e = estMap[fecha];
     if (!e) {
-      await sb("POST", "dia_estado", [{ workspace_id: wsId, user_id: ws.user_id, fecha, gasto_total: g, gasto_anterior: g, gasto_provisional: g, ingresos_usd: ingUsd, profit_usd: profitUsd, primer_sync_at: iso, ultimo_cambio_at: iso, consolidado: false, usd_rate: rate }], "return=minimal").catch(() => {});
+      await sb("POST", "dia_estado", [{ workspace_id: wsId, user_id: ws.user_id, fecha, gasto_total: g, gasto_anterior: g, gasto_provisional: g, ingresos_usd: ingUsd, profit_usd: profitUsd, primer_sync_at: iso, ultimo_cambio_at: iso, consolidado: fecha <= diaPeru(-2), usd_rate: rate }], "return=minimal").catch(() => {});
       continue;
     }
     if (e.consolidado) continue;
-    const cambio = Math.abs(g - (+e.gasto_total || 0)) > 0.001;
-    const primer = new Date(e.primer_sync_at || e.created_at || ahora);
-    const ult = new Date(e.ultimo_cambio_at || primer);
-    const hC = (+ahora - +ult) / 36e5, hP = (+ahora - +primer) / 36e5;
     const patch: any = { ingresos_usd: ingUsd, profit_usd: profitUsd };
-    if (cambio) { patch.gasto_anterior = e.gasto_total; patch.gasto_total = g; patch.ultimo_cambio_at = iso; }
-    const consolidaAhora = (!cambio && hC >= 24) || hP >= 48;
+    if (Math.abs(g - (+e.gasto_total || 0)) > 0.001) { patch.gasto_anterior = e.gasto_total; patch.gasto_total = g; patch.ultimo_cambio_at = iso; }
+    // Modelo por antigüedad: 2+ días → firme (Meta estabiliza en ~48h)
+    const consolidaAhora = fecha <= diaPeru(-2);
     if (consolidaAhora) { patch.consolidado = true; patch.consolidado_at = iso; patch.usd_rate = rate; patch.gasto_total = g; }
     await sb("PATCH", `dia_estado?id=eq.${e.id}`, patch, "return=minimal").catch(() => {});
 
@@ -457,7 +454,7 @@ async function enviarReporteSlot(cfg: any, slot: "noche" | "manana") {
   }
 }
 
-const AYUDA = `🤖 *Comandos de Tracker Pro*\n\n📊 *Reportes:*\n/hoy · /ayer · /año\n/semana — semana actual\n/semana DD/MM — semana de esa fecha\n/mes — mes actual\n/mes mayo · /mes 05/2025 — mes específico\n/dia DD/MM — un día (año actual)\n/dia DD/MM/AAAA — un día con año\n\n🔎 *Detalle:*\n/producto <nombre> — un producto\n/bot <nombre> — una fuente/bot\n/mejores — top y peores anuncios (7 días)\n/pendientes — días provisionales + ventas sin verificar\n\n_Recibes el cierre nocturno y el buenos días automáticamente, más alertas de cambio de signo, récords y rachas._`;
+const AYUDA = `🤖 *Comandos de Tracker Pro*\n\n🔄 /sync — sincronizar ahora (ventas + gasto)\n\n📊 *Reportes:*\n/hoy · /ayer · /año\n/semana — semana actual\n/semana DD/MM — semana de esa fecha\n/mes — mes actual\n/mes mayo · /mes 05/2025 — mes específico\n/dia DD/MM — un día (año actual)\n/dia DD/MM/AAAA — un día con año\n\n🔎 *Detalle:*\n/producto <nombre> — un producto\n/bot <nombre> — una fuente/bot\n/mejores — top y peores anuncios (7 días)\n/pendientes — días provisionales + ventas sin verificar\n\n_Recibes el cierre nocturno y el buenos días automáticamente, más alertas de cambio de signo, récords y rachas._`;
 
 // /pendientes — días provisionales + ventas sin verificar
 async function cmdPendientes(userId: string) {
@@ -512,6 +509,15 @@ async function cmdMejores(userId: string, desde: string, hasta: string) {
 // Ejecuta un comando y envía la respuesta
 async function tgRunCommand(userId: string, cfg: any, chatId: string, cmd: string, arg: string) {
   if (cmd === "/ayuda" || cmd === "/help") { await tgSend(cfg.tg_token, chatId, AYUDA); return; }
+
+  // Sincronizar ahora (ventas + Meta + consolidación) desde Telegram
+  if (cmd === "/sync") {
+    await tgSend(cfg.tg_token, chatId, "⏳ Sincronizando ventas y gasto...");
+    const r = await procesarUsuario(userId, true);
+    for (const a of (r.alertas || [])) await tgSend(cfg.tg_token, chatId, a);
+    await tgSend(cfg.tg_token, chatId, `✅ Sincronizado: ${r.ventas} ventas · ${r.workspaces} producto(s)`);
+    return;
+  }
 
   let titulo = "", desde = "", hasta = "", per = "";
   if (cmd === "/hoy") { desde = hasta = diaPeru(0); titulo = "📊 *HOY*"; per = `Hoy ${desde}`; }

@@ -1279,12 +1279,16 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 
   <div class="divider" style="margin:22px 0"></div>
 
-  <!-- VERIFICAR VENTAS (Yape) -->
+  <!-- VERIFICAR VENTAS (pagos) -->
   <div class="panel" style="border-left:3px solid var(--green)">
-    <div class="panel-header"><span class="panel-title">✅ Verificar ventas contra pagos (Yape)</span></div>
+    <div class="panel-header"><span class="panel-title">✅ Verificar ventas contra pagos</span></div>
     <div class="panel-body">
-      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Cruza tus ventas registradas contra el reporte real de Yape para detectar montos distintos, ventas fantasma, duplicadas y pagos huérfanos.</div>
-      <button class="btn btn-primary" onclick="navTo('cruce-pagos',null)">🔎 Ir a verificar ventas</button>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Cruza tus ventas registradas contra el reporte real de tu billetera o banco para detectar montos distintos, ventas fantasma, duplicadas y pagos huérfanos.</div>
+      <div style="display:flex;gap:8px;flex-wrap:wrap">
+        <button class="btn btn-primary" onclick="navTo('cruce-pagos',null)">🔎 Cruzar contra pagos (detallado)</button>
+        <button class="btn btn-ghost" onclick="marcarVerificadoBulk()">✓ Marcar como verificadas</button>
+      </div>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px">Usa <strong>"Marcar como verificadas"</strong> cuando ya confirmaste que la suma de tus ventas cuadra con tus pagos y no necesitas el cruce detallado.</div>
     </div>
   </div>
 
@@ -1794,7 +1798,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   <div class="page-header">
     <div>
       <div class="page-title">🔎 Cruce de Pagos</div>
-      <div class="page-sub">Detecta pagos fantasma (CRM sin Yape) y pagos huérfanos (Yape sin CRM)</div>
+      <div class="page-sub">Detecta pagos fantasma (venta sin pago) y pagos huérfanos (pago sin venta)</div>
     </div>
     <button class="btn btn-ghost btn-sm" onclick="cruceLimpiar()">🗑️ Limpiar</button>
   </div>
@@ -1816,7 +1820,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     </div>
     <!-- YAPE/PLIN -->
     <div class="panel" style="margin-bottom:0">
-      <div class="panel-header"><span class="panel-title">📱 Reporte Yape/Plin (Excel)</span><span id="cruce-yape-badge" style="display:none" class="badge green">✓ Cargado</span></div>
+      <div class="panel-header"><span class="panel-title">📱 Reporte de pagos — billetera/banco (Excel)</span><span id="cruce-yape-badge" style="display:none" class="badge green">✓ Cargado</span></div>
       <div class="panel-body">
         <div class="drop-zone" id="dz-yape" onclick="document.getElementById('file-yape').click()" ondragover="cruceDragOver(event,'dz-yape')" ondragleave="cruceDragLeave('dz-yape')" ondrop="cruceDrop(event,'yape')">
           <div class="dz-icon">💳</div>
@@ -1845,7 +1849,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   <!-- VERIFICAR VENTAS DEL SISTEMA (Etapa 3) -->
   <div class="panel" style="margin-bottom:18px;border-left:3px solid var(--green)">
     <div class="panel-header">
-      <span class="panel-title">✅ Verificar ventas del sistema (contra Yape)</span>
+      <span class="panel-title">✅ Verificar ventas del sistema (contra pagos)</span>
       <button class="btn btn-primary btn-sm" onclick="verificarVentas()">🔎 Verificar ventas</button>
     </div>
     <div class="panel-body">
@@ -3185,11 +3189,11 @@ const CONSOLIDA_MAX_HORAS = 48;
 function diaEstadoDe(wsId, fecha) {
   return (DB.diaEstado || []).find(e => e.workspace_id === wsId && e.fecha === fecha) || null;
 }
-// ¿Está consolidado este día? (días viejos sin registro se asumen consolidados)
+// ¿Está consolidado este día? Modelo por ANTIGÜEDAD: Meta estabiliza el gasto
+// en ~48h, así que un día con 2+ días de antigüedad es firme, sin importar
+// cuándo importes. Hoy y ayer = provisional.
 function diaConsolidado(wsId, fecha) {
-  const e = diaEstadoDe(wsId, fecha);
-  if (e) return !!e.consolidado;
-  return fecha < nDaysAgo(2); // sin estado y con +2 días → ya firme
+  return fecha <= nDaysAgo(2);
 }
 
 // Recalcula el estado de consolidación de los días recientes de cada workspace dado
@@ -3213,30 +3217,23 @@ async function actualizarConsolidacion(wsIds) {
     for (const [fecha, gastoRaw] of Object.entries(gastoPorFecha)) {
       const g = +(+gastoRaw).toFixed(2);
       const e = estMap[fecha];
+      const consolidadoPorEdad = fecha <= nDaysAgo(2); // 2+ días → firme
       if (!e) {
         await api.post('dia_estado', {
           workspace_id: wsId, user_id: CURRENT_USER?.id, fecha,
           gasto_total: g, gasto_anterior: g, gasto_provisional: g,
           primer_sync_at: ahoraISO, ultimo_cambio_at: ahoraISO,
-          consolidado: false, usd_rate: rate
+          consolidado: consolidadoPorEdad, usd_rate: rate
         }).catch(()=>{});
         continue;
       }
-      if (e.consolidado) continue; // ya firme → gasto congelado
-      const cambio    = Math.abs(g - (+e.gasto_total||0)) > 0.001;
-      const primer    = new Date(e.primer_sync_at || e.created_at || ahora);
-      const ultCambio = new Date(e.ultimo_cambio_at || primer);
-      const hCambio   = (ahora - ultCambio) / 36e5;
-      const hPrimer   = (ahora - primer) / 36e5;
       const patch = {};
-      if (cambio) {
+      if (Math.abs(g - (+e.gasto_total||0)) > 0.001) {
         patch.gasto_anterior  = e.gasto_total;
         patch.gasto_total     = g;
         patch.ultimo_cambio_at = ahoraISO;
       }
-      const estable = !cambio && hCambio >= CONSOLIDA_HORAS;
-      const maxTime = hPrimer >= CONSOLIDA_MAX_HORAS;
-      if (estable || maxTime) {
+      if (!e.consolidado && consolidadoPorEdad) {
         patch.consolidado    = true;
         patch.consolidado_at = ahoraISO;
         patch.usd_rate       = rate;
@@ -7177,6 +7174,23 @@ async function migrarFuentes() {
 // ════════════════════════════════════════════════
 // FUENTES (BOTS) — CRUD
 // ════════════════════════════════════════════════
+// Marca todas las ventas del producto activo como verificadas (cuando los totales ya cuadran)
+async function marcarVerificadoBulk() {
+  const wsId = CURRENT_WORKSPACE?.id;
+  if (!wsId) return;
+  if (!confirm(`¿Marcar TODAS las ventas de "${CURRENT_WORKSPACE.nombre}" como verificadas?\n\nÚsalo solo si ya confirmaste que la suma de tus ventas cuadra con tus pagos reales.`)) return;
+  try {
+    setSyncStatus('loading', 'Marcando verificadas...');
+    await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas?workspace_id=eq.${wsId}&estado_verif=neq.verificada`, {
+      method: 'PATCH', headers: { ...api._h(), 'Prefer': 'return=minimal' },
+      body: JSON.stringify({ estado_verif: 'verificada', verificado_at: new Date().toISOString() })
+    });
+    await loadAll();
+    setSyncStatus('ok', 'Sincronizado ✓');
+    showSuccess('✅ Ventas marcadas como verificadas');
+  } catch(e) { setSyncStatus('error', 'Error'); showError('Error: ' + e.message); }
+}
+
 function impTab(t) {
   document.getElementById('imp-tab-importar').style.display = t === 'importar' ? 'block' : 'none';
   document.getElementById('imp-tab-ajustes').style.display  = t === 'ajustes'  ? 'block' : 'none';
