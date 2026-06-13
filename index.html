@@ -1114,6 +1114,24 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <div style="font-size:11px;color:var(--text2);margin-top:10px;line-height:1.7">
         <strong>Después de conectar:</strong> abre tu bot en Telegram y envíale <code>/start</code> — eso vincula tu chat para recibir los reportes.
       </div>
+
+      <div class="modal-section" style="margin-top:16px">🕒 Horarios de notificación</div>
+      <div style="font-size:11px;color:var(--text2);line-height:1.7">
+        Los reportes automáticos (🌙 <strong>Cierre del día</strong> y ☀️ <strong>Buenos días</strong>) llegan a las horas que definas en
+        <a href="#" onclick="impTab('ajustes');document.getElementById('autosync-noche')?.scrollIntoView({behavior:'smooth'});return false" style="color:var(--accent)">⏰ Sincronización automática</a>:
+        <span id="tg-horarios-info" style="font-weight:600;color:var(--text)"></span>
+      </div>
+
+      <div class="modal-section" style="margin-top:16px">🔔 Alertas proactivas</div>
+      <label style="display:flex;align-items:center;gap:8px;font-size:12px;cursor:pointer;margin-bottom:8px">
+        <input type="checkbox" id="tg-alertas" onchange="saveTelegramAlertas()" style="accent-color:var(--accent)">
+        <span>Recibir alertas automáticas cuando pase algo importante</span>
+      </label>
+      <div style="font-size:11px;color:var(--text3);line-height:1.8;padding-left:4px">
+        ⚠️ <strong>Cambio de signo</strong> — un día se consolidó en pérdida (o ganancia) distinto a lo provisional<br>
+        📉 <strong>Racha negativa</strong> — 2+ días consolidados seguidos en pérdida<br>
+        🏆 <strong>Récord del mes</strong> — nuevo mejor día de profit
+      </div>
     </div>
   </div>
 
@@ -7366,9 +7384,20 @@ function loadTelegramUI() {
   document.getElementById('tg-activo-label').textContent = act.checked ? 'Activado' : 'Pausado';
   const est = document.getElementById('tg-estado');
   if (est) est.textContent = AUTOSYNC_CFG?.tg_chat_id ? '✅ Chat vinculado' : (AUTOSYNC_CFG?.tg_token ? '⚠️ Falta enviar /start al bot' : '');
+  // Toggle de alertas
+  const al = document.getElementById('tg-alertas');
+  if (al) al.checked = AUTOSYNC_CFG ? AUTOSYNC_CFG.tg_alertas !== false : true;
+  // Horarios (de la sincronización automática)
+  const hi = document.getElementById('tg-horarios-info');
+  if (hi) hi.textContent = `🌙 ${AUTOSYNC_CFG?.hora_noche || '23:00'} · ☀️ ${AUTOSYNC_CFG?.hora_manana || '06:30'}`;
 }
 async function _tgSaveCfg(patch) {
   await _upsertSyncCfg(patch);
+}
+async function saveTelegramAlertas() {
+  const v = document.getElementById('tg-alertas').checked;
+  try { await _tgSaveCfg({ tg_alertas: v }); showSuccess('✅ Guardado'); }
+  catch(e) { showError('Error: ' + e.message); }
 }
 async function conectarTelegram() {
   const token = document.getElementById('tg-token').value.trim();

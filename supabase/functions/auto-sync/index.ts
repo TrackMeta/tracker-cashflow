@@ -335,7 +335,7 @@ async function runScheduled() {
   for (const cfg of (cfgs || [])) {
     // Noche (con Meta) tiene prioridad; luego mañana (solo ventas)
     const enviarAlertas = async (r: any) => {
-      if (cfg.tg_token && cfg.tg_chat_id && cfg.tg_activo !== false)
+      if (cfg.tg_token && cfg.tg_chat_id && cfg.tg_activo !== false && cfg.tg_alertas !== false)
         for (const a of (r.alertas || [])) await tgSend(cfg.tg_token, cfg.tg_chat_id, a);
     };
     if (nowMin >= toMin(cfg.hora_noche || "23:00") && cfg.ultima_noche !== hoy) {
