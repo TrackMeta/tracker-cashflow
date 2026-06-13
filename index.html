@@ -614,8 +614,12 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   <div class="cards-row cards-5" id="bita-kpis" style="margin-bottom:8px"></div>
   <div id="bita-confianza" style="margin:4px 0 16px;font-size:11.5px"></div>
 
-  <!-- Vista AÑO: tabla mensual -->
+  <!-- Vista AÑO: gráfico + tabla mensual -->
   <div id="bita-vista-anio">
+    <div class="panel" style="margin-bottom:16px">
+      <div class="panel-header"><span class="panel-title">📈 Profit mensual (USD)</span></div>
+      <div class="panel-body"><div style="height:240px"><canvas id="bita-chart-anio"></canvas></div></div>
+    </div>
     <div class="panel">
       <div class="panel-header"><span class="panel-title">Resumen mensual</span><span style="font-size:11px;color:var(--text3)">Clic en un mes para ver su detalle</span></div>
       <div class="tbl-wrap"><table>
@@ -625,8 +629,12 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     </div>
   </div>
 
-  <!-- Vista MES: calendario + tabla diaria -->
+  <!-- Vista MES: gráfico + calendario + tabla diaria -->
   <div id="bita-vista-mes" style="display:none">
+    <div class="panel" style="margin-bottom:16px">
+      <div class="panel-header"><span class="panel-title">📈 Profit diario (USD)</span></div>
+      <div class="panel-body"><div style="height:220px"><canvas id="bita-chart-mes"></canvas></div></div>
+    </div>
     <div class="panel" style="margin-bottom:16px">
       <div class="panel-header"><span class="panel-title">Calendario de profit</span><span style="font-size:11px;color:var(--text3)">🟩 alto · 🟢 positivo · 🟥 pérdida · ⬜ sin datos · ⏳ provisional</span></div>
       <div class="panel-body"><div id="bita-calendario"></div></div>
@@ -8056,6 +8064,32 @@ function bitaRenderAnio(){
     <td><span style="color:var(--green)">${rd.mas}</span> / <span style="color:var(--red)">${rd.menos}</span></td>
     <td></td></tr>`;
   tb.innerHTML = rows;
+
+  // Gráfico de profit mensual (USD)
+  const labelsA = BITA_MESES.map(m => m.slice(0,3));
+  const dataA = [];
+  for (let mes=0; mes<12; mes++){
+    const rm = regsAnio.filter(r => r.fecha.startsWith(`${BITA_ANIO}-${_pad2(mes+1)}`));
+    dataA.push(rm.length ? +toUSD(bitaMetrics(rm).profit).toFixed(2) : 0);
+  }
+  bitaLineChart('bita-chart-anio', labelsA, dataA);
+}
+
+function bitaLineChart(canvasId, labels, data){
+  const ctx = document.getElementById(canvasId);
+  if(!ctx || typeof Chart === 'undefined') return;
+  if(charts[canvasId]) charts[canvasId].destroy();
+  const cols = data.map(v => v < 0 ? '#EF4444' : '#4F8EF7');
+  charts[canvasId] = new Chart(ctx.getContext('2d'), {
+    type:'line',
+    data:{ labels, datasets:[{ label:'Profit USD', data, borderColor:'#4F8EF7',
+      backgroundColor:'rgba(79,142,247,0.12)', tension:0.3, fill:true,
+      pointRadius:3, pointBackgroundColor:cols }]},
+    options:{ responsive:true, maintainAspectRatio:false,
+      plugins:{ legend:{display:false}, tooltip:{callbacks:{label:c=>'$ '+(+c.raw).toFixed(2)}} },
+      scales:{ x:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#9BAABF',font:{size:9}}},
+               y:{grid:{color:'rgba(0,0,0,0.04)'},ticks:{color:'#9BAABF',font:{size:9}}} } }
+  });
 }
 
 function bitaAbrirMes(mes){
@@ -8127,6 +8161,9 @@ function bitaRenderMes(){
     <td>${fmtMoney(M.profit/nd, code)}</td>
     <td>—</td><td>—</td><td>${(M.ventas/nd).toFixed(1)}</td></tr>`;
   tb.innerHTML = rows || '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:24px">Sin datos este mes</td></tr>';
+
+  // Gráfico de profit diario (USD)
+  bitaLineChart('bita-chart-mes', dias.map(d => d.fecha.slice(8)), dias.map(d => +toUSD(d.M.profit).toFixed(2)));
 }
 
 function bitaCalendario(dias){
@@ -8147,22 +8184,23 @@ function bitaCalendario(dias){
     return fuerte ? { bg:'var(--green-dim)', fg:'var(--green)', borde:'var(--green)' } : { bg:'rgba(16,185,129,0.10)', fg:'var(--teal)' };
   };
   const dows = ['L','M','X','J','V','S','D'];
-  let html = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:5px">';
-  dows.forEach(d => html += `<div style="text-align:center;font-size:10px;font-weight:700;color:var(--text3);padding:2px">${d}</div>`);
+  let html = '<div style="display:grid;grid-template-columns:repeat(7,1fr);gap:4px">';
+  dows.forEach(d => html += `<div style="text-align:center;font-size:10px;font-weight:700;color:var(--text3);padding:1px">${d}</div>`);
   for (let i = 0; i < primerDow; i++) html += '<div></div>';
   const code = wsCurrencyCode();
   for (let dia = 1; dia <= diasEnMes; dia++){
     const fecha = `${prefijo}-${_pad2(dia)}`;
     const d = diaMap[fecha];
     if (!d){
-      html += `<div style="aspect-ratio:1;border-radius:8px;background:var(--bg3);opacity:0.4;display:flex;flex-direction:column;align-items:center;justify-content:center"><span style="font-size:11px;color:var(--text3)">${dia}</span></div>`;
+      html += `<div style="min-height:58px;border-radius:7px;background:var(--bg3);opacity:0.35;display:flex;align-items:flex-start;padding:4px 6px"><span style="font-size:10px;color:var(--text3)">${dia}</span></div>`;
       continue;
     }
     const c = colorDe(d.M);
     const cons = diaConsolidado(wsId, fecha);
-    html += `<div onclick="bitaAbrirDia('${fecha}')" title="${fecha}" style="aspect-ratio:1;border-radius:8px;background:${c.bg};border:1px solid ${c.borde||'transparent'};display:flex;flex-direction:column;align-items:center;justify-content:center;cursor:pointer;padding:2px">
-      <span style="font-size:10px;color:var(--text3)">${dia}${cons?'':' ⏳'}</span>
-      <span style="font-size:11px;font-weight:800;color:${c.fg};font-family:var(--mono);line-height:1.2">${fmtMoney(d.M.profit, code).replace(/\.\d+$/,'')}</span>
+    html += `<div onclick="bitaAbrirDia('${fecha}')" title="${fecha}" style="min-height:58px;border-radius:7px;background:${c.bg};border:1px solid ${c.borde||'transparent'};display:flex;flex-direction:column;gap:1px;cursor:pointer;padding:4px 6px">
+      <div style="display:flex;justify-content:space-between;align-items:center;line-height:1"><span style="font-size:10px;font-weight:700;color:var(--text3)">${dia}</span>${cons?'':'<span style="font-size:8px">⏳</span>'}</div>
+      <span style="font-size:11px;font-weight:800;color:${c.fg};font-family:var(--mono);line-height:1.1">${fmtMoney(d.M.profit, code).replace(/\.\d+$/,'')}</span>
+      <div style="font-size:8.5px;color:var(--text3);font-family:var(--mono);line-height:1">${fmt.roas(d.M.roas)} · ${d.M.ventas}v</div>
     </div>`;
   }
   html += '</div>';
