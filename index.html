@@ -1039,7 +1039,15 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 
 <!-- IMPORTAR CRM -->
 <div class="page" id="page-importar">
-  <div class="page-header"><div><div class="page-title">📥 Importar Datos</div><div class="page-sub">Importa las ventas del CRM y las métricas de Meta Ads</div></div></div>
+  <div class="page-header"><div><div class="page-title">📥 Importar Datos</div><div class="page-sub">Sincroniza y verifica tus datos · configura bots, Telegram y auto-sync</div></div></div>
+
+  <div class="tab-bar" style="margin-bottom:18px">
+    <button class="tab-btn active" id="imp-tab-btn-importar" onclick="impTab('importar')">📥 Importar y verificar</button>
+    <button class="tab-btn" id="imp-tab-btn-ajustes" onclick="impTab('ajustes')">⚙️ Ajustes</button>
+  </div>
+
+  <!-- ════════ TAB AJUSTES ════════ -->
+  <div id="imp-tab-ajustes" style="display:none">
 
   <!-- FUENTES (BOTS) -->
   <div class="panel" style="margin-bottom:20px" id="fuentes-panel">
@@ -1098,6 +1106,11 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     </div>
   </div>
 
+  </div><!-- /imp-tab-ajustes -->
+
+  <!-- ════════ TAB IMPORTAR ════════ -->
+  <div id="imp-tab-importar">
+
   <!-- SYNC GOOGLE SHEETS -->
   <div style="margin-bottom:20px;padding:16px 18px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
     <div style="display:flex;align-items:center;gap:12px">
@@ -1108,7 +1121,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       </div>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <button onclick="openSheetsSetup()" style="background:var(--bg3);color:var(--text2);border:1px solid var(--border);border-radius:8px;padding:7px 14px;font-size:12px;cursor:pointer;white-space:nowrap">⚙️ Configurar</button>
+      <span style="font-size:10px;color:var(--text3)">El Sheet se configura en cada Fuente →&nbsp;<a href="#" onclick="impTab('ajustes');return false" style="color:var(--accent)">Ajustes</a></span>
       <button id="btn-sheets-sync" onclick="syncGoogleSheets()" style="background:linear-gradient(135deg,#34a853,#0f9d58);color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap;transition:opacity 0.2s">
         <span id="sheets-sync-icon">⚡</span>
         <span id="sheets-sync-label">Sincronizar ahora</span>
@@ -1252,6 +1265,19 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       </div>
     </div>
   </div>
+
+  <div class="divider" style="margin:22px 0"></div>
+
+  <!-- VERIFICAR VENTAS (Yape) -->
+  <div class="panel" style="border-left:3px solid var(--green)">
+    <div class="panel-header"><span class="panel-title">✅ Verificar ventas contra pagos (Yape)</span></div>
+    <div class="panel-body">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Cruza tus ventas registradas contra el reporte real de Yape para detectar montos distintos, ventas fantasma, duplicadas y pagos huérfanos.</div>
+      <button class="btn btn-primary" onclick="navTo('cruce-pagos',null)">🔎 Ir a verificar ventas</button>
+    </div>
+  </div>
+
+  </div><!-- /imp-tab-importar -->
 </div>
 
 <!-- CATÁLOGO -->
@@ -7140,6 +7166,13 @@ async function migrarFuentes() {
 // ════════════════════════════════════════════════
 // FUENTES (BOTS) — CRUD
 // ════════════════════════════════════════════════
+function impTab(t) {
+  document.getElementById('imp-tab-importar').style.display = t === 'importar' ? 'block' : 'none';
+  document.getElementById('imp-tab-ajustes').style.display  = t === 'ajustes'  ? 'block' : 'none';
+  document.getElementById('imp-tab-btn-importar').classList.toggle('active', t === 'importar');
+  document.getElementById('imp-tab-btn-ajustes').classList.toggle('active', t === 'ajustes');
+}
+
 function renderFuentesPanel() {
   const lista = document.getElementById('fuentes-lista');
   if (!lista) return;
@@ -7509,7 +7542,7 @@ function renderPage(page) {
   if (page==='catalogo')     renderCatalogo();
   if (page==='leyenda')      renderLeyenda();
   if (page==='alertas')      renderAlertas();
-  if (page==='importar')            { initMetaApiPage(); updateSheetsStatus(); renderFuentesPanel(); loadAutosyncConfig(); }
+  if (page==='importar')            { impTab('importar'); initMetaApiPage(); updateSheetsStatus(); renderFuentesPanel(); loadAutosyncConfig(); }
   if (page==='comparar')            { initComparar(); renderComparar(); }
   if (page==='comparar-productos')  renderCompararProductos();
   if (page==='admin')        renderAdminPage();
