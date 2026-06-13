@@ -692,6 +692,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 
   <!-- KPIs globales -->
   <div class="cards-row cards-4" id="global-kpis"></div>
+  <div id="global-confianza" style="margin:4px 0 14px;font-size:11.5px"></div>
 
   <!-- Tabla por producto -->
   <div class="panel">
@@ -4324,16 +4325,39 @@ async function renderGlobal() {
     }
     const wsData = [];
 
+    const diasGlobal = new Set();
+    let verifOk = 0, verifTot = 0;
     for (const ws of DB.workspaces) {
       if (!SELECTED_WS_IDS.has(ws.id)) continue;
       const regs = await api.get('registros',
-        `workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&select=gasto_meta,gasto_tiktok,impr_meta,impr_tiktok,clics_meta,clics_tiktok,chats_meta,chats_tiktok,v1,v2,v3,v4,upsell_total`
+        `workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&select=fecha,gasto_meta,gasto_tiktok,impr_meta,impr_tiktok,clics_meta,clics_tiktok,chats_meta,chats_tiktok,v1,v2,v3,v4,upsell_total`
       );
       // Necesitamos config de cada workspace para calcular ingresos
       const cfgArr = await api.get('config', `workspace_id=eq.${ws.id}&limit=1`);
       const cfg = cfgArr.length ? cfgArr[0] : { p1:10, p2:7, p3:5, p4:3, igv:0.18, tc:4.0 };
       const m = calcMetricsWithConfig(regs, cfg);
       wsData.push({ ws, m, regs: regs.length });
+      regs.forEach(r => diasGlobal.add(r.fecha));
+      // Verificación de ventas de este producto en el período
+      try {
+        const cv = await api.get('crm_ventas', `workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&select=estado_verif`);
+        verifTot += cv.length;
+        verifOk  += cv.filter(v => v.estado_verif === 'verificada').length;
+      } catch(e) {}
+    }
+    // Franja de confianza global (consolidación por antigüedad + verificación)
+    const cb = document.getElementById('global-confianza');
+    if (cb) {
+      const provis = [...diasGlobal].filter(f => f > nDaysAgo(2));
+      const cons = diasGlobal.size - provis.length;
+      let txt = `<span style="color:var(--green);font-weight:600">✅ ${cons} día(s) consolidado(s)</span>`;
+      if (provis.length) txt += ` <span style="color:var(--text3)">·</span> <span style="color:var(--orange);font-weight:600">⏳ ${provis.length} provisional(es)</span>`;
+      if (verifTot) {
+        const pct = Math.round(verifOk/verifTot*100);
+        const col = pct>=90?'var(--green)':pct>=70?'var(--orange)':'var(--red)';
+        txt += ` <span style="color:var(--text3)">·</span> <span style="color:${col};font-weight:600">✅ ${pct}% ventas verificadas</span> <span style="color:var(--text3)">(${verifOk}/${verifTot})</span>`;
+      }
+      cb.innerHTML = txt;
     }
 
     hideLoading();
