@@ -1718,7 +1718,21 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 
     <!-- Tabla día a día -->
     <div class="panel">
-      <div class="panel-header"><span class="panel-title">Detalle día a día</span></div>
+      <div class="panel-header">
+        <span class="panel-title">Detalle día a día</span>
+        <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+          <span style="font-size:11px;color:var(--text3)">Mostrar</span>
+          <select id="vu-det-dias" onchange="renderVuDetalleTabla()" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:5px 8px;color:var(--text);font-size:12px">
+            <option value="7">Últimos 7 días</option>
+            <option value="15">Últimos 15 días</option>
+            <option value="30" selected>Últimos 30 días</option>
+            <option value="60">Últimos 60 días</option>
+            <option value="0">Todos</option>
+          </select>
+          <span style="font-size:11px;color:var(--text3)">hasta</span>
+          <select id="vu-det-fin" onchange="renderVuDetalleTabla()" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:5px 8px;color:var(--text);font-size:12px"></select>
+        </div>
+      </div>
       <div class="tbl-wrap">
         <table>
           <thead><tr><th>Día #</th><th>Fecha</th><th>Gasto</th><th>Ingresos S/</th><th>Profit S/</th><th>ROAS</th><th>Ventas</th><th>Estado</th></tr></thead>
@@ -6330,9 +6344,33 @@ function renderVuCurva(adId) {
         </div>`).join('')}
     </div>`;
 
-  // ── Tabla día a día ──
-  const roasMaxLocal = Math.max(...diasConInv.map(d => d.roas), roasMin);
-  document.getElementById('vu-detalle-tbody').innerHTML = diasConInv.map(d => {
+  // ── Tabla día a día (solo display: controlada por selectores, no afecta el resto) ──
+  _vuDetCache = { diasConInv, diaPico, roasMin };
+  // Poblar el selector de "día final" con las fechas disponibles (default = último)
+  const selFin = document.getElementById('vu-det-fin');
+  if (selFin) {
+    selFin.innerHTML = diasConInv.map(d => `<option value="${d.fecha}">${fmt.date(d.fecha)} (D${d.dia})</option>`).join('');
+    selFin.value = diasConInv[diasConInv.length-1].fecha;
+  }
+  renderVuDetalleTabla();
+}
+
+// Cache de la curva activa para que los selectores de la tabla no recalculen Vida Útil
+let _vuDetCache = null;
+function renderVuDetalleTabla() {
+  if (!_vuDetCache) return;
+  const tb = document.getElementById('vu-detalle-tbody');
+  if (!tb) return;
+  const { diasConInv, diaPico, roasMin } = _vuDetCache;
+  const nDias = +(document.getElementById('vu-det-dias')?.value ?? 30);
+  const finFecha = document.getElementById('vu-det-fin')?.value || diasConInv[diasConInv.length-1].fecha;
+  // Índice del día final elegido
+  let finIdx = diasConInv.findIndex(d => d.fecha === finFecha);
+  if (finIdx < 0) finIdx = diasConInv.length - 1;
+  const iniIdx = nDias > 0 ? Math.max(0, finIdx - nDias + 1) : 0;
+  const visibles = diasConInv.slice(iniIdx, finIdx + 1);
+  const roasMaxLocal = Math.max(...visibles.map(d => d.roas), roasMin);
+  tb.innerHTML = visibles.map(d => {
     const e = getEstado(d.roas, d.conv, d.inversion);
     const barW = roasMaxLocal > 0 ? Math.min(d.roas / roasMaxLocal * 100, 100).toFixed(0) : 0;
     const isPico = d.fecha === diaPico.fecha;
@@ -6353,7 +6391,7 @@ function renderVuCurva(adId) {
       <td>${d.ventas}</td>
       <td>${estadoBadge(e)}</td>
     </tr>`;
-  }).join('');
+  }).join('') || '<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:20px">Sin días en el rango seleccionado</td></tr>';
 }
 
 // ── Vista resumen (todos los anuncios) ────────────────────────
