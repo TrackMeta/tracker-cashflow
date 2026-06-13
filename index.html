@@ -109,6 +109,13 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 @keyframes pulse{0%,100%{opacity:1;}50%{opacity:0.4;}}
 .nav{flex:1;padding:10px 8px;overflow-y:auto;}
 .nav-section{font-size:9.5px;font-weight:800;color:var(--text3);letter-spacing:0.1em;text-transform:uppercase;padding:16px 10px 6px;}
+.nav-hero{display:flex;align-items:center;gap:10px;padding:12px 14px;border-radius:12px;cursor:pointer;font-weight:800;font-size:13px;color:#fff;margin-bottom:8px;border:none;width:100%;letter-spacing:0.01em;transition:transform 0.15s ease, box-shadow 0.15s ease;}
+.nav-hero .hicon{font-size:18px;}
+.nav-hero.global{background:linear-gradient(135deg,#4f6ef7,#6c3ff3);box-shadow:0 4px 16px rgba(79,110,247,0.35);}
+.nav-hero.importar{background:linear-gradient(135deg,#34a853,#0f9d58);box-shadow:0 4px 16px rgba(16,157,88,0.32);}
+.nav-hero:hover{transform:translateY(-2px);box-shadow:0 8px 26px rgba(79,110,247,0.45);}
+.nav-hero.importar:hover{box-shadow:0 8px 26px rgba(16,157,88,0.45);}
+.nav-hero:active{transform:translateY(0);}
 .nav-item{display:flex;align-items:center;gap:9px;padding:9px 10px;border-radius:var(--radius-sm);cursor:pointer;color:var(--text2);font-size:12.5px;font-weight:500;transition:all 0.18s;margin-bottom:1px;position:relative;}
 .nav-item:hover{background:var(--bg3);color:var(--text);}
 .nav-item.active{background:var(--accent-dim);color:var(--accent);font-weight:700;}
@@ -423,6 +430,12 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     </div>
   </div>
 
+  <!-- ACCESOS PRINCIPALES -->
+  <div style="padding:2px 2px 8px">
+    <div class="nav-hero global" onclick="navTo('global',null)"><span class="hicon">🌍</span> Visión Global <span style="margin-left:auto;font-size:14px;opacity:0.85">→</span></div>
+    <div class="nav-hero importar" onclick="navTo('importar',null)"><span class="hicon">📥</span> Importar Datos <span id="nav-setup-badge" style="display:none;margin-left:auto;background:rgba(255,255,255,0.28);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px">SETUP</span></div>
+  </div>
+
   <!-- WORKSPACE SELECTOR -->
   <div class="ws-selector" style="position:relative">
     <div style="font-size:9px;font-weight:700;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:5px">Producto activo</div>
@@ -440,7 +453,6 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div class="nav-section">Análisis</div>
     <div class="nav-item active" onclick="navTo('dashboard',this)"><span class="icon">📈</span> Dashboard</div>
     <div class="nav-item" onclick="navTo('bitacora',this)"><span class="icon">📅</span> Bitácora</div>
-    <div class="nav-item" onclick="navTo('global',this)" id="nav-global"><span class="icon">🌐</span> Global</div>
     <div class="nav-item" onclick="navTo('comparar',this)"><span class="icon">⚖️</span> Comparar períodos</div>
     <div class="nav-item" onclick="navTo('comparar-productos',this)"><span class="icon">📦</span> Comparar productos</div>
     <div class="nav-item" onclick="navTo('alertas',this)" id="nav-alertas"><span class="icon">🚨</span> Alertas <span id="alertas-badge" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:auto"></span></div>
@@ -453,7 +465,6 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div class="nav-item" onclick="navTo('horarios',this)"><span class="icon">🕐</span> Horarios</div>
     <div class="nav-section">Datos</div>
     <div class="nav-item" onclick="navTo('registro',this)"><span class="icon">📅</span> Registro Diario</div>
-    <div class="nav-item" onclick="navTo('importar',this)"><span class="icon">🔄</span> Importar Datos <span id="nav-setup-badge" style="display:none;background:var(--orange);color:#fff;font-size:9px;font-weight:700;padding:2px 6px;border-radius:10px;margin-left:4px">SETUP</span></div>
     <div class="nav-item" onclick="navTo('cruce-pagos',this)"><span class="icon">🔎</span> Cruce de Pagos</div>
     <div class="nav-item" onclick="navTo('catalogo',this)"><span class="icon">📖</span> Catálogo</div>
     <div class="nav-section">Sistema</div>
