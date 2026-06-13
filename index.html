@@ -2081,6 +2081,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <span class="modal-title" id="fuente-modal-title">🤖 Nueva Fuente</span>
       <button class="modal-close" onclick="closeModal('modal-fuente')">×</button>
     </div>
+    <div class="modal-section">🤖 Bot / Ventas</div>
     <div class="form-row form-2">
       <div class="field"><label>Emoji</label><input type="text" id="fuente-emoji" maxlength="4" value="🤖"></div>
       <div class="field"><label>Nombre del bot</label><input type="text" id="fuente-nombre" placeholder="Ej: Bot Principal"></div>
@@ -2089,13 +2090,16 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <label>URL del Google Sheet (ventas)</label>
       <input type="url" id="fuente-sheet" placeholder="https://docs.google.com/spreadsheets/d/..." style="font-family:var(--mono);font-size:11px">
     </div>
-    <div class="field" style="margin-top:10px">
+
+    <div class="modal-section" style="margin-top:16px">📘 Meta Ads (publicidad de este bot)</div>
+    <div class="field">
       <label>Token de Meta (Access Token)</label>
       <input type="password" id="fuente-token" placeholder="EAAG..." style="font-family:var(--mono);font-size:11px" autocomplete="off">
     </div>
     <div class="field" style="margin-top:10px">
-      <label>Cuentas publicitarias (IDs separados por coma)</label>
-      <input type="text" id="fuente-cuentas" placeholder="act_123456789, act_987654321" style="font-family:var(--mono);font-size:11px">
+      <label>Cuentas publicitarias — un ID por línea</label>
+      <textarea id="fuente-cuentas" rows="4" placeholder="act_123456789&#10;act_987654321" style="font-family:var(--mono);font-size:11px;resize:vertical"></textarea>
+      <div style="font-size:10px;color:var(--text3);margin-top:3px">Pega cada ID de cuenta publicitaria en su propia línea.</div>
     </div>
     <input type="hidden" id="fuente-edit-id" value="">
     <div style="display:flex;justify-content:space-between;gap:8px;margin-top:14px">
@@ -7247,7 +7251,7 @@ function editFuente(id) {
   document.getElementById('fuente-sheet').value   = f.sheets_url || '';
   document.getElementById('fuente-token').value   = f.meta_token || '';
   document.getElementById('fuente-cuentas').value = (Array.isArray(f.meta_cuentas) ? f.meta_cuentas : [])
-    .map(c => c.id || c).join(', ');
+    .map(c => c.id || c).join('\n');
   document.getElementById('fuente-edit-id').value = id;
   document.getElementById('fuente-delete-btn').style.display = 'inline-flex';
   openModal('modal-fuente');
@@ -7257,7 +7261,7 @@ async function saveFuente() {
   const nombre = document.getElementById('fuente-nombre').value.trim();
   if (!nombre) { showError('Ingresa el nombre del bot'); return; }
   const cuentas = document.getElementById('fuente-cuentas').value
-    .split(',').map(s => s.trim()).filter(Boolean)
+    .split(/[\n,]+/).map(s => s.trim()).filter(Boolean)
     .map(id => { const n = id.startsWith('act_') ? id : `act_${id}`; return { id: n, nombre: n }; });
   const data = {
     nombre,
@@ -10622,80 +10626,60 @@ async function aplicarMetaAPI() {
   btn.disabled    = true;
   btn.textContent = '⏳ Aplicando...';
 
-  let ok = 0, errors = 0;
+  let ok = 0, errors = 0, sinProducto = 0;
   setSyncStatus('loading', 'Aplicando métricas de Meta...');
 
-  for (const r of seleccionados) {
-    try {
-      // Verificar que el Ad ID pertenece al workspace activo
-      const anuncio = DB.anuncios.find(x => x.ad_id === r.adId);
-      if (!anuncio) {
-        console.warn('Ad ID ' + r.adId + ' no pertenece al workspace activo — ignorado');
-        continue;
-      }
+  // Mapa global Ad ID → producto (TODOS los productos del usuario, no solo el activo)
+  const adMap = {};
+  try {
+    const ads = await api.get('anuncios', 'select=ad_id,workspace_id&limit=10000');
+    ads.forEach(a => { adMap[a.ad_id] = a.workspace_id; });
+  } catch(e) { console.warn('No se pudo cargar el mapa de anuncios:', e); }
 
-      // Paso 1: INSERT ignorando si ya existe (crea registro vacío si no hay)
+  const touched = new Set();
+  for (const r of seleccionados) {
+    const wsId = adMap[r.adId];
+    if (!wsId) { sinProducto++; continue; } // Ad ID no pertenece a ningún producto
+    try {
+      // Paso 1: crear registro vacío si no existe (en su producto correcto)
       await fetch(`${SUPABASE_URL}/rest/v1/registros?on_conflict=workspace_id,ad_id,fecha`, {
         method: 'POST',
-        headers: {
-          'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${ACCESS_TOKEN}`,
-          'Content-Type': 'application/json',
-          'Prefer': 'resolution=ignore-duplicates,return=minimal',
-        },
+        headers: { ...api._h(), 'Prefer': 'resolution=ignore-duplicates,return=minimal' },
         body: JSON.stringify({
-          workspace_id: CURRENT_WORKSPACE?.id, user_id: CURRENT_USER?.id,
+          workspace_id: wsId, user_id: CURRENT_USER?.id,
           ad_id: r.adId, fecha: r.fecha,
           gasto_meta:0, impr_meta:0, clics_meta:0, chats_meta:0,
           gasto_tiktok:0, impr_tiktok:0, clics_tiktok:0, chats_tiktok:0,
           v1:0, v2:0, v3:0, v4:0, upsell_total:0,
         }),
       });
-
-      // Paso 2: PATCH solo campos de Meta — NUNCA toca v1/v2/v3/v4
+      // Paso 2: PATCH solo campos de Meta — NUNCA toca ventas
       const patchRes = await fetch(
-        `${SUPABASE_URL}/rest/v1/registros?workspace_id=eq.${CURRENT_WORKSPACE?.id}&ad_id=eq.${encodeURIComponent(r.adId)}&fecha=eq.${r.fecha}`,
-        {
-          method: 'PATCH',
-          headers: {
-            'apikey': SUPABASE_ANON_KEY, 'Authorization': `Bearer ${ACCESS_TOKEN}`,
-            'Content-Type': 'application/json', 'Prefer': 'return=minimal',
-          },
-          body: JSON.stringify({
-            gasto_meta: r.gastoSOL,
-            impr_meta:  r.impr,
-            clics_meta: r.clics,
-            chats_meta: r.chats,
-          }),
-        }
+        `${SUPABASE_URL}/rest/v1/registros?workspace_id=eq.${wsId}&ad_id=eq.${encodeURIComponent(r.adId)}&fecha=eq.${r.fecha}`,
+        { method: 'PATCH', headers: { ...api._h(), 'Prefer': 'return=minimal' },
+          body: JSON.stringify({ gasto_meta: r.gastoSOL, impr_meta: r.impr, clics_meta: r.clics, chats_meta: r.chats }) }
       );
-
-      if (!patchRes.ok) {
-        const err = await patchRes.json();
-        throw new Error(err.message || patchRes.statusText);
-      }
-
-      ok++;
-    } catch(e) {
-      errors++;
-      console.error('Error aplicando fila:', r, e);
-    }
+      if (!patchRes.ok) throw new Error((await patchRes.json()).message || patchRes.statusText);
+      touched.add(wsId); ok++;
+    } catch(e) { errors++; console.error('Error aplicando fila:', r, e); }
   }
 
-  // Recalcular consolidación del workspace activo (el gasto acaba de cambiar)
-  await actualizarConsolidacion([CURRENT_WORKSPACE?.id]);
+  // Recalcular consolidación de TODOS los productos afectados
+  if (touched.size) await actualizarConsolidacion([...touched]);
 
   await loadAll();
   setSyncStatus('ok', 'Sincronizado ✓');
   btn.disabled    = false;
   btn.textContent = '✅ Aplicar métricas';
 
+  const extra = sinProducto ? ` · ${sinProducto} sin producto (Ad ID no registrado)` : '';
   if (errors === 0) {
-    showSuccess(`✅ ${ok} métricas de Meta aplicadas correctamente`);
+    showSuccess(`✅ ${ok} métricas aplicadas en ${touched.size} producto(s)${extra}`);
     document.getElementById('meta-api-preview').style.display = 'none';
     metaAPIData = [];
     renderDashboard();
   } else {
-    showError(`${ok} OK · ${errors} errores — revisa la consola`);
+    showError(`${ok} OK · ${errors} errores${extra} — revisa la consola`);
   }
 }
 
