@@ -1641,11 +1641,17 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 <div class="page" id="page-remarketing">
   <div class="page-header">
     <div><div class="page-title">🔁 Análisis de Remarketing</div><div class="page-sub">Distribución de ventas por precio</div></div>
-    <select id="rem-periodo" onchange="renderRemarketing()" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px;font-family:var(--font)">
-      <option value="7">Últimos 7 días</option>
-      <option value="30" selected>Últimos 30 días</option>
-      <option value="0">Todo el tiempo</option>
-    </select>
+    <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
+      <select id="rem-periodo" onchange="onPeriodoSeccion('remarketing')" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px;font-family:var(--font)"></select>
+      <div id="rem-custom-dates" style="display:none;align-items:center;gap:6px;flex-wrap:wrap">
+        <input type="date" id="rem-desde" onchange="renderRemarketing()" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px">
+        <span style="color:var(--text2);font-size:12px">→</span>
+        <input type="date" id="rem-hasta" onchange="renderRemarketing()" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px">
+      </div>
+      <div id="rem-dia-div" style="display:none">
+        <input type="date" id="rem-dia" onchange="renderRemarketing()" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px">
+      </div>
+    </div>
   </div>
   <div class="alert alert-info">Muestra qué % de tus ventas son a precio original (P1) vs precios de remarketing. Si P2/P3/P4 son muy altos, tu secuencia de remarketing está convirtiendo — o tu precio original es muy alto.</div>
   <div class="cards-row cards-4" id="rem-kpis"></div>
@@ -4685,28 +4691,7 @@ function calcMetricsWithConfig(regs, P) {
 // ════════════════════════════════════════════════
 // CHATS VS VENTAS
 // ════════════════════════════════════════════════
-function onCvPeriodo() {
-  const val = document.getElementById('cv-periodo').value;
-  const customDiv = document.getElementById('cv-custom-dates');
-  const diaDiv    = document.getElementById('cv-dia-div');
-  if (val === 'custom') {
-    customDiv.style.display = 'flex';
-    diaDiv.style.display    = 'none';
-    if (!document.getElementById('cv-desde').value) {
-      document.getElementById('cv-desde').value = nDaysAgo(30);
-      document.getElementById('cv-hasta').value = today();
-    }
-  } else if (val === 'dia') {
-    customDiv.style.display = 'none';
-    diaDiv.style.display    = 'block';
-    if (!document.getElementById('cv-dia').value)
-      document.getElementById('cv-dia').value = today();
-  } else {
-    customDiv.style.display = 'none';
-    diaDiv.style.display    = 'none';
-  }
-  renderChatsVentas();
-}
+function onCvPeriodo() { onPeriodoSeccion('chats'); }
 
 // Navega a Por Anuncio en la fecha exacta del problema
 function verAnuncioEnFecha(adId, fecha) {
@@ -4733,20 +4718,7 @@ function verAnuncioEnFecha(adId, fecha) {
 }
 
 function renderChatsVentas() {
-  const periodo = document.getElementById('cv-periodo')?.value || '30';
-  let desde, hasta = today();
-
-  if (periodo === 'custom') {
-    desde = document.getElementById('cv-desde').value || nDaysAgo(30);
-    hasta = document.getElementById('cv-hasta').value || today();
-  } else if (periodo === 'dia') {
-    const dia = document.getElementById('cv-dia').value || today();
-    desde = dia; hasta = dia;
-  } else {
-    const dias = +periodo;
-    desde = dias > 0 ? nDaysAgo(dias) : '2000-01-01';
-  }
-
+  const { desde, hasta } = aplicarPeriodo('chats');
   const regs = DB.registros.filter(r => r.fecha >= desde && r.fecha <= hasta);
 
   // Agrupar por anuncio
@@ -4826,19 +4798,7 @@ function renderChatsVentas() {
 // ════════════════════════════════════════════════
 // MEJOR ANUNCIO DE LA SEMANA
 // ════════════════════════════════════════════════
-function onMejorPeriodo() {
-  const val = document.getElementById('mejor-periodo').value;
-  document.getElementById('mejor-custom-dates').style.display = val==='custom'?'flex':'none';
-  document.getElementById('mejor-dia-div').style.display = val==='dia'?'block':'none';
-  if(val==='custom' && !document.getElementById('mejor-desde').value) {
-    document.getElementById('mejor-desde').value = nDaysAgo(30);
-    document.getElementById('mejor-hasta').value = today();
-  }
-  if(val==='dia' && !document.getElementById('mejor-dia').value) {
-    document.getElementById('mejor-dia').value = today();
-  }
-  renderMejorAnuncio();
-}
+function onMejorPeriodo() { onPeriodoSeccion('mejor'); }
 
 // ════════════════════════════════════════════════
 // 🧠 ANALYZER PRO — Análisis inteligente de anuncios
@@ -4855,21 +4815,7 @@ function initAnalyzerFilters() {
   }
 }
 
-function onAnalyzerPeriodo() {
-  const val = document.getElementById('analyzer-periodo').value;
-  const customDiv = document.getElementById('analyzer-custom-dates');
-  const diaDiv = document.getElementById('analyzer-dia-div');
-  if (customDiv) customDiv.style.display = val === 'custom' ? 'flex' : 'none';
-  if (diaDiv) diaDiv.style.display = val === 'dia' ? 'block' : 'none';
-  if (val === 'custom') {
-    if (!document.getElementById('analyzer-desde').value) document.getElementById('analyzer-desde').value = nDaysAgo(30);
-    if (!document.getElementById('analyzer-hasta').value) document.getElementById('analyzer-hasta').value = today();
-  }
-  if (val === 'dia') {
-    if (!document.getElementById('analyzer-dia').value) document.getElementById('analyzer-dia').value = today();
-  }
-  renderAnalyzer();
-}
+function onAnalyzerPeriodo() { onPeriodoSeccion('analyzer'); }
 
 function analyzerSort(by, btn) {
   _analyzerSortBy = by;
@@ -4994,21 +4940,9 @@ function _tendenciaArrow(t) {
 }
 
 function renderAnalyzer() {
-  const periodoVal = document.getElementById('analyzer-periodo')?.value || '7';
+  const { desde, hasta } = aplicarPeriodo('analyzer');
   const campFiltro = document.getElementById('analyzer-campana')?.value || '';
   const minGasto = +(document.getElementById('analyzer-min-gasto')?.value || 5);
-
-  let desde, hasta = today();
-  if (periodoVal === 'custom') {
-    desde = document.getElementById('analyzer-desde')?.value || nDaysAgo(30);
-    hasta = document.getElementById('analyzer-hasta')?.value || today();
-  } else if (periodoVal === 'dia') {
-    const dia = document.getElementById('analyzer-dia')?.value || today();
-    desde = dia; hasta = dia;
-  } else {
-    const dias = +periodoVal;
-    desde = dias > 0 ? nDaysAgo(dias) : '2000-01-01';
-  }
 
   // Filtrar registros
   const regs = DB.registros.filter(r => {
@@ -5321,25 +5255,13 @@ function _porQueGano(g, ranking) {
 
 function renderMejorAnuncio() {
   const el = document.getElementById('mejor-content');
-  const periodoSel = document.getElementById('mejor-periodo')?.value || '7';
-  let desde, hasta = today();
+  const { desde, hasta } = aplicarPeriodo('mejor');
 
-  if (periodoSel === 'custom') {
-    desde = document.getElementById('mejor-desde').value || nDaysAgo(30);
-    hasta = document.getElementById('mejor-hasta').value || today();
-  } else if (periodoSel === 'dia') {
-    const dia = document.getElementById('mejor-dia').value || today();
-    desde = dia; hasta = dia;
-  } else {
-    desde = nDaysAgo(+periodoSel);
-  }
-
-  const periodoAnt = +periodoSel || 7;
-  const desdeAnt = nDaysAgo(periodoAnt * 2);
-  const hastaAnt = nDaysAgo(periodoAnt);
+  // Período inmediatamente anterior de igual duración
+  const ant = rangoAnterior(desde, hasta);
 
   const regs  = DB.registros.filter(r => r.fecha >= desde && r.fecha <= hasta);
-  const regsAnt = DB.registros.filter(r => r.fecha >= desdeAnt && r.fecha < hastaAnt);
+  const regsAnt = DB.registros.filter(r => r.fecha >= ant.desde && r.fecha <= ant.hasta);
 
   if (!regs.length) {
     el.innerHTML = '<div class="panel"><div class="empty"><div class="empty-icon">📭</div><div class="empty-title">Sin datos en el período seleccionado</div></div></div>';
@@ -5454,9 +5376,8 @@ function renderMejorAnuncio() {
 // ════════════════════════════════════════════════
 
 function renderRemarketing() {
-  const periodo = +document.getElementById('rem-periodo')?.value || 30;
-  const desde   = periodo > 0 ? nDaysAgo(periodo) : '2000-01-01';
-  const regs    = DB.registros.filter(r => r.fecha >= desde && r.fecha <= today());
+  const { desde, hasta } = aplicarPeriodo('remarketing');
+  const regs    = DB.registros.filter(r => r.fecha >= desde && r.fecha <= hasta);
   const P       = DB.config;
 
   let v1=0, v2=0, v3=0, v4=0;
@@ -5615,28 +5536,7 @@ function initHorariosAnuncioSel() {
   if (current) sel.value = current;
 }
 
-function onHorariosPeriodo() {
-  const val       = document.getElementById('horarios-periodo').value;
-  const customDiv = document.getElementById('horarios-custom-dates');
-  const diaDiv    = document.getElementById('horarios-dia-div');
-  if (val === 'custom') {
-    customDiv.style.display = 'flex';
-    diaDiv.style.display    = 'none';
-    if (!document.getElementById('horarios-desde').value) {
-      document.getElementById('horarios-desde').value = nDaysAgo(30);
-      document.getElementById('horarios-hasta').value = today();
-    }
-  } else if (val === 'dia') {
-    customDiv.style.display = 'none';
-    diaDiv.style.display    = 'block';
-    if (!document.getElementById('horarios-dia').value)
-      document.getElementById('horarios-dia').value = today();
-  } else {
-    customDiv.style.display = 'none';
-    diaDiv.style.display    = 'none';
-  }
-  renderHorarios();
-}
+function onHorariosPeriodo() { onPeriodoSeccion('horarios'); }
 
 async function reconstruirCrmVentas() {
   const btn = document.getElementById('btn-rebuild-crm');
@@ -5751,21 +5651,9 @@ async function reconstruirCrmVentas() {
 
 async function renderHorarios() {
   initHorariosAnuncioSel();
-  const periodoVal = document.getElementById('horarios-periodo')?.value || '30';
+  const { desde, hasta } = aplicarPeriodo('horarios');
   const adFiltro   = document.getElementById('horarios-anuncio')?.value || '';
   const P          = DB.config;
-
-  let desde, hasta = today();
-  if (periodoVal === 'custom') {
-    desde = document.getElementById('horarios-desde')?.value || nDaysAgo(30);
-    hasta = document.getElementById('horarios-hasta')?.value || today();
-  } else if (periodoVal === 'dia') {
-    const dia = document.getElementById('horarios-dia')?.value || today();
-    desde = dia; hasta = dia;
-  } else {
-    const dias = +periodoVal;
-    desde = dias > 0 ? nDaysAgo(dias) : '2000-01-01';
-  }
 
   // Inicializar acumuladores por hora (0-23)
   const horasData = Array.from({length:24}, (_, h) => ({ hora: h, ventas: 0, ingresos: 0 }));
@@ -8255,6 +8143,32 @@ function unificarPeriodoSelect(id, valorPorDefecto='30'){
   sel.value = tiene ? prev : valorPorDefecto;
 }
 
+// ── Fase B: filtro de fecha unificado por sección ──
+// Config de cada sección: ids del select, divs custom/día e inputs.
+const PERIODO_CFG = {
+  analyzer:    { sel:'analyzer-periodo',       custom:'analyzer-custom-dates', dia:'analyzer-dia-div', desde:'analyzer-desde',    hasta:'analyzer-hasta',    diaInput:'analyzer-dia',        render:'renderAnalyzer',     def:'7'  },
+  horarios:    { sel:'horarios-periodo',       custom:'horarios-custom-dates', dia:'horarios-dia-div', desde:'horarios-desde',    hasta:'horarios-hasta',    diaInput:'horarios-dia',        render:'renderHorarios',     def:'30' },
+  chats:       { sel:'cv-periodo',             custom:'cv-custom-dates',       dia:'cv-dia-div',       desde:'cv-desde',          hasta:'cv-hasta',          diaInput:'cv-dia',              render:'renderChatsVentas',  def:'30' },
+  mejor:       { sel:'mejor-periodo',          custom:'mejor-custom-dates',    dia:'mejor-dia-div',    desde:'mejor-desde',       hasta:'mejor-hasta',       diaInput:'mejor-dia',           render:'renderMejorAnuncio', def:'7'  },
+  remarketing: { sel:'rem-periodo',            custom:'rem-custom-dates',      dia:'rem-dia-div',      desde:'rem-desde',         hasta:'rem-hasta',         diaInput:'rem-dia',             render:'renderRemarketing',  def:'30' },
+  anuncio:     { sel:'filtro-anuncio-periodo', custom:'anuncio-custom-dates',  dia:'anuncio-dia-div',  desde:'filtro-desde',      hasta:'filtro-hasta',      diaInput:'filtro-anuncio-dia',  render:'renderPorAnuncio',   def:'30' },
+  campana:     { sel:'filtro-camp-periodo',    custom:'camp-custom-dates',     dia:'camp-dia-div',     desde:'filtro-camp-desde', hasta:'filtro-camp-hasta', diaInput:'filtro-camp-dia',     render:'renderPorCampana',   def:'30' },
+};
+// Rellena opciones unificadas, togglea los divs custom/día y devuelve {desde,hasta}
+function aplicarPeriodo(key){
+  const c = PERIODO_CFG[key]; if (!c) return { desde: nDaysAgo(30), hasta: today() };
+  unificarPeriodoSelect(c.sel, c.def);
+  const v = (document.getElementById(c.sel)||{}).value || c.def;
+  const cd = document.getElementById(c.custom), dd = document.getElementById(c.dia);
+  if (cd) cd.style.display = v==='custom' ? 'flex' : 'none';
+  if (dd) dd.style.display = v==='dia' ? 'block' : 'none';
+  if (v==='custom'){ const ds=document.getElementById(c.desde), hs=document.getElementById(c.hasta); if(ds&&!ds.value) ds.value=nDaysAgo(30); if(hs&&!hs.value) hs.value=today(); }
+  if (v==='dia'){ const di=document.getElementById(c.diaInput); if(di&&!di.value) di.value=today(); }
+  return rangoDe(v, c.diaInput, c.desde, c.hasta);
+}
+// onchange del select: togglea y re-renderiza
+function onPeriodoSeccion(key){ aplicarPeriodo(key); const fn = window[PERIODO_CFG[key].render]; if (typeof fn==='function') fn(); }
+
 function kpiCard(label,value,cls,sub='') {
   return `<div class="kpi-card ${cls}"><div class="kpi-label">${label}</div><div class="kpi-value">${value}</div>${sub?`<div class="kpi-sub">${sub}</div>`:''}</div>`;
 }
@@ -9145,18 +9059,7 @@ function renderKPIs() {
 // ════════════════════════════════════════════════
 // POR ANUNCIO
 // ════════════════════════════════════════════════
-function onAnuncioPeriodo() {
-  const val = document.getElementById('filtro-anuncio-periodo').value;
-  document.getElementById('anuncio-custom-dates').style.display = val==='dia'?'none':'flex';
-  document.getElementById('anuncio-dia-div').style.display = val==='dia'?'block':'none';
-  if (val==='dia') {
-    if(!document.getElementById('filtro-anuncio-dia').value) document.getElementById('filtro-anuncio-dia').value=today();
-  } else if (val!=='custom') {
-    document.getElementById('filtro-desde').value = val>0?nDaysAgo(+val):'2000-01-01';
-    document.getElementById('filtro-hasta').value = today();
-  }
-  renderPorAnuncio();
-}
+function onAnuncioPeriodo() { onPeriodoSeccion('anuncio'); }
 
 function initFiltros() {
   const sel=document.getElementById('filtro-anuncio');
@@ -9240,15 +9143,7 @@ function renderAnuncioSparklines(adId){
 
 function renderPorAnuncio() {
   const adId=document.getElementById('filtro-anuncio').value;
-  const periodoSel=document.getElementById('filtro-anuncio-periodo')?.value||'custom';
-  let desde, hasta;
-  if(periodoSel==='dia'){
-    const dia=document.getElementById('filtro-anuncio-dia')?.value||today();
-    desde=dia; hasta=dia;
-  } else {
-    desde=document.getElementById('filtro-desde').value||nDaysAgo(30);
-    hasta=document.getElementById('filtro-hasta').value||today();
-  }
+  const { desde, hasta } = aplicarPeriodo('anuncio');
   if(!adId){['anuncio-kpis-soles','anuncio-kpis-dolares'].forEach(id=>document.getElementById(id).innerHTML='');const sp=document.getElementById('anuncio-sparklines');if(sp)sp.innerHTML='';document.getElementById('anuncio-tbody').innerHTML='<tr><td colspan="18" style="text-align:center;color:var(--text3);padding:28px">Selecciona un anuncio</td></tr>';return;}
   const regs=DB.registros.filter(r=>r.ad_id===adId&&r.fecha>=desde&&r.fecha<=hasta);
   const M=calcMetrics(regs);
@@ -9305,18 +9200,7 @@ function renderPorAnuncio() {
 // ════════════════════════════════════════════════
 // POR CAMPAÑA
 // ════════════════════════════════════════════════
-function onCampPeriodo() {
-  const val = document.getElementById('filtro-camp-periodo').value;
-  document.getElementById('camp-custom-dates').style.display = val==='dia'?'none':'flex';
-  document.getElementById('camp-dia-div').style.display = val==='dia'?'block':'none';
-  if (val==='dia') {
-    if(!document.getElementById('filtro-camp-dia').value) document.getElementById('filtro-camp-dia').value=today();
-  } else if (val!=='custom') {
-    document.getElementById('filtro-camp-desde').value = nDaysAgo(+val);
-    document.getElementById('filtro-camp-hasta').value = today();
-  }
-  renderPorCampana();
-}
+function onCampPeriodo() { onPeriodoSeccion('campana'); }
 
 function initFiltrosCamp() {
   const sel=document.getElementById('filtro-campana');
@@ -9379,15 +9263,7 @@ function seleccionarCampana(nombre){
 
 function renderPorCampana() {
   const camp=document.getElementById('filtro-campana').value;
-  const periodoSel = document.getElementById('filtro-camp-periodo')?.value || 'custom';
-  let desde, hasta;
-  if (periodoSel === 'dia') {
-    const dia = document.getElementById('filtro-camp-dia')?.value || today();
-    desde = dia; hasta = dia;
-  } else {
-    desde = document.getElementById('filtro-camp-desde').value || nDaysAgo(30);
-    hasta = document.getElementById('filtro-camp-hasta').value || today();
-  }
+  const { desde, hasta } = aplicarPeriodo('campana');
   renderCampComparativa(desde, hasta, camp);
   if(!camp){['campana-kpis-soles','campana-kpis-dolares'].forEach(id=>document.getElementById(id).innerHTML='');document.getElementById('campana-tbody').innerHTML='<tr><td colspan="19" style="text-align:center;color:var(--text3);padding:28px">Selecciona una campaña arriba para ver el desglose por anuncio</td></tr>';return;}
   const regs=DB.registros.filter(r=>r.campana===camp&&r.fecha>=desde&&r.fecha<=hasta);
