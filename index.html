@@ -599,17 +599,14 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <div class="page-title">📅 Bitácora</div>
       <div class="page-sub" id="bita-sub">Tu registro mensual y diario — producto activo</div>
     </div>
-    <div style="display:flex;gap:6px;align-items:center;flex-wrap:wrap">
-      <select id="bita-scope" onchange="bitaSetScope(this.value)" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px;font-family:var(--font)">
-        <option value="global">🌍 Global (todos)</option>
-      </select>
-      <button class="btn btn-ghost btn-sm" id="bita-tab-anio" onclick="bitaSetVista('anio')">📊 Año</button>
-      <button class="btn btn-ghost btn-sm" id="bita-tab-mes" onclick="bitaSetVista('mes')">🗓️ Mes</button>
-    </div>
   </div>
 
-  <!-- Navegador temporal -->
+  <div id="bita-home"><div id="bita-root">
+  <!-- Toolbar Año/Mes + navegador temporal -->
   <div style="display:flex;align-items:center;gap:10px;margin-bottom:18px;flex-wrap:wrap">
+    <button class="btn btn-ghost btn-sm" id="bita-tab-anio" onclick="bitaSetVista('anio')">📊 Año</button>
+    <button class="btn btn-ghost btn-sm" id="bita-tab-mes" onclick="bitaSetVista('mes')">🗓️ Mes</button>
+    <span style="width:1px;height:20px;background:var(--border2);margin:0 6px"></span>
     <button class="btn btn-ghost btn-sm" onclick="bitaNav(-1)">◀</button>
     <div style="font-size:16px;font-weight:800;color:var(--text);min-width:160px;text-align:center" id="bita-periodo-label">—</div>
     <button class="btn btn-ghost btn-sm" onclick="bitaNav(1)">▶</button>
@@ -655,6 +652,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       </table></div>
     </div>
   </div>
+  </div></div><!-- /bita-root /bita-home -->
 </div>
 
 <!-- DASHBOARD GLOBAL -->
@@ -705,6 +703,17 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   <!-- Insights: alerta de concentración + mix de profit + tendencia 30d -->
   <div id="global-insights"></div>
 
+  <!-- Tabs: Resumen / Bitácora Global -->
+  <div class="tab-bar" id="global-tab-bar" style="margin-bottom:18px">
+    <button class="tab-btn active" id="global-tab-btn-resumen" onclick="globalSetTab('resumen')">📊 Resumen</button>
+    <button class="tab-btn" id="global-tab-btn-bitacora" onclick="globalSetTab('bitacora')">📅 Bitácora Global</button>
+  </div>
+
+  <!-- Slot donde se monta bita-root cuando scope=global -->
+  <div id="global-bitacora-slot" style="display:none"></div>
+
+  <!-- Contenido del tab Resumen -->
+  <div id="global-resumen-content">
   <!-- Tabla por producto -->
   <div class="panel">
     <div class="panel-header">
@@ -743,6 +752,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div id="gastos-lista" style="padding:12px 16px"></div>
     <div id="gastos-resumen" style="padding:0 16px 16px"></div>
   </div>
+  </div><!-- /global-resumen-content -->
 </div>
 
 <!-- ALERTAS -->
@@ -4351,6 +4361,38 @@ async function saveWorkspace() {
 // ════════════════════════════════════════════════
 // DASHBOARD GLOBAL
 // ════════════════════════════════════════════════
+let _globalTab = 'resumen';
+
+function globalSetTab(tab) {
+  _globalTab = tab;
+  const btnR = document.getElementById('global-tab-btn-resumen');
+  const btnB = document.getElementById('global-tab-btn-bitacora');
+  const slot = document.getElementById('global-bitacora-slot');
+  const res  = document.getElementById('global-resumen-content');
+  if (!slot || !res) return;
+
+  if (tab === 'bitacora') {
+    const root = document.getElementById('bita-root');
+    if (root && !slot.contains(root)) slot.appendChild(root);
+    slot.style.display = 'block';
+    res.style.display  = 'none';
+    if (btnR) { btnR.classList.remove('active'); }
+    if (btnB) { btnB.classList.add('active'); }
+    BITA_SCOPE = 'global';
+    _bitaG = null;
+    bitaRender();
+  } else {
+    const root = document.getElementById('bita-root');
+    const home = document.getElementById('bita-home');
+    if (root && home && !home.contains(root)) home.appendChild(root);
+    slot.style.display = 'none';
+    res.style.display  = 'block';
+    if (btnB) { btnB.classList.remove('active'); }
+    if (btnR) { btnR.classList.add('active'); }
+    BITA_SCOPE = 'local';
+  }
+}
+
 function onGlobalPeriodo() {
   const val = document.getElementById('global-periodo').value;
   const customDiv = document.getElementById('global-custom-dates');
@@ -8105,7 +8147,7 @@ function nDaysAgo(n){
 }
 
 // ── Filtros de fecha unificados (Fase B) ──
-const PERIODO_OPTS = `<option value="hoy">Hoy</option><option value="ayer">Ayer</option><option value="3">Últimos 3 días</option><option value="7">Últimos 7 días</option><option value="30" selected>Últimos 30 días</option><option value="60">Últimos 60 días</option><option value="90">Últimos 90 días</option><option value="dia">Día específico</option><option value="custom">Rango personalizado</option>`;
+const PERIODO_OPTS = `<option value="hoy">📍 Hoy</option><option value="ayer">📌 Ayer</option><option value="3">📅 Últimos 3 días</option><option value="7">📅 Últimos 7 días</option><option value="30" selected>📅 Últimos 30 días</option><option value="60">📅 Últimos 60 días</option><option value="90">📅 Últimos 90 días</option><option value="dia">🚩 Día específico</option><option value="custom">↔️ Rango personalizado</option>`;
 // Resuelve {desde,hasta} desde el valor del select + ids de los inputs día/desde/hasta
 function rangoDe(val, diaId, desdeId, hastaId){
   const h = today();
@@ -8442,12 +8484,22 @@ let BITA_SCOPE = 'local';   // 'local' (producto activo) | 'global' (todos, USD)
 let _bitaG = null;          // cache global { anio, map }
 
 function renderBitacora(){
-  const sel = document.getElementById('bita-scope');
-  if (sel) {
-    sel.innerHTML = '<option value="global">🌍 Global (todos)</option>' +
-      `<option value="local">${CURRENT_WORKSPACE?.emoji||'📦'} ${CURRENT_WORKSPACE?.nombre||'Producto activo'}</option>`;
-    sel.value = BITA_SCOPE;
-  }
+  // Al navegar a la página Bitácora, siempre mostramos el producto activo.
+  // La bitácora global vive en el tab de la página Global.
+  const root = document.getElementById('bita-root');
+  const home = document.getElementById('bita-home');
+  if (root && home && !home.contains(root)) home.appendChild(root);
+  // Reset estado del tab global para que al volver quede en Resumen
+  _globalTab = 'resumen';
+  const slot = document.getElementById('global-bitacora-slot');
+  const res  = document.getElementById('global-resumen-content');
+  const btnR = document.getElementById('global-tab-btn-resumen');
+  const btnB = document.getElementById('global-tab-btn-bitacora');
+  if (slot) slot.style.display = 'none';
+  if (res)  res.style.display  = 'block';
+  if (btnB) btnB.classList.remove('active');
+  if (btnR) btnR.classList.add('active');
+  BITA_SCOPE = 'local';
   bitaSetVista(BITA_VISTA, true);
 }
 
@@ -8574,14 +8626,14 @@ function bitaGlobalMes(g){
   for (let i=0;i<primerDow;i++) cal += '<div></div>';
   for (let dia=1;dia<=diasEnMes;dia++){
     const fecha = `${prefijo}-${_pad2(dia)}`; const d = diaMap[fecha];
-    if (!d){ cal += `<div style="min-height:58px;border-radius:7px;background:var(--bg3);opacity:0.35;padding:4px 6px;font-size:10px;color:var(--text3)">${dia}</div>`; continue; }
+    if (!d){ cal += `<div style="min-height:78px;border-radius:8px;background:var(--bg3);opacity:0.35;padding:5px 7px;font-size:12px;font-weight:700;color:var(--text3)">${dia}</div>`; continue; }
     const M=d.M; let bg='var(--bg3)',fg='var(--text3)',bd='transparent';
     if (M.inversion>0||M.ingresos>0){ if(M.profit<0){bg='var(--red-dim)';fg='var(--red)';} else if(M.profit>=maxP*0.6){bg='var(--green-dim)';fg='var(--green)';bd='var(--green)';} else {bg='rgba(16,185,129,0.10)';fg='var(--teal)';} }
     const cons = diaConsolidado(null, fecha);
-    cal += `<div onclick="bitaAbrirMes(${BITA_MES})" title="${fecha}" style="min-height:58px;border-radius:7px;background:${bg};border:1px solid ${bd};display:flex;flex-direction:column;gap:1px;padding:4px 6px">
-      <div style="display:flex;justify-content:space-between;line-height:1"><span style="font-size:10px;font-weight:700;color:var(--text3)">${dia}</span>${cons?'':'<span style="font-size:8px">⏳</span>'}</div>
-      <span style="font-size:11px;font-weight:800;color:${fg};font-family:var(--mono);line-height:1.1">${fmt.d(M.profit).replace(/\.\d+$/,'')}</span>
-      <div style="font-size:8.5px;color:var(--text3);font-family:var(--mono)">${fmt.roas(M.roas)} · ${M.ventas}v</div></div>`;
+    cal += `<div onclick="bitaAbrirDiaGlobal('${fecha}')" title="Ver ${fecha} en Dashboard Global" style="min-height:78px;border-radius:8px;background:${bg};border:1px solid ${bd};display:flex;flex-direction:column;gap:2px;cursor:pointer;padding:5px 7px">
+      <div style="display:flex;justify-content:space-between;line-height:1"><span style="font-size:12px;font-weight:800;color:var(--text2)">${dia}</span>${cons?'':'<span style="font-size:9px">⏳</span>'}</div>
+      <span style="font-size:16px;font-weight:800;color:${fg};font-family:var(--mono);line-height:1.15">${fmt.d(M.profit).replace(/\.\d+$/,'')}</span>
+      <div style="font-size:9.5px;color:var(--text3);font-family:var(--mono);margin-top:auto">${fmt.roas(M.roas)} · ${M.ventas}v</div></div>`;
   }
   cal += '</div>';
   document.getElementById('bita-calendario').innerHTML = cal;
@@ -8801,19 +8853,23 @@ function bitaCalendario(dias){
     const fecha = `${prefijo}-${_pad2(dia)}`;
     const d = diaMap[fecha];
     if (!d){
-      html += `<div style="min-height:58px;border-radius:7px;background:var(--bg3);opacity:0.35;display:flex;align-items:flex-start;padding:4px 6px"><span style="font-size:10px;color:var(--text3)">${dia}</span></div>`;
+      html += `<div style="min-height:78px;border-radius:8px;background:var(--bg3);opacity:0.35;display:flex;align-items:flex-start;padding:5px 7px"><span style="font-size:12px;color:var(--text3);font-weight:700">${dia}</span></div>`;
       continue;
     }
     const c = colorDe(d.M);
     const cons = diaConsolidado(wsId, fecha);
     // Resaltado mejor/peor día del mes
-    let borde = c.borde || 'transparent', marca = cons ? '' : '<span style="font-size:8px">⏳</span>';
-    if (fecha === mejorF) { borde = '#facc15'; marca = '<span style="font-size:10px" title="Mejor día del mes">🥇</span>'; }
-    else if (fecha === peorF) { borde = 'var(--red)'; marca = '<span style="font-size:10px" title="Peor día del mes">⚠️</span>'; }
-    html += `<div onclick="bitaAbrirDia('${fecha}')" title="${fecha}" style="min-height:58px;border-radius:7px;background:${c.bg};border:${fecha===mejorF||fecha===peorF?'2px':'1px'} solid ${borde};display:flex;flex-direction:column;gap:1px;cursor:pointer;padding:4px 6px">
-      <div style="display:flex;justify-content:space-between;align-items:center;line-height:1"><span style="font-size:10px;font-weight:700;color:var(--text3)">${dia}</span>${marca}</div>
-      <span style="font-size:11px;font-weight:800;color:${c.fg};font-family:var(--mono);line-height:1.1">${fmtMoney(d.M.profit, code).replace(/\.\d+$/,'')}</span>
-      <div style="font-size:8.5px;color:var(--text3);font-family:var(--mono);line-height:1">${fmt.roas(d.M.roas)} · ${d.M.ventas}v</div>
+    let borde = c.borde || 'transparent', marca = cons ? '' : '<span style="font-size:9px">⏳</span>';
+    if (fecha === mejorF) { borde = '#facc15'; marca = '<span style="font-size:12px" title="Mejor día del mes">🥇</span>'; }
+    else if (fecha === peorF) { borde = 'var(--red)'; marca = '<span style="font-size:12px" title="Peor día del mes">⚠️</span>'; }
+    const usdLine = code !== 'USD'
+      ? `<span style="font-size:11px;font-weight:700;color:var(--text2);font-family:var(--mono);line-height:1.1">${fmt.d(toUSD(d.M.profit)).replace(/\.\d+$/,'')}</span>`
+      : '';
+    html += `<div onclick="bitaAbrirDia('${fecha}')" title="${fecha}" style="min-height:78px;border-radius:8px;background:${c.bg};border:${fecha===mejorF||fecha===peorF?'2px':'1px'} solid ${borde};display:flex;flex-direction:column;gap:2px;cursor:pointer;padding:5px 7px">
+      <div style="display:flex;justify-content:space-between;align-items:center;line-height:1"><span style="font-size:12px;font-weight:800;color:var(--text2)">${dia}</span>${marca}</div>
+      <span style="font-size:16px;font-weight:800;color:${c.fg};font-family:var(--mono);line-height:1.15">${fmtMoney(d.M.profit, code).replace(/\.\d+$/,'')}</span>
+      ${usdLine}
+      <div style="font-size:9.5px;color:var(--text3);font-family:var(--mono);line-height:1;margin-top:auto">${fmt.roas(d.M.roas)} · ${d.M.ventas}v</div>
     </div>`;
   }
   html += '</div>';
@@ -8887,6 +8943,19 @@ function bitaAbrirDia(fecha){
   const sel = document.getElementById('dash-periodo');
   if (sel){ sel.value = 'dia'; onDashPeriodo(); const di = document.getElementById('dash-dia-especifico'); if (di){ di.value = fecha; renderDashboard(); } }
   navTo('dashboard', null);
+}
+
+// Desde la Bitácora Global: ver ese día específico en el Dashboard Global
+function bitaAbrirDiaGlobal(fecha){
+  navTo('global', null);
+  if (typeof globalSetTab === 'function') globalSetTab('resumen');
+  const sel = document.getElementById('global-periodo');
+  if (sel){
+    sel.value = 'dia';
+    const di = document.getElementById('global-dia'); if (di) di.value = fecha;
+    if (typeof onGlobalPeriodo === 'function') onGlobalPeriodo();
+    else renderGlobal();
+  }
 }
 
 function bitaConfianza(regs){

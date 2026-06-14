@@ -348,28 +348,38 @@ async function runScheduled() {
   const toMin = (hhmm: string) => { const [h, m] = (hhmm || "").split(":").map(Number); return (h || 0) * 60 + (m || 0); };
   const cfgs = await sb("GET", "sync_config?activo=eq.true").catch(() => []);
   const ejecutados: any[] = [];
+  const errores: any[] = [];
   for (const cfg of (cfgs || [])) {
     // Noche (con Meta) tiene prioridad; luego mañana (solo ventas)
     const enviarAlertas = async (r: any) => {
       if (cfg.tg_token && cfg.tg_chat_id && cfg.tg_activo !== false && cfg.tg_alertas !== false)
-        for (const a of (r.alertas || [])) await tgSend(cfg.tg_token, cfg.tg_chat_id, a);
+        for (const a of (r.alertas || [])) await tgSend(cfg.tg_token, cfg.tg_chat_id, a).catch(() => {});
+    };
+    // Cada slot va protegido: un fallo en un usuario/workspace no debe abortar la corrida
+    // completa (eso dejaba ultima_* sin marcar y bloqueaba el Telegram de todos).
+    const correrSlot = async (slot: "noche" | "manana", marca: Record<string, string>) => {
+      try {
+        const r = await procesarUsuario(cfg.user_id, true);
+        // Marcar PRIMERO para no reintentar en loop cada 15 min si Telegram/alertas fallan
+        await sb("PATCH", `sync_config?user_id=eq.${cfg.user_id}`, marca, "return=minimal").catch(() => {});
+        await enviarAlertas(r);
+        await enviarReporteSlot(cfg, slot).catch((e) => console.error("reporte " + slot, e));
+        ejecutados.push({ ...r, slot });
+      } catch (e) {
+        // Igual marcamos el slot para no entrar en bucle de reintentos fallidos cada 15 min
+        await sb("PATCH", `sync_config?user_id=eq.${cfg.user_id}`, marca, "return=minimal").catch(() => {});
+        errores.push({ user_id: cfg.user_id, slot, error: String((e as Error)?.message || e) });
+        console.error("slot " + slot + " user " + cfg.user_id, e);
+      }
     };
     if (nowMin >= toMin(cfg.hora_noche || "23:00") && cfg.ultima_noche !== hoy) {
-      const r = await procesarUsuario(cfg.user_id, true);
-      await sb("PATCH", `sync_config?user_id=eq.${cfg.user_id}`, { ultima_noche: hoy }, "return=minimal").catch(() => {});
-      await enviarAlertas(r);
-      await enviarReporteSlot(cfg, "noche").catch((e) => console.error("reporte noche", e));
-      ejecutados.push({ ...r, slot: "noche" });
+      await correrSlot("noche", { ultima_noche: hoy });
     } else if (nowMin >= toMin(cfg.hora_manana || "06:30") && cfg.ultima_manana !== hoy) {
       // La mañana también trae Meta: captura el gasto ya consolidado durante la noche
-      const r = await procesarUsuario(cfg.user_id, true);
-      await sb("PATCH", `sync_config?user_id=eq.${cfg.user_id}`, { ultima_manana: hoy }, "return=minimal").catch(() => {});
-      await enviarAlertas(r);
-      await enviarReporteSlot(cfg, "manana").catch((e) => console.error("reporte manana", e));
-      ejecutados.push({ ...r, slot: "manana" });
+      await correrSlot("manana", { ultima_manana: hoy });
     }
   }
-  return json({ ok: true, scheduled: true, hora_peru: `${String(peru.getUTCHours()).padStart(2, "0")}:${String(peru.getUTCMinutes()).padStart(2, "0")}`, ejecutados });
+  return json({ ok: true, scheduled: true, hora_peru: `${String(peru.getUTCHours()).padStart(2, "0")}:${String(peru.getUTCMinutes()).padStart(2, "0")}`, ejecutados, errores });
 }
 
 // ════════════════════════════════════════════════
@@ -635,8 +645,14 @@ Deno.serve(async (req) => {
   try { body = rawBody ? JSON.parse(rawBody) : {}; } catch { body = {}; }
 
   // Webhook de Telegram (identificado por ?tg=<userId>)
-  if (tgUser && (body.update_id || body.message)) {
-    try { return await handleTelegram(tgUser, body); } catch (e) { console.error("tg", e); return json({ ok: true }); }
+  // IMPORTANTE: responder 200 de inmediato y procesar en segundo plano.
+  // Si se hace el sync con await antes de responder, tarda >60s, Telegram cree
+  // que falló y reintenta el mismo update sin parar (el loop de /sync).
+  if (tgUser && (body.update_id || body.message || body.callback_query)) {
+    const work = handleTelegram(tgUser, body).catch((e) => console.error("tg", e));
+    try { (globalThis as any).EdgeRuntime?.waitUntil?.(work); }
+    catch (_) { /* sin waitUntil: el runtime mantiene la promesa viva igual */ }
+    return json({ ok: true });
   }
 
   // Auth por secreto compartido (cron) o service role en Authorization
