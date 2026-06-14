@@ -2145,7 +2145,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     </div>
     <div class="field" style="margin-bottom:16px">
       <label>Meta de ingresos para este mes (S/)</label>
-      <input type="number" id="meta-input" placeholder="5000" step="100">
+      <input type="number" id="meta-ingresos-input" placeholder="5000" step="100">
     </div>
     <div style="display:flex;justify-content:flex-end;gap:8px">
       <button class="btn btn-ghost" onclick="closeModal('modal-meta')">Cancelar</button>
@@ -2265,7 +2265,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <div class="field"><label>Remarketing 1 (S/)</label><input type="number" id="cfg-p2"></div>
       <div class="field"><label>Remarketing 2 (S/)</label><input type="number" id="cfg-p3"></div>
       <div class="field"><label>Remarketing 3 (S/)</label><input type="number" id="cfg-p4"></div>
-      <div class="field"><label>Tipo de cambio S/x$</label><input type="number" id="cfg-tc" step="0.1"></div>
+      <div class="field"><label>Tipo de cambio → USD</label><input type="number" id="cfg-tc" step="0.1"><span style="font-size:10px;color:var(--text3);margin-top:3px;display:block">Es la misma tasa que ves en Editar Producto. Cambiarla aquí la actualiza en ambos lados.</span></div>
     </div>
     <div class="modal-section" style="margin-top:14px">🚨 Umbrales de alerta</div>
     <div class="form-row form-2" style="margin-top:8px">
@@ -4383,7 +4383,12 @@ async function saveWorkspace() {
       const res = await api.patch('workspaces', editId, wsData);
       const idx = DB.workspaces.findIndex(w => w.id === editId);
       if (idx >= 0) DB.workspaces[idx] = res[0];
-      if (CURRENT_WORKSPACE?.id === editId) CURRENT_WORKSPACE = res[0];
+      if (CURRENT_WORKSPACE?.id === editId) {
+        CURRENT_WORKSPACE = res[0];
+        // Mantener config.tc en memoria igual a la tasa del producto, para que
+        // Configuración muestre el mismo valor que acabamos de guardar aquí.
+        if (DB.config && usd_rate) DB.config.tc = usd_rate;
+      }
     } else {
       const res = await api.post('workspaces', { ...wsData, user_id: CURRENT_USER?.id });
       DB.workspaces.push(res[0]);
@@ -8355,7 +8360,9 @@ function openConfig() {
   document.getElementById('cfg-p2').value = P.p2??7;
   document.getElementById('cfg-p3').value = P.p3??5;
   document.getElementById('cfg-p4').value = P.p4??3;
-  document.getElementById('cfg-tc').value = P.tc||4.0;
+  // El tipo de cambio mostrado es la tasa REAL del producto activo (la que se respeta).
+  // Coincide con "Tasa de cambio → USD" de Editar Producto. Si la moneda es USD, es 1.
+  document.getElementById('cfg-tc').value = (CURRENT_WORKSPACE?.usd_rate ?? P.tc ?? 4.0);
   document.getElementById('cfg-alerta-gasto').value = P.alerta_gasto_min||5;
   document.getElementById('cfg-alerta-roas').value = P.alerta_roas_min||1;
   document.getElementById('cfg-roas-gasto-min').value = P.roas_gasto_min||1;
@@ -8386,6 +8393,16 @@ async function saveConfig() {
       DB.config.id = res[0].id;
     }
     Object.assign(DB.config, newCfg);
+    // Sincronizar el tipo de cambio con el producto activo (usd_rate es la tasa que se respeta).
+    // Así Configuración y Editar Producto siempre muestran el mismo valor.
+    if (CURRENT_WORKSPACE && wsCurrencyCode(CURRENT_WORKSPACE) !== 'USD' && newCfg.tc && +CURRENT_WORKSPACE.usd_rate !== +newCfg.tc) {
+      try {
+        const res = await api.patch('workspaces', CURRENT_WORKSPACE.id, { usd_rate: +newCfg.tc });
+        CURRENT_WORKSPACE.usd_rate = +newCfg.tc;
+        const idx = DB.workspaces.findIndex(w => w.id === CURRENT_WORKSPACE.id);
+        if (idx >= 0) DB.workspaces[idx] = res[0] || { ...DB.workspaces[idx], usd_rate: +newCfg.tc };
+      } catch(e) { console.warn('sync usd_rate desde config:', e); }
+    }
     setSyncStatus('ok','Sincronizado ✓');
     renderPriceChips();
     closeModal('modal-config');
@@ -10932,12 +10949,12 @@ function getMetaKey() {
 
 function openMetaMensual() {
   const meta = parseFloat(localStorage.getItem(getMetaKey())) || 0;
-  document.getElementById('meta-input').value = meta || '';
+  document.getElementById('meta-ingresos-input').value = meta || '';
   openModal('modal-meta');
 }
 
 function saveMetaMensual() {
-  const val = parseFloat(document.getElementById('meta-input').value) || 0;
+  const val = parseFloat(document.getElementById('meta-ingresos-input').value) || 0;
   localStorage.setItem(getMetaKey(), val);
   closeModal('modal-meta');
   renderMetaMensual();

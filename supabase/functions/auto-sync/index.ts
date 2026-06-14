@@ -101,7 +101,7 @@ const nDaysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - 
 const enc = encodeURIComponent;
 
 // ── Sincroniza un Sheet (una fuente) ──
-// days=3 (auto-sync inteligente): solo últimos 3 días para capturar ajustes tardíos de Meta.
+// days=5 (auto-sync inteligente): solo últimos 5 días para capturar ajustes tardíos de Meta.
 // days=90 (sync manual completo). days=0 = sin límite (Total).
 async function syncSheet(job: { url: string; wsList: any[]; userId: string }, days = 90) {
   const sheetId = (job.url.match(/\/d\/([a-zA-Z0-9_-]+)/) || [])[1] || job.url;
