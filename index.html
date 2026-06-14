@@ -1132,6 +1132,13 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
         <div class="field"><label>☀️ Mañana</label><input type="time" id="autosync-manana" value="06:30" onchange="saveAutosyncConfig()"></div>
       </div>
       <div id="autosync-estado" style="font-size:11px;color:var(--text3);margin-top:8px"></div>
+      <div style="margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+        <button class="btn btn-ghost btn-sm" id="btn-forzar-sync" onclick="forzarSyncAhora()">⚡ Forzar sync ahora</button>
+        <span id="forzar-sync-estado" style="font-size:11px;color:var(--text3)"></span>
+      </div>
+      <div style="font-size:10px;color:var(--text3);margin-top:6px;line-height:1.6">
+        Sincroniza Sheets + Meta de los últimos 5 días. Mismo comportamiento que la ejecución automática. Útil para verificar que todo funcione antes de esperar el horario programado.
+      </div>
     </div>
   </div>
 
@@ -7831,6 +7838,36 @@ async function saveAutosyncConfig() {
     await _upsertSyncCfg({ activo, hora_noche, hora_manana });
     showSuccess('✅ Horarios guardados');
   } catch(e) { showError('Error guardando horarios: ' + e.message); }
+}
+
+async function forzarSyncAhora() {
+  const btn = document.getElementById('btn-forzar-sync');
+  const est = document.getElementById('forzar-sync-estado');
+  btn.disabled = true;
+  est.textContent = '⏳ Sincronizando...';
+  est.style.color = 'var(--orange)';
+  try {
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/auto-sync`, {
+      method: 'POST',
+      headers: { ...api._h(), 'Content-Type': 'application/json' },
+      body: JSON.stringify({ days: 5 })
+    });
+    const data = await res.json();
+    if (data.ok !== false) {
+      const v = data.ventas ?? (data.resumen ? data.resumen.reduce((s,r) => s + (r.ventas||0), 0) : 0);
+      est.textContent = `✅ ${v} ventas · ${data.workspaces ?? (data.resumen?.length ?? '?')} prod.`;
+      est.style.color = 'var(--green)';
+      await loadAutosyncConfig();
+    } else {
+      est.textContent = '❌ ' + (data.error || 'Error');
+      est.style.color = 'var(--red)';
+    }
+  } catch(e) {
+    est.textContent = '❌ ' + e.message;
+    est.style.color = 'var(--red)';
+  } finally {
+    setTimeout(() => { btn.disabled = false; }, 3000);
+  }
 }
 
 // ── Telegram ──

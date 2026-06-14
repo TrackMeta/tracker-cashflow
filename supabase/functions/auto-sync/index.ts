@@ -198,7 +198,7 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
 async function syncMeta(fuente: any, wsList: any[]) {
   const cuentas = Array.isArray(fuente.meta_cuentas) ? fuente.meta_cuentas : [];
   if (!fuente.meta_token || !cuentas.length) return { filas: 0 };
-  const desde = nDaysAgo(3), hasta = nDaysAgo(0);
+  const desde = nDaysAgo(5), hasta = nDaysAgo(0);
   const adIdToWs: Record<string, string> = {};
   for (const ws of wsList) {
     const ads = await sb("GET", `anuncios?workspace_id=eq.${ws.id}&select=ad_id`);
@@ -299,8 +299,8 @@ async function consolidar(wsId: string, ws: any): Promise<string[]> {
 }
 
 // Procesa todas las fuentes de un usuario (ventas + opcional Meta + consolidación)
-// sheetDays: cuántos días atrás leer del Sheet (3 para auto-sync inteligente, 90 para manual)
-async function procesarUsuario(userId: string, conMeta: boolean, sheetDays = 3) {
+// sheetDays: cuántos días atrás leer del Sheet (5 para auto-sync inteligente, 90 para manual)
+async function procesarUsuario(userId: string, conMeta: boolean, sheetDays = 5) {
   const fuentes = await sb("GET", `fuentes?user_id=eq.${userId}`);
   const workspaces = await sb("GET", `workspaces?user_id=eq.${userId}`);
   const wsTouched = new Set<string>();
@@ -483,7 +483,7 @@ async function enviarReporteSlot(cfg: any, slot: "noche" | "manana") {
   }
 }
 
-const AYUDA = `🤖 *Comandos de Tracker Pro*\n\n🔄 /sync — sincronizar ahora (ventas + gasto)\n\n📊 *Reportes:*\n/hoy · /ayer · /año\n/semana — semana actual\n/semana DD/MM — semana de esa fecha\n/mes — mes actual\n/mes mayo · /mes 05/2025 — mes específico\n/dia DD/MM — un día (año actual)\n/dia DD/MM/AAAA — un día con año\n\n🔎 *Detalle:*\n/producto <nombre> — un producto\n/bot <nombre> — una fuente/bot\n/mejores — top y peores anuncios (7 días)\n/pendientes — días provisionales + ventas sin verificar\n\n_Recibes el cierre nocturno y el buenos días automáticamente, más alertas de cambio de signo, récords y rachas._`;
+const AYUDA = `🤖 *Comandos de Tracker Pro*\n\n🔄 /sync — sincronizar ahora (últimos 5 días)\n🔍 /estado — ver tokens Meta + horarios del auto-sync\n\n📊 *Reportes:*\n/hoy · /ayer · /año\n/semana — semana actual\n/semana DD/MM — semana de esa fecha\n/mes — mes actual\n/mes mayo · /mes 05/2025 — mes específico\n/dia DD/MM — un día (año actual)\n/dia DD/MM/AAAA — un día con año\n\n🔎 *Detalle:*\n/producto <nombre> — un producto\n/bot <nombre> — una fuente/bot\n/mejores — top y peores anuncios (7 días)\n/pendientes — días provisionales + ventas sin verificar\n\n_Recibes el cierre nocturno y el buenos días automáticamente, más alertas de cambio de signo, récords y rachas._`;
 
 // /pendientes — días provisionales + ventas sin verificar
 async function cmdPendientes(userId: string) {
@@ -539,12 +539,45 @@ async function cmdMejores(userId: string, desde: string, hasta: string) {
 async function tgRunCommand(userId: string, cfg: any, chatId: string, cmd: string, arg: string) {
   if (cmd === "/ayuda" || cmd === "/help") { await tgSend(cfg.tg_token, chatId, AYUDA); return; }
 
-  // Sincronizar ahora (últimos 3 días) desde Telegram — igual que el auto-sync
+  // Sincronizar ahora (últimos 5 días) desde Telegram — igual que el auto-sync
   if (cmd === "/sync") {
-    await tgSend(cfg.tg_token, chatId, "⏳ Sincronizando últimos 3 días...");
-    const r = await procesarUsuario(userId, true, 3);
+    await tgSend(cfg.tg_token, chatId, "⏳ Sincronizando últimos 5 días...");
+    const r = await procesarUsuario(userId, true, 5);
     for (const a of (r.alertas || [])) await tgSend(cfg.tg_token, chatId, a);
     await tgSend(cfg.tg_token, chatId, `✅ Sincronizado: ${r.ventas} ventas · ${r.workspaces} producto(s)`);
+    return;
+  }
+
+  // Verificar tokens de Meta y horarios del auto-sync
+  if (cmd === "/testtoken" || cmd === "/estado") {
+    const fuentes = await sb("GET", `fuentes?user_id=eq.${userId}`).catch(() => []);
+    const syncCfg = (await sb("GET", `sync_config?user_id=eq.${userId}&limit=1`).catch(() => []))?.[0];
+    let msg = "🔍 *Estado del sistema*\n\n";
+    // Horarios
+    msg += `⏰ *Auto-sync:* ${syncCfg?.activo !== false ? "✅ Activo" : "⏸️ Pausado"}\n`;
+    msg += `🌙 Noche: ${syncCfg?.hora_noche || "23:00"} · ☀️ Mañana: ${syncCfg?.hora_manana || "06:30"}\n`;
+    if (syncCfg?.ultima_noche)  msg += `Última noche: ${syncCfg.ultima_noche}\n`;
+    if (syncCfg?.ultima_manana) msg += `Última mañana: ${syncCfg.ultima_manana}\n`;
+    msg += "\n";
+    // Tokens de Meta por fuente
+    for (const f of (fuentes || [])) {
+      if (!f.meta_token) continue;
+      try {
+        const r = await fetch(`https://graph.facebook.com/v19.0/debug_token?input_token=${f.meta_token}&access_token=${f.meta_token}`);
+        const jd = await r.json();
+        const exp = jd?.data?.expires_at;
+        if (!exp || exp === 0) {
+          msg += `🟢 *${f.nombre}* — token sin caducidad (sistema)\n`;
+        } else {
+          const dias = Math.ceil((exp * 1000 - Date.now()) / 86400000);
+          const icon = dias <= 3 ? "🔴" : dias <= 7 ? "🟡" : "🟢";
+          const expDate = new Date(exp * 1000).toISOString().slice(0, 10);
+          msg += `${icon} *${f.nombre}* — expira en *${dias} día(s)* (${expDate})\n`;
+        }
+      } catch (_) { msg += `⚠️ *${f.nombre}* — no se pudo verificar\n`; }
+    }
+    if (!(fuentes || []).some((f: any) => f.meta_token)) msg += "_Ninguna fuente tiene token de Meta._\n";
+    await tgSend(cfg.tg_token, chatId, msg);
     return;
   }
 
@@ -658,19 +691,38 @@ Deno.serve(async (req) => {
     return json({ ok: true });
   }
 
-  // Auth por secreto compartido (cron) o service role en Authorization
+  // ── Path A: JWT del usuario (botón "Forzar sync" desde la app) ──
+  // El usuario solo puede disparar su propio sync — verificamos la identidad con Supabase Auth.
+  const userJwt = (req.headers.get("Authorization") || "").replace("Bearer ", "");
+  if (userJwt && userJwt !== SERVICE_KEY && !body.scheduled) {
+    try {
+      const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+        headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${userJwt}` },
+      });
+      if (userRes.ok) {
+        const user = await userRes.json();
+        if (user?.id) {
+          const conMeta   = body.meta !== false;
+          const sheetDays = typeof body.days === "number" ? body.days : 5;
+          const r = await procesarUsuario(user.id, conMeta, sheetDays);
+          return json({ ok: true, ...r });
+        }
+      }
+    } catch (_) { /* JWT inválido o expirado — caer al auth por secreto */ }
+  }
+
+  // ── Path B: secreto compartido (cron) o service role ──
   const secret = req.headers.get("x-autosync-secret") || "";
-  const authz = (req.headers.get("Authorization") || "").replace("Bearer ", "");
-  if (AUTOSYNC_SECRET && secret !== AUTOSYNC_SECRET && authz !== SERVICE_KEY)
+  if (AUTOSYNC_SECRET && secret !== AUTOSYNC_SECRET && userJwt !== SERVICE_KEY)
     return json({ error: "No autorizado" }, 401);
 
   try {
     // Modo programado (lo invoca el cron cada 15 min)
     if (body.scheduled) return await runScheduled();
 
-    // Modo manual / directo
+    // Modo manual / directo con service role o secreto
     const conMeta   = body.meta !== false;
-    const sheetDays = typeof body.days === "number" ? body.days : 90; // manual = 90d por defecto
+    const sheetDays = typeof body.days === "number" ? body.days : 90;
     let userIds: string[];
     if (body.user_id) userIds = [body.user_id];
     else {
