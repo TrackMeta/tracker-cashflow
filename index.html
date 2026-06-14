@@ -466,7 +466,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div class="nav-item" onclick="navTo('horarios',this)"><span class="icon">🕐</span> Horarios</div>
     <div class="nav-section">Datos</div>
     <div class="nav-item" onclick="navTo('registro',this)"><span class="icon">📅</span> Registro Diario</div>
-    <div class="nav-item" onclick="navTo('cruce-pagos',this)"><span class="icon">🔎</span> Cruce de Pagos</div>
+    <div class="nav-item" onclick="navTo('cruce-pagos',this)"><span class="icon">🔎</span> Conciliación</div>
     <div class="nav-item" onclick="navTo('catalogo',this)"><span class="icon">📖</span> Catálogo</div>
     <div class="nav-section">Sistema</div>
     <div class="nav-item" onclick="navTo('chats-ventas',this)"><span class="icon">💬</span> Chats vs Ventas</div>
@@ -1395,14 +1395,14 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 
   <!-- VERIFICAR VENTAS (pagos) -->
   <div class="panel" style="border-left:3px solid var(--green)">
-    <div class="panel-header"><span class="panel-title">✅ Verificar ventas contra pagos</span></div>
+    <div class="panel-header"><span class="panel-title">✅ Conciliación de pagos</span></div>
     <div class="panel-body">
-      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Cruza tus ventas registradas contra el reporte real de tu billetera o banco para detectar montos distintos, ventas fantasma, duplicadas y pagos huérfanos.</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Elige un periodo, sube solo el reporte de tu banco/billetera y el sistema concilia tus ventas automáticamente. Solo revisas las excepciones.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-primary" onclick="navTo('cruce-pagos',null)">🔎 Cruzar contra pagos (detallado)</button>
-        <button class="btn btn-ghost" onclick="marcarVerificadoBulk()">✓ Marcar como verificadas</button>
+        <button class="btn btn-primary" onclick="navTo('cruce-pagos',null)">🔎 Abrir conciliación</button>
+        <button class="btn btn-ghost" onclick="marcarVerificadoBulk()">✓ Marcar todas verificadas</button>
       </div>
-      <div style="font-size:11px;color:var(--text3);margin-top:8px">Usa <strong>"Marcar como verificadas"</strong> cuando ya confirmaste que la suma de tus ventas cuadra con tus pagos y no necesitas el cruce detallado.</div>
+      <div style="font-size:11px;color:var(--text3);margin-top:8px">Usa <strong>"Marcar todas verificadas"</strong> cuando ya confirmaste que la suma de tus ventas cuadra con tus pagos y no necesitas conciliar fila por fila.</div>
     </div>
   </div>
 
@@ -1941,11 +1941,79 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 <div class="page" id="page-cruce-pagos">
   <div class="page-header">
     <div>
-      <div class="page-title">🔎 Cruce de Pagos</div>
-      <div class="page-sub">Detecta pagos fantasma (venta sin pago) y pagos huérfanos (pago sin venta)</div>
+      <div class="page-title">🔎 Conciliación de Pagos</div>
+      <div class="page-sub">Sube solo el reporte del banco — el sistema concilia tus ventas automáticamente</div>
     </div>
-    <button class="btn btn-ghost btn-sm" onclick="cruceLimpiar()">🗑️ Limpiar</button>
+    <button class="btn btn-ghost btn-sm" onclick="concReset()">🗑️ Reiniciar</button>
   </div>
+
+  <!-- ① PERIODO -->
+  <div class="panel" style="margin-bottom:14px">
+    <div class="panel-header"><span class="panel-title">① Elige el periodo</span></div>
+    <div class="panel-body">
+      <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
+        <select id="conc-periodo" onchange="concSetPeriodo()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;font-family:var(--font)">
+          <option value="hoy">📍 Hoy</option>
+          <option value="ayer">📌 Ayer</option>
+          <option value="3">🗓️ Últimos 3 días</option>
+          <option value="7">🗓️ Últimos 7 días</option>
+          <option value="30" selected>🗓️ Últimos 30 días</option>
+          <option value="60">🗓️ Últimos 60 días</option>
+          <option value="90">🗓️ Últimos 90 días</option>
+          <option value="dia">🚩 Día específico</option>
+          <option value="custom">🔷 Rango personalizado</option>
+          <option value="0">🔲 Total</option>
+        </select>
+        <div id="conc-custom" style="display:none;gap:6px;align-items:center">
+          <input type="date" id="conc-desde" onchange="concSetPeriodo()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:7px 9px;color:var(--text);font-size:12px">
+          <span style="color:var(--text3)">→</span>
+          <input type="date" id="conc-hasta" onchange="concSetPeriodo()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:7px 9px;color:var(--text);font-size:12px">
+        </div>
+        <div id="conc-dia-div" style="display:none">
+          <input type="date" id="conc-dia" onchange="concSetPeriodo()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:7px 9px;color:var(--text);font-size:12px">
+        </div>
+        <span id="conc-resumen-ventas" style="font-size:12px;color:var(--text2);font-weight:600"></span>
+      </div>
+    </div>
+  </div>
+
+  <!-- ② SUBIR BANCO -->
+  <div class="panel" style="margin-bottom:14px">
+    <div class="panel-header"><span class="panel-title">② Sube el reporte del banco</span><span id="conc-bank-badge" style="display:none" class="badge green">✓ Cargado</span></div>
+    <div class="panel-body">
+      <div class="drop-zone" id="dz-conc" onclick="document.getElementById('file-conc').click()" ondragover="cruceDragOver(event,'dz-conc')" ondragleave="cruceDragLeave('dz-conc')" ondrop="concDropBank(event)">
+        <div class="dz-icon">🏦</div>
+        <div class="dz-title" id="dz-conc-title">Arrastra el reporte de transacciones (Excel)</div>
+        <div class="dz-sub">Yape, Plin o banco · .xlsx</div>
+      </div>
+      <input type="file" id="file-conc" accept=".xlsx,.xls" style="display:none" onchange="concLoadBank(event)">
+      <div id="conc-bank-info" style="display:none;font-size:11px;color:var(--text2);margin-top:6px;font-family:var(--mono)"></div>
+    </div>
+  </div>
+
+  <!-- ③ RESULTADO -->
+  <div id="conc-resultado" style="display:none">
+    <div class="cards-row cards-4" id="conc-kpis" style="margin-bottom:14px"></div>
+    <div id="conc-avisos" style="margin-bottom:14px"></div>
+    <div id="conc-filtros" style="margin-bottom:12px"></div>
+    <div class="panel">
+      <div class="panel-header"><span class="panel-title">Conciliación — revisa las excepciones</span><span id="conc-lista-count" style="font-size:11px;color:var(--text3)"></span></div>
+      <div class="tbl-wrap"><table>
+        <thead><tr><th style="width:34px"><input type="checkbox" id="conc-sel-all" onchange="concSelAll(this)"></th><th class="left">Estado</th><th>Venta (fecha · hora)</th><th>Monto</th><th class="left">Pago del banco</th><th>Δ</th><th>Acciones</th></tr></thead>
+        <tbody id="conc-tbody"></tbody>
+      </table></div>
+    </div>
+  </div>
+  <div id="conc-empty" class="empty" style="padding:30px">
+    <div class="empty-icon">🧾</div>
+    <div class="empty-title">Elige un periodo y sube el reporte del banco</div>
+    <div style="font-size:12px;color:var(--text3);margin-top:6px">El sistema trae tus ventas y las concilia automáticamente. Solo revisas las excepciones.</div>
+  </div>
+
+  <!-- ⚙️ AVANZADO: cruce manual de 2 archivos -->
+  <details style="margin-top:22px;border-top:1px solid var(--border);padding-top:6px">
+    <summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--text2);padding:8px 0">⚙️ Cruce manual avanzado (2 archivos: CRM + banco)</summary>
+    <div style="margin-top:12px;font-size:11px;color:var(--text3);margin-bottom:12px">Herramienta detallada: sube el Excel del CRM y el del banco para detectar pagos fantasma, huérfanos y duplicados con tablas completas.</div>
 
   <!-- UPLOAD ZONE -->
   <div style="display:grid;grid-template-columns:1fr 1fr;gap:14px;margin-bottom:18px">
@@ -2079,10 +2147,12 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       </div>
     </div>
   </div>
-    <div class="empty-icon">🔎</div>
-    <div class="empty-title">Carga los dos archivos para comenzar</div>
-    <div style="font-size:12px;color:var(--text3);margin-top:6px">Exporta el Excel del CRM y el Reporte de Transacciones de Yape/Plin del mismo día</div>
-  </div>
+    <div id="cruce-empty" class="empty" style="display:none;padding:20px">
+      <div class="empty-icon">🔎</div>
+      <div class="empty-title">Carga los dos archivos para comenzar</div>
+      <div style="font-size:12px;color:var(--text3);margin-top:6px">Exporta el Excel del CRM y el Reporte de Transacciones de Yape/Plin del mismo día</div>
+    </div>
+  </details>
 </div>
 
 </main>
@@ -12632,6 +12702,263 @@ init();
     document.getElementById('cruce-resultado').style.display = 'none';
     document.getElementById('cruce-empty').style.display = 'block';
     document.getElementById('cruce-fecha').value = '';
+  };
+
+  // ════════════════════════════════════════════
+  // CONCILIACIÓN INTELIGENTE (Fase 1)
+  // Flujo 3 pasos: periodo → subir banco → revisar excepciones.
+  // Las ventas vienen de la BD (crm_ventas, ya sincronizadas del Sheet).
+  // ════════════════════════════════════════════
+  const CONC = { desde:null, hasta:null, ventas:[], pagos:[], huerfanos:[], filtro:'todos' };
+  const CONC_ICON  = { verificada:'🟢', parcial:'🟡', sin_match:'🔴', revision:'🔵', pendiente:'⚪' };
+  const CONC_LABEL = { verificada:'Verificada', parcial:'Parcial', sin_match:'Sin coincidencia', revision:'Revisión', pendiente:'Pendiente' };
+  const CONC_DIF_TOL = 0.5; // diferencia "pequeña" que se puede ignorar
+
+  // ── Paso 1: resolver periodo + resumen de ventas ──
+  window.concSetPeriodo = async function(){
+    const val = document.getElementById('conc-periodo').value;
+    const cd = document.getElementById('conc-custom'), dd = document.getElementById('conc-dia-div');
+    cd.style.display = val==='custom' ? 'flex' : 'none';
+    dd.style.display = val==='dia' ? 'block' : 'none';
+    if(val==='custom'){ if(!document.getElementById('conc-desde').value) document.getElementById('conc-desde').value=nDaysAgo(30); if(!document.getElementById('conc-hasta').value) document.getElementById('conc-hasta').value=today(); }
+    if(val==='dia'){ if(!document.getElementById('conc-dia').value) document.getElementById('conc-dia').value=today(); }
+    const { desde, hasta } = rangoDe(val, 'conc-dia', 'conc-desde', 'conc-hasta');
+    CONC.desde = desde; CONC.hasta = hasta;
+    await concResumenVentas();
+    // Si ya hay banco cargado, reconciliar con el nuevo periodo
+    if (CONC.pagos.length) await concConciliar();
+  };
+
+  async function concResumenVentas(){
+    const wsId = CURRENT_WORKSPACE?.id;
+    const el = document.getElementById('conc-resumen-ventas'); if(!el) return;
+    if(!wsId){ el.textContent='Selecciona un producto primero.'; return; }
+    el.textContent='⏳ contando ventas...';
+    try{
+      const v = await api.get('crm_ventas', `workspace_id=eq.${wsId}&fecha=gte.${CONC.desde}&fecha=lte.${CONC.hasta}&select=id`);
+      el.innerHTML = `<span style="color:var(--accent)">📋 ${v.length} venta(s)</span> en el periodo se conciliarán`;
+    }catch(e){ el.textContent='Error contando ventas'; }
+  }
+
+  // ── Paso 2: cargar archivo del banco ──
+  window.concDropBank = function(e){ e.preventDefault(); cruceDragLeave('dz-conc'); const f=e.dataTransfer.files[0]; if(f) concProcesarBanco(f); };
+  window.concLoadBank = function(e){ const f=e.target.files[0]; if(f) concProcesarBanco(f); };
+
+  async function concProcesarBanco(file){
+    if(!CONC.desde){ const r=rangoDe(document.getElementById('conc-periodo').value||'30','conc-dia','conc-desde','conc-hasta'); CONC.desde=r.desde; CONC.hasta=r.hasta; }
+    const title=document.getElementById('dz-conc-title'), info=document.getElementById('conc-bank-info'), badge=document.getElementById('conc-bank-badge');
+    title.textContent='⏳ Leyendo...';
+    try{
+      const hojas = await leerExcel(file);
+      const pagos = parsearYape(hojas);
+      if(!pagos.length) throw new Error('No se reconocieron pagos. ¿Es el reporte de transacciones del banco/billetera?');
+      CONC.pagos = pagos; CONC.archivo = file.name;
+      title.textContent='✅ '+file.name;
+      info.textContent=`${pagos.length} pagos leídos del banco`; info.style.display='block';
+      badge.style.display='inline-flex';
+      document.getElementById('dz-conc').style.borderColor='var(--green)';
+      await concConciliar();
+    }catch(err){ title.textContent='❌ '+err.message; }
+  }
+
+  // ── Paso 3: motor de emparejamiento ──
+  async function concConciliar(){
+    const wsId = CURRENT_WORKSPACE?.id;
+    if(!wsId){ alert('Selecciona un producto.'); return; }
+    if(!CONC.pagos.length){ return; }
+    const ventas = await api.get('crm_ventas', `workspace_id=eq.${wsId}&fecha=gte.${CONC.desde}&fecha=lte.${CONC.hasta}&select=id,fecha,ad_id,hora,precio,estado_verif`);
+    const pool = CONC.pagos.map((p,i)=>({ ...p, _i:i, used:false }));
+    const vts = ventas.map(v=>({ ...v, _dt:new Date(v.hora), estado:'pendiente', pago:null, candidatos:[] }))
+                      .sort((a,b)=>a._dt-b._dt);
+    for(const v of vts){
+      const precio=+v.precio;
+      const cands=[];
+      for(let i=0;i<pool.length;i++){
+        if(pool[i].used) continue;
+        if(Math.abs(pool[i].monto-precio)<=0.01){ cands.push({i, dmin:Math.abs(pool[i].fecha-v._dt)/60000}); }
+      }
+      cands.sort((a,b)=>a.dmin-b.dmin);
+      v.candidatos = cands.map(c=>c.i);
+      if(cands.length){
+        const best=cands[0];
+        // claro = dentro de ventana y sin ambigüedad (siguiente candidato a >5min)
+        if(best.dmin<=VERIF_TOL_MIN && (cands.length===1 || (cands[1].dmin-best.dmin)>5)){
+          pool[best.i].used=true; v.estado='verificada'; v.pago=pool[best.i];
+        } else {
+          pool[best.i].used=true; v.estado='revision'; v.pago=pool[best.i];
+        }
+        continue;
+      }
+      // monto distinto pero pago muy cercano en tiempo → parcial
+      let bt=-1, btd=Infinity;
+      for(let i=0;i<pool.length;i++){ if(pool[i].used) continue; const d=Math.abs(pool[i].fecha-v._dt)/60000; if(d<=VERIF_NEAR_MIN && d<btd){btd=d;bt=i;} }
+      if(bt>=0){ pool[bt].used=true; v.estado='parcial'; v.pago=pool[bt]; continue; }
+      v.estado='sin_match';
+    }
+    CONC.ventas = vts;
+    CONC.huerfanos = pool.filter(p=>!p.used);
+    CONC.filtro = 'todos';
+    document.getElementById('conc-empty').style.display='none';
+    document.getElementById('conc-resultado').style.display='block';
+    concRender();
+  }
+
+  // ── Render: resumen + avisos + filtros + tabla ──
+  const concCount = e => CONC.ventas.filter(v=>v.estado===e).length;
+  function concRender(){
+    const code = wsCurrencyCode();
+    const vts = CONC.ventas, total = vts.length;
+    const nVer=concCount('verificada'), nPar=concCount('parcial'), nSin=concCount('sin_match'), nRev=concCount('revision'), nPen=concCount('pendiente');
+    const porRevisar = nPar+nRev+nPen;
+    const dineroConc = vts.filter(v=>v.estado==='verificada').reduce((s,v)=>s+(+v.precio||0),0);
+    const dineroPend = vts.filter(v=>v.estado!=='verificada').reduce((s,v)=>s+(+v.precio||0),0);
+    const dif = vts.filter(v=>v.estado==='parcial').reduce((s,v)=>s+Math.abs((+v.precio||0)-(v.pago?+v.pago.monto:0)),0);
+    const pct = total?Math.round(nVer/total*100):0;
+    document.getElementById('conc-kpis').innerHTML = [
+      kpiCard('Ventas', total, 'accent', `${CONC.desde} → ${CONC.hasta}`),
+      kpiCard('Conciliadas', `${nVer}`, nVer===total&&total>0?'green':'teal', `${pct}% conciliado`),
+      kpiCard('Por revisar', `${porRevisar}`, porRevisar?'orange':'green', `${nRev} revisión · ${nPar} parcial · ${nPen} pend.`),
+      kpiCard('Sin coincidencia', `${nSin}`, nSin?'red':'green', `🏦 ${CONC.huerfanos.length} pago(s) huérfano(s)`),
+    ].join('');
+    // Avisos inteligentes
+    concRenderAvisos();
+    // Tira de dinero + barra %
+    const avisosEl = document.getElementById('conc-avisos');
+    const strip = `<div style="display:flex;gap:14px;flex-wrap:wrap;align-items:center;padding:10px 14px;background:var(--bg3);border-radius:8px;font-size:12px;margin-bottom:10px">
+      <span>💰 Conciliado <strong style="color:var(--green)">${fmtMoney(dineroConc,code)}</strong></span>
+      <span>⏳ Pendiente <strong style="color:var(--orange)">${fmtMoney(dineroPend,code)}</strong></span>
+      <span>↔️ Diferencias <strong style="color:${dif>0?'var(--red)':'var(--text2)'}">${fmtMoney(dif,code)}</strong></span>
+      <span style="margin-left:auto;display:flex;align-items:center;gap:8px"><div style="width:120px;height:8px;background:var(--bg2);border-radius:4px;overflow:hidden"><div style="height:100%;width:${pct}%;background:${pct>=90?'var(--green)':pct>=70?'var(--orange)':'var(--red)'}"></div></div><strong>${pct}%</strong></span>
+    </div>`;
+    avisosEl.insertAdjacentHTML('afterbegin', strip);
+    // Filtros + acciones masivas
+    concRenderFiltros();
+    // Tabla
+    concRenderTabla();
+  }
+
+  function concRenderAvisos(){
+    const el = document.getElementById('conc-avisos'); el.innerHTML='';
+    const avisos=[];
+    const nSin=concCount('sin_match'), nPar=concCount('parcial');
+    // pagos duplicados en banco
+    const pk={}; CONC.pagos.forEach(p=>{ const k=p.monto+'|'+(p.origen||'').toLowerCase().replace(/\s/g,'').slice(0,12); pk[k]=(pk[k]||0)+1; });
+    const dupPagos=Object.values(pk).filter(n=>n>=2).reduce((s,n)=>s+n-1,0);
+    // ventas duplicadas (mismo ad_id+precio en <20min)
+    let dupVentas=0;
+    for(let i=0;i<CONC.ventas.length;i++){ for(let j=i+1;j<CONC.ventas.length;j++){ const a=CONC.ventas[i],b=CONC.ventas[j]; if(a.ad_id===b.ad_id && Math.abs(+a.precio-+b.precio)<0.01 && Math.abs(a._dt-b._dt)/60000<=20){ dupVentas++; break; } } }
+    if(nSin) avisos.push(['🔴',`${nSin} venta(s) sin pago en el banco`,'Pueden ser capturas falsas del bot o pagos por otro medio. Revísalas o márcalas manualmente.']);
+    if(CONC.huerfanos.length) avisos.push(['🏦',`${CONC.huerfanos.length} pago(s) sin venta (huérfanos)`,'Llegó plata sin venta registrada — el bot pudo saltarse el registro. Considera agregarla al Sheet.']);
+    if(nPar) avisos.push(['🟡',`${nPar} pago(s) con monto distinto`,'El monto del banco no coincide exacto. Usa "Ignorar diferencias pequeñas" si son centavos.']);
+    if(dupPagos) avisos.push(['🔁',`${dupPagos} posible(s) pago(s) duplicado(s) en el banco`,'Mismo monto y pagador repetido — verifica que no sea doble cobro.']);
+    if(dupVentas) avisos.push(['🔁',`${dupVentas} posible(s) venta(s) duplicada(s)`,'Mismo anuncio y monto en pocos minutos — posible duplicado del bot.']);
+    if(!avisos.length){ el.innerHTML=''; return; }
+    el.innerHTML = `<div class="panel" style="margin-bottom:0"><div class="panel-header"><span class="panel-title">🧠 Detección de problemas</span></div><div class="panel-body" style="display:grid;gap:6px">${avisos.map(a=>`<div style="font-size:12px;padding:8px 10px;background:var(--bg3);border-radius:6px"><strong>${a[0]} ${a[1]}</strong><div style="font-size:11px;color:var(--text3);margin-top:2px">${a[2]}</div></div>`).join('')}</div></div>`;
+  }
+
+  function concRenderFiltros(){
+    const chips=[['todos','Todas',CONC.ventas.length],['verificada','🟢',concCount('verificada')],['parcial','🟡',concCount('parcial')],['sin_match','🔴',concCount('sin_match')],['revision','🔵',concCount('revision')],['pendiente','⚪',concCount('pendiente')]];
+    const fHtml = chips.map(c=>`<button class="btn btn-sm ${CONC.filtro===c[0]?'btn-primary':'btn-ghost'}" onclick="concFiltro('${c[0]}')">${c[1]} ${c[2]}</button>`).join('');
+    const acc = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:auto">
+      <button class="btn btn-ghost btn-sm" onclick="concBulk('verificar-sel')">✓ Verificar seleccionadas</button>
+      <button class="btn btn-ghost btn-sm" onclick="concBulk('ignorar-dif')">🟡→🟢 Ignorar dif. pequeñas</button>
+      <button class="btn btn-ghost btn-sm" onclick="concBulk('deshacer')">↩️ Deshacer verificadas</button>
+      <button class="btn btn-primary btn-sm" onclick="concBulk('verificar-todas')">✅ Marcar todas verificadas</button>
+      <button class="btn btn-primary btn-sm" style="background:var(--green)" onclick="concGuardar()">💾 Guardar conciliación</button>
+    </div>`;
+    document.getElementById('conc-filtros').innerHTML = `<div style="display:flex;gap:6px;flex-wrap:wrap;align-items:center">${fHtml}${acc}</div>`;
+  }
+
+  function concRenderTabla(){
+    const code = wsCurrencyCode();
+    const tb = document.getElementById('conc-tbody');
+    const lista = CONC.filtro==='todos' ? CONC.ventas : CONC.ventas.filter(v=>v.estado===CONC.filtro);
+    document.getElementById('conc-lista-count').textContent = `${lista.length} de ${CONC.ventas.length}`;
+    if(!lista.length){ tb.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Sin ventas en este filtro</td></tr>'; return; }
+    // opciones de pagos huérfanos para reasignar
+    const optHuer = CONC.huerfanos.map(p=>`<option value="${p._i}">${p.hora} · ${escH(p.origen||'')} · ${fmtMoney(p.monto,code)}</option>`).join('');
+    tb.innerHTML = lista.map(v=>{
+      const hora = v.hora ? new Date(v.hora).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'}) : '—';
+      const delta = v.pago ? (Math.abs(+v.precio-+v.pago.monto)<0.01 ? '<span style="color:var(--green)">=</span>' : `<span style="color:var(--red)">${(+v.pago.monto-+v.precio>0?'+':'')}${(+v.pago.monto-+v.precio).toFixed(2)}</span>`) : '—';
+      const pagoTxt = v.pago ? `${v.pago.hora} · ${escH(v.pago.origen||'')} · ${fmtMoney(v.pago.monto,code)}` : '<span style="color:var(--text3)">— sin pago —</span>';
+      let acciones='';
+      if(v.pago) acciones += `<button class="btn btn-ghost btn-sm" title="Desvincular" onclick="concDesvincular('${v.id}')">🔗✖</button>`;
+      if(v.estado!=='verificada') acciones += ` <button class="btn btn-ghost btn-sm" title="Marcar verificada" onclick="concMarcar('${v.id}','verificada')">✓</button>`;
+      if(!v.pago && CONC.huerfanos.length) acciones += ` <select onchange="concReasignar('${v.id}',this.value)" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:3px 5px;color:var(--text);font-size:11px"><option value="">Asignar pago…</option>${optHuer}</select>`;
+      return `<tr>
+        <td><input type="checkbox" class="conc-chk" data-id="${v.id}"></td>
+        <td class="left"><span title="${CONC_LABEL[v.estado]}">${CONC_ICON[v.estado]} ${CONC_LABEL[v.estado]}</span></td>
+        <td>${fmt.date(v.fecha)} · ${hora}</td>
+        <td>${fmtMoney(v.precio,code)}</td>
+        <td class="left" style="font-size:11px">${pagoTxt}</td>
+        <td>${delta}</td>
+        <td style="white-space:nowrap">${acciones||'—'}</td>
+      </tr>`;
+    }).join('');
+  }
+
+  window.concFiltro = function(f){ CONC.filtro=f; concRenderFiltros(); concRenderTabla(); };
+  window.concSelAll = function(chk){ document.querySelectorAll('.conc-chk').forEach(c=>c.checked=chk.checked); };
+
+  // Buscar venta por id en el modelo
+  const concVenta = id => CONC.ventas.find(v=>String(v.id)===String(id));
+
+  window.concDesvincular = function(id){
+    const v=concVenta(id); if(!v||!v.pago) return;
+    v.pago.used=false; CONC.huerfanos.push(v.pago); CONC.huerfanos.sort((a,b)=>a.fecha-b.fecha);
+    v.pago=null; v.estado='sin_match';
+    concRender();
+  };
+  window.concReasignar = function(id, pagoIdx){
+    if(pagoIdx==='') return;
+    const v=concVenta(id); if(!v) return;
+    const idx = CONC.huerfanos.findIndex(p=>String(p._i)===String(pagoIdx));
+    if(idx<0) return;
+    const pago=CONC.huerfanos.splice(idx,1)[0]; pago.used=true;
+    if(v.pago){ v.pago.used=false; CONC.huerfanos.push(v.pago); }
+    v.pago=pago;
+    v.estado = Math.abs(+v.precio-+pago.monto)<0.01 ? 'verificada' : 'parcial';
+    concRender();
+  };
+  window.concMarcar = function(id, estado){ const v=concVenta(id); if(!v) return; v.estado=estado; concRender(); };
+
+  window.concBulk = function(accion){
+    if(accion==='verificar-todas'){ CONC.ventas.forEach(v=>{ if(v.estado!=='sin_match'||v.pago) v.estado='verificada'; }); }
+    else if(accion==='verificar-sel'){ const ids=new Set([...document.querySelectorAll('.conc-chk:checked')].map(c=>c.dataset.id)); CONC.ventas.forEach(v=>{ if(ids.has(String(v.id))) v.estado='verificada'; }); }
+    else if(accion==='ignorar-dif'){ CONC.ventas.forEach(v=>{ if(v.estado==='parcial' && v.pago && Math.abs(+v.precio-+v.pago.monto)<=CONC_DIF_TOL) v.estado='verificada'; }); }
+    else if(accion==='deshacer'){ CONC.ventas.forEach(v=>{ if(v.estado==='verificada') v.estado = v.pago ? 'revision' : 'pendiente'; }); }
+    concRender();
+  };
+
+  // Persistir estado_verif en la BD (por lotes)
+  window.concGuardar = async function(){
+    const map = { verificada:'verificada', parcial:'monto_difiere', sin_match:'fantasma', revision:'revision', pendiente:'pendiente' };
+    const nowISO=new Date().toISOString();
+    const grupos={}; CONC.ventas.forEach(v=>{ const e=map[v.estado]||v.estado; (grupos[e]=grupos[e]||[]).push(v.id); });
+    try{
+      for(const [estado,ids] of Object.entries(grupos)){
+        for(let i=0;i<ids.length;i+=100){
+          await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas?id=in.(${ids.slice(i,i+100).join(',')})`,{
+            method:'PATCH', headers:{...api._h(),'Prefer':'return=minimal'},
+            body:JSON.stringify({ estado_verif:estado, verificado_at:nowISO })
+          });
+        }
+      }
+      showSuccess('✅ Conciliación guardada');
+    }catch(e){ showError('Error guardando: '+e.message); }
+  };
+
+  window.concReset = function(){
+    CONC.desde=null; CONC.hasta=null; CONC.ventas=[]; CONC.pagos=[]; CONC.huerfanos=[]; CONC.filtro='todos'; CONC.archivo=null;
+    document.getElementById('dz-conc').style.borderColor='';
+    document.getElementById('dz-conc-title').textContent='Arrastra el reporte de transacciones (Excel)';
+    document.getElementById('conc-bank-info').style.display='none';
+    document.getElementById('conc-bank-badge').style.display='none';
+    document.getElementById('file-conc').value='';
+    document.getElementById('conc-resultado').style.display='none';
+    document.getElementById('conc-empty').style.display='block';
+    document.getElementById('conc-resumen-ventas').textContent='';
+    concSetPeriodo();
   };
 
 })();
