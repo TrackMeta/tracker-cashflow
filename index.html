@@ -4574,13 +4574,14 @@ async function renderGlobal() {
     const totalGastosExtra = gastosExtras.reduce((s,g) => s + g.monto, 0) / wsUsdRate(CURRENT_WORKSPACE);
     const profitNeto = totalProfit - totalGastosExtra;
 
-    // KPIs globales (USD)
+    // KPIs globales — moneda local (producto activo) + USD consolidado
+    const _gc = gblCode();
     document.getElementById('global-kpis').innerHTML = [
-      kpiCard('Ingresos Totales', fmt.d(totalIng), 'green', `${wsData.length} productos · consolidado en USD`),
-      kpiCard('Inversión Total',  fmt.d(totalInv), 'orange', `ROAS global: ${fmt.roas(globalRoas)}`),
-      kpiCard('Profit Bruto',     fmt.d(totalProfit), totalProfit>=0?'teal':'red', `${totalVentas} ventas totales`),
-      kpiCard('Profit Neto',      fmt.d(profitNeto), profitNeto>=0?'green':'red', `Gastos extras: −${fmt.d(totalGastosExtra)}`),
-      kpiCard('Upsells Totales',  fmt.d(totalUpsells), 'purple', `${(totalUpsells/totalIng*100||0).toFixed(1)}% de ingresos`),
+      gblKpiCard('Ingresos Totales', totalIng, 'green', `${wsData.length} productos`),
+      gblKpiCard('Inversión Total',  totalInv, 'orange', `ROAS global: ${fmt.roas(globalRoas)}`),
+      gblKpiCard('Profit Bruto',     totalProfit, totalProfit>=0?'teal':'red', `${totalVentas} ventas totales`),
+      gblKpiCard('Profit Neto',      profitNeto, profitNeto>=0?'green':'red', `Gastos extras: −${_gc==='USD'?fmt.d(totalGastosExtra):fmtMoney(totalGastosExtra*gblRate(),_gc)}`),
+      gblKpiCard('Upsells Totales',  totalUpsells, 'purple', `${(totalUpsells/totalIng*100||0).toFixed(1)}% de ingresos`),
     ].join('');
 
     renderGlobalInsights(wsData, totalProfit, profitDiaUsd);
@@ -8175,6 +8176,19 @@ const fmt = {
 function toUSD(s, ws) { return s / wsUsdRate(ws); }
 function addIGV(s) { return s * (1 + DB.config.igv); }
 
+// ── Visión Global: convertir el USD consolidado a la moneda local del usuario ──
+// La moneda/tasa salen del producto activo (lo que el usuario fijó en Configuración).
+function gblCode() { return wsCurrencyCode(CURRENT_WORKSPACE); }
+function gblRate() { return wsUsdRate(CURRENT_WORKSPACE); }   // unidades locales por USD
+function fmtLocalFromUsd(usd) { const c = gblCode(); return c === 'USD' ? '' : fmtMoney((+usd||0) * gblRate(), c); }
+// KPI global con doble moneda: valor en local (lo que el usuario piensa), USD en el sub.
+function gblKpiCard(label, usd, cls, extraSub = '') {
+  const c = gblCode();
+  if (c === 'USD') return kpiCard(label, fmt.d(usd), cls, extraSub);
+  const sub = `${fmt.d(usd)}${extraSub ? ' · ' + extraSub : ''}`;
+  return kpiCard(label, fmtMoney((+usd||0) * gblRate(), c), cls, sub);
+}
+
 function calcMetrics(regs) {
   const P = DB.config;
   let gm=0,gt=0,im=0,it=0,cm=0,ct=0,chm=0,cht=0,v1=0,v2=0,v3=0,v4=0,upsells=0;
@@ -8700,9 +8714,9 @@ function bitaGlobalAnio(g){
   const T = dias.reduce((a,d)=>({inv:a.inv+d.M.inversion,ing:a.ing+d.M.ingresos,ven:a.ven+d.M.ventas}),{inv:0,ing:0,ven:0});
   const pf=T.ing-T.inv, rs=T.inv>0?T.ing/T.inv:0, ri=T.inv>0?pf/T.inv*100:0, rd=bitaResumenDias(dias);
   document.getElementById('bita-kpis').innerHTML = [
-    kpiCard('Inversión', fmt.d(T.inv), 'orange'),
-    kpiCard('Ingresos', fmt.d(T.ing), 'green'),
-    kpiCard('Profit', fmt.d(pf), pf>=0?'teal':'red'),
+    gblKpiCard('Inversión', T.inv, 'orange'),
+    gblKpiCard('Ingresos', T.ing, 'green'),
+    gblKpiCard('Profit', pf, pf>=0?'teal':'red'),
     kpiCard('ROAS', fmt.roas(rs), 'accent', `ROI ${ri.toFixed(1)}%`),
     kpiCard('Días +/−', `${rd.mas} / ${rd.menos}`, 'purple', `${dias.length} días`),
   ].join('');
@@ -8731,9 +8745,9 @@ function bitaGlobalMes(g){
   const T = dias.reduce((a,d)=>({inv:a.inv+d.M.inversion,ing:a.ing+d.M.ingresos,ven:a.ven+d.M.ventas}),{inv:0,ing:0,ven:0});
   const pf=T.ing-T.inv, rs=T.inv>0?T.ing/T.inv:0, ri=T.inv>0?pf/T.inv*100:0, rd=bitaResumenDias(dias);
   document.getElementById('bita-kpis').innerHTML = [
-    kpiCard('Inversión', fmt.d(T.inv), 'orange'),
-    kpiCard('Ingresos', fmt.d(T.ing), 'green'),
-    kpiCard('Profit', fmt.d(pf), pf>=0?'teal':'red'),
+    gblKpiCard('Inversión', T.inv, 'orange'),
+    gblKpiCard('Ingresos', T.ing, 'green'),
+    gblKpiCard('Profit', pf, pf>=0?'teal':'red'),
     kpiCard('ROAS · ROI', `${fmt.roas(rs)} · ${ri.toFixed(1)}%`, 'accent', `${rd.mas}+ / ${rd.menos}−`),
     kpiCard('Mejor día', rd.mejor?fmt.roas(rd.mejor.M.roas):'—', 'purple', rd.mejor?fmt.date(rd.mejor.fecha):'—'),
   ].join('');
@@ -8753,9 +8767,11 @@ function bitaGlobalMes(g){
     const M=d.M; let bg='var(--bg3)',fg='var(--text3)',bd='transparent';
     if (M.inversion>0||M.ingresos>0){ if(M.profit<0){bg='var(--red-dim)';fg='var(--red)';} else if(M.profit>=maxP*0.6){bg='var(--green-dim)';fg='var(--green)';bd='var(--green)';} else {bg='rgba(16,185,129,0.10)';fg='var(--teal)';} }
     const cons = diaConsolidado(null, fecha);
+    const locLine = gblCode() !== 'USD' ? `<span style="font-size:10px;font-weight:700;color:var(--text3);font-family:var(--mono);line-height:1">${fmtMoney(M.profit*gblRate(), gblCode()).replace(/\.\d+$/,'')}</span>` : '';
     cal += `<div onclick="bitaAbrirDiaGlobal('${fecha}')" title="Ver ${fecha} en Dashboard Global" style="min-height:78px;border-radius:8px;background:${bg};border:1px solid ${bd};display:flex;flex-direction:column;gap:2px;cursor:pointer;padding:5px 7px">
       <div style="display:flex;justify-content:space-between;line-height:1"><span style="font-size:12px;font-weight:800;color:var(--text2)">${dia}</span>${cons?'':'<span style="font-size:9px">⏳</span>'}</div>
       <span style="font-size:16px;font-weight:800;color:${fg};font-family:var(--mono);line-height:1.15">${fmt.d(M.profit).replace(/\.\d+$/,'')}</span>
+      ${locLine}
       <div style="font-size:9.5px;color:var(--text3);font-family:var(--mono);margin-top:auto">${fmt.roas(M.roas)} · ${M.ventas}v</div></div>`;
   }
   cal += '</div>';
