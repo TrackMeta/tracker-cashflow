@@ -99,12 +99,14 @@ const nDaysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - 
 const enc = encodeURIComponent;
 
 // ── Sincroniza un Sheet (una fuente) ──
-async function syncSheet(job: { url: string; wsList: any[]; userId: string }) {
+// days=3 (auto-sync inteligente): solo últimos 3 días para capturar ajustes tardíos de Meta.
+// days=90 (sync manual completo). days=0 = sin límite (Total).
+async function syncSheet(job: { url: string; wsList: any[]; userId: string }, days = 90) {
   const sheetId = (job.url.match(/\/d\/([a-zA-Z0-9_-]+)/) || [])[1] || job.url;
   const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`);
   if (!res.ok) throw new Error(`Sheet ${job.url} no accesible (${res.status})`);
   const allRows = parseSheetCSV(await res.text());
-  const fechaMin = nDaysAgo(90);
+  const fechaMin = days > 0 ? nDaysAgo(days) : "2000-01-01";
   const recientes = allRows.filter((r) => r.fecha >= fechaMin);
   if (!recientes.length) return { ventas: 0, registros: 0, wsIds: [] as string[] };
 
@@ -297,7 +299,8 @@ async function consolidar(wsId: string, ws: any): Promise<string[]> {
 }
 
 // Procesa todas las fuentes de un usuario (ventas + opcional Meta + consolidación)
-async function procesarUsuario(userId: string, conMeta: boolean) {
+// sheetDays: cuántos días atrás leer del Sheet (3 para auto-sync inteligente, 90 para manual)
+async function procesarUsuario(userId: string, conMeta: boolean, sheetDays = 3) {
   const fuentes = await sb("GET", `fuentes?user_id=eq.${userId}`);
   const workspaces = await sb("GET", `workspaces?user_id=eq.${userId}`);
   const wsTouched = new Set<string>();
@@ -307,7 +310,7 @@ async function procesarUsuario(userId: string, conMeta: boolean) {
     const wsForJob = wsList.length ? wsList : workspaces;
     if (f.sheets_url) {
       try {
-        const r = await syncSheet({ url: f.sheets_url, wsList: wsForJob, userId });
+        const r = await syncSheet({ url: f.sheets_url, wsList: wsForJob, userId }, sheetDays);
         totVentas += r.ventas; r.wsIds.forEach((id) => wsTouched.add(id));
       } catch (e) { console.error("syncSheet", f.nombre, e); }
     }
@@ -536,10 +539,10 @@ async function cmdMejores(userId: string, desde: string, hasta: string) {
 async function tgRunCommand(userId: string, cfg: any, chatId: string, cmd: string, arg: string) {
   if (cmd === "/ayuda" || cmd === "/help") { await tgSend(cfg.tg_token, chatId, AYUDA); return; }
 
-  // Sincronizar ahora (ventas + Meta + consolidación) desde Telegram
+  // Sincronizar ahora (últimos 3 días) desde Telegram — igual que el auto-sync
   if (cmd === "/sync") {
-    await tgSend(cfg.tg_token, chatId, "⏳ Sincronizando ventas y gasto...");
-    const r = await procesarUsuario(userId, true);
+    await tgSend(cfg.tg_token, chatId, "⏳ Sincronizando últimos 3 días...");
+    const r = await procesarUsuario(userId, true, 3);
     for (const a of (r.alertas || [])) await tgSend(cfg.tg_token, chatId, a);
     await tgSend(cfg.tg_token, chatId, `✅ Sincronizado: ${r.ventas} ventas · ${r.workspaces} producto(s)`);
     return;
@@ -666,7 +669,8 @@ Deno.serve(async (req) => {
     if (body.scheduled) return await runScheduled();
 
     // Modo manual / directo
-    const conMeta = body.meta !== false;
+    const conMeta   = body.meta !== false;
+    const sheetDays = typeof body.days === "number" ? body.days : 90; // manual = 90d por defecto
     let userIds: string[];
     if (body.user_id) userIds = [body.user_id];
     else {
@@ -674,7 +678,7 @@ Deno.serve(async (req) => {
       userIds = [...new Set((fs || []).map((f: any) => f.user_id))];
     }
     const resumen: any[] = [];
-    for (const userId of userIds) resumen.push(await procesarUsuario(userId, conMeta));
+    for (const userId of userIds) resumen.push(await procesarUsuario(userId, conMeta, sheetDays));
     return json({ ok: true, procesados: resumen.length, resumen });
   } catch (e) {
     return json({ error: String((e as Error)?.message || e) }, 500);

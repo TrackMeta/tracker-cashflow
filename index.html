@@ -664,14 +664,16 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <select id="global-periodo" onchange="onGlobalPeriodo()" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px;font-family:var(--font)">
-        <option value="7">Últimos 7 días</option>
-        <option value="14">Últimos 14 días</option>
-        <option value="30" selected>Últimos 30 días</option>
-        <option value="60">Últimos 60 días</option>
-        <option value="90">Últimos 90 días</option>
-        <option value="0">Todo el tiempo</option>
-        <option value="custom">📅 Rango personalizado</option>
-        <option value="dia">📌 Día específico</option>
+        <option value="hoy">📍 Hoy</option>
+        <option value="ayer">📌 Ayer</option>
+        <option value="3">📅 Últimos 3 días</option>
+        <option value="7">📅 Últimos 7 días</option>
+        <option value="30" selected>📅 Últimos 30 días</option>
+        <option value="60">📅 Últimos 60 días</option>
+        <option value="90">📅 Últimos 90 días</option>
+        <option value="dia">🚩 Día específico</option>
+        <option value="custom">↔️ Rango personalizado</option>
+        <option value="0">⏹️ Total</option>
       </select>
       <div id="global-custom-dates" style="display:none;align-items:center;gap:6px">
         <input type="date" id="global-desde" onchange="renderGlobal()" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px">
@@ -1183,16 +1185,38 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   <div id="imp-tab-importar">
 
   <!-- SYNC GOOGLE SHEETS -->
-  <div style="margin-bottom:20px;padding:16px 18px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius);display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap">
-    <div style="display:flex;align-items:center;gap:12px">
-      <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#34a853,#0f9d58);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📊</div>
-      <div>
-        <div style="font-size:13px;font-weight:700;color:var(--text)">Sincronizar con Google Sheets</div>
-        <div id="sheets-sync-status" style="font-size:11px;color:var(--text3);margin-top:2px">Listo para sincronizar</div>
+  <div style="margin-bottom:20px;padding:16px 18px;background:var(--bg2);border:1px solid var(--border);border-radius:var(--radius)">
+    <div style="display:flex;align-items:center;justify-content:space-between;gap:16px;flex-wrap:wrap;margin-bottom:10px">
+      <div style="display:flex;align-items:center;gap:12px">
+        <div style="width:40px;height:40px;border-radius:10px;background:linear-gradient(135deg,#34a853,#0f9d58);display:flex;align-items:center;justify-content:center;font-size:20px;flex-shrink:0">📊</div>
+        <div>
+          <div style="font-size:13px;font-weight:700;color:var(--text)">Sincronizar con Google Sheets</div>
+          <div id="sheets-sync-status" style="font-size:11px;color:var(--text3);margin-top:2px">Listo para sincronizar</div>
+        </div>
       </div>
+      <span style="font-size:10px;color:var(--text3)">El Sheet se configura en cada Fuente →&nbsp;<a href="#" onclick="impTab('ajustes');return false" style="color:var(--accent)">Ajustes</a></span>
     </div>
     <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-      <span style="font-size:10px;color:var(--text3)">El Sheet se configura en cada Fuente →&nbsp;<a href="#" onclick="impTab('ajustes');return false" style="color:var(--accent)">Ajustes</a></span>
+      <select id="sheets-sync-periodo" onchange="onSheetsSyncPeriodo()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px;font-family:var(--font)">
+        <option value="hoy">📍 Hoy</option>
+        <option value="ayer">📌 Ayer</option>
+        <option value="3" selected>📅 Últimos 3 días</option>
+        <option value="7">📅 Últimos 7 días</option>
+        <option value="30">📅 Últimos 30 días</option>
+        <option value="60">📅 Últimos 60 días</option>
+        <option value="90">📅 Últimos 90 días</option>
+        <option value="dia">🚩 Día específico</option>
+        <option value="custom">↔️ Rango personalizado</option>
+        <option value="0">⏹️ Total</option>
+      </select>
+      <div id="sheets-sync-custom" style="display:none;gap:6px;align-items:center">
+        <input type="date" id="sheets-sync-desde" style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:5px 8px;color:var(--text);font-size:12px">
+        <span style="color:var(--text3);font-size:11px">→</span>
+        <input type="date" id="sheets-sync-hasta" style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:5px 8px;color:var(--text);font-size:12px">
+      </div>
+      <div id="sheets-sync-dia-div" style="display:none">
+        <input type="date" id="sheets-sync-dia" style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:5px 8px;color:var(--text);font-size:12px">
+      </div>
       <button id="btn-sheets-sync" onclick="syncGoogleSheets()" style="background:linear-gradient(135deg,#34a853,#0f9d58);color:#fff;border:none;border-radius:10px;padding:10px 22px;font-size:13px;font-weight:700;cursor:pointer;display:flex;align-items:center;gap:8px;white-space:nowrap;transition:opacity 0.2s">
         <span id="sheets-sync-icon">⚡</span>
         <span id="sheets-sync-label">Sincronizar ahora</span>
@@ -1294,12 +1318,35 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   <!-- Selector de fechas y botón principal -->
   <div style="display:flex;gap:10px;align-items:flex-end;flex-wrap:wrap;margin-bottom:12px">
     <div class="field">
-      <label>Desde</label>
-      <input type="date" id="meta-api-desde" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:7px 10px;color:var(--text);font-size:12px">
+      <label>Período</label>
+      <select id="meta-api-periodo" onchange="onMetaAPIPeriodo()" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:7px 10px;color:var(--text);font-size:12px;font-family:var(--font)">
+        <option value="hoy">📍 Hoy</option>
+        <option value="ayer">📌 Ayer</option>
+        <option value="3">📅 Últimos 3 días</option>
+        <option value="7" selected>📅 Últimos 7 días</option>
+        <option value="30">📅 Últimos 30 días</option>
+        <option value="60">📅 Últimos 60 días</option>
+        <option value="90">📅 Últimos 90 días</option>
+        <option value="dia">🚩 Día específico</option>
+        <option value="custom">↔️ Rango personalizado</option>
+        <option value="0">⏹️ Total</option>
+      </select>
     </div>
-    <div class="field">
-      <label>Hasta</label>
-      <input type="date" id="meta-api-hasta" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:7px 10px;color:var(--text);font-size:12px">
+    <div id="meta-api-custom-dates" style="display:none;gap:10px;align-items:flex-end">
+      <div class="field">
+        <label>Desde</label>
+        <input type="date" id="meta-api-desde" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:7px 10px;color:var(--text);font-size:12px">
+      </div>
+      <div class="field">
+        <label>Hasta</label>
+        <input type="date" id="meta-api-hasta" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:7px 10px;color:var(--text);font-size:12px">
+      </div>
+    </div>
+    <div id="meta-api-dia-div" style="display:none">
+      <div class="field">
+        <label>Día</label>
+        <input type="date" id="meta-api-dia" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:7px 10px;color:var(--text);font-size:12px">
+      </div>
     </div>
     <button class="btn btn-primary" id="btn-meta-api" onclick="fetchMetaAdsAPI()">
       <span id="meta-api-icon">📡</span> <span id="meta-api-label">Descargar desde Meta API</span>
@@ -3389,6 +3436,11 @@ async function syncGoogleSheets() {
     return;
   }
 
+  const { desde: syncDesde, hasta: syncHasta } = rangoDe(
+    document.getElementById('sheets-sync-periodo')?.value || '3',
+    'sheets-sync-dia', 'sheets-sync-desde', 'sheets-sync-hasta'
+  );
+
   btn.disabled = true;
   btn.style.opacity = '0.7';
   icon.textContent  = '⏳';
@@ -3401,7 +3453,7 @@ async function syncGoogleSheets() {
     for (const job of jobs) {
       label.textContent  = `Leyendo ${job.nombre}...`;
       status.textContent = `Conectando con Google Sheets (${job.nombre})...`;
-      const r = await _syncOneSheet(job, { status, label });
+      const r = await _syncOneSheet(job, { status, label }, syncDesde, syncHasta);
       totVentas += r.ventas; totRegs += r.registros; totCrm += r.crm;
       r.wsIds.forEach(id => totWs.add(id));
     }
@@ -3441,7 +3493,7 @@ async function syncGoogleSheets() {
 }
 
 // Procesa UN Sheet, enrutando filas solo entre los workspaces de su fuente
-async function _syncOneSheet(job, ui) {
+async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
   const { status, label } = ui;
   const sheetIdMatch = job.url.match(/\/d\/([a-zA-Z0-9_-]+)/);
   const sheetId = sheetIdMatch ? sheetIdMatch[1] : job.url;
@@ -3456,11 +3508,12 @@ async function _syncOneSheet(job, ui) {
     const allRows = _parseSheetCSV(csvText);
     if (!allRows.length) throw new Error('Sheet vacío o sin datos válidos');
 
-    // ── Filtro de fecha: solo procesar últimos 90 días (escalabilidad) ──
-    const fechaMinima = nDaysAgo(90);
-    const allRowsRecientes = allRows.filter(r => r.fecha >= fechaMinima);
+    // ── Filtro de fecha según el rango elegido por el usuario ──
+    const fechaMinima = syncDesde || nDaysAgo(90);
+    const fechaMaxima = syncHasta || today();
+    const allRowsRecientes = allRows.filter(r => r.fecha >= fechaMinima && r.fecha <= fechaMaxima);
 
-    status.textContent = `Procesando ${allRowsRecientes.length} ventas (últimos 90 días)...`;
+    status.textContent = `Procesando ${allRowsRecientes.length} ventas (${fechaMinima} → ${fechaMaxima})...`;
     label.textContent = 'Procesando...';
 
     // ── 3. Build map de Ad ID → workspace y nombres de workspaces ──
@@ -8147,7 +8200,7 @@ function nDaysAgo(n){
 }
 
 // ── Filtros de fecha unificados (Fase B) ──
-const PERIODO_OPTS = `<option value="hoy">📍 Hoy</option><option value="ayer">📌 Ayer</option><option value="3">📅 Últimos 3 días</option><option value="7">📅 Últimos 7 días</option><option value="30" selected>📅 Últimos 30 días</option><option value="60">📅 Últimos 60 días</option><option value="90">📅 Últimos 90 días</option><option value="dia">🚩 Día específico</option><option value="custom">↔️ Rango personalizado</option>`;
+const PERIODO_OPTS = `<option value="hoy">📍 Hoy</option><option value="ayer">📌 Ayer</option><option value="3">📅 Últimos 3 días</option><option value="7">📅 Últimos 7 días</option><option value="30" selected>📅 Últimos 30 días</option><option value="60">📅 Últimos 60 días</option><option value="90">📅 Últimos 90 días</option><option value="dia">🚩 Día específico</option><option value="custom">↔️ Rango personalizado</option><option value="0">⏹️ Total</option>`;
 // Resuelve {desde,hasta} desde el valor del select + ids de los inputs día/desde/hasta
 function rangoDe(val, diaId, desdeId, hastaId){
   const h = today();
@@ -11353,11 +11406,37 @@ function getMetaCuentas() {
   try { return JSON.parse(localStorage.getItem('meta_api_cuentas') || '[]'); } catch(e) { return []; }
 }
 
-function loadMetaApiConfig() {
-  if (!document.getElementById('meta-api-desde').value) {
-    document.getElementById('meta-api-desde').value = nDaysAgo(7);
-    document.getElementById('meta-api-hasta').value = today();
+function onSheetsSyncPeriodo() {
+  const val = document.getElementById('sheets-sync-periodo')?.value;
+  const cd  = document.getElementById('sheets-sync-custom');
+  const dd  = document.getElementById('sheets-sync-dia-div');
+  if (cd) cd.style.display = val === 'custom' ? 'flex' : 'none';
+  if (dd) dd.style.display = val === 'dia'    ? 'block' : 'none';
+  if (val === 'custom') {
+    if (!document.getElementById('sheets-sync-desde').value) document.getElementById('sheets-sync-desde').value = nDaysAgo(30);
+    if (!document.getElementById('sheets-sync-hasta').value) document.getElementById('sheets-sync-hasta').value = today();
   }
+  if (val === 'dia') {
+    if (!document.getElementById('sheets-sync-dia').value) document.getElementById('sheets-sync-dia').value = today();
+  }
+}
+
+function onMetaAPIPeriodo() {
+  const val = document.getElementById('meta-api-periodo')?.value;
+  const cd  = document.getElementById('meta-api-custom-dates');
+  const dd  = document.getElementById('meta-api-dia-div');
+  if (cd) cd.style.display = val === 'custom' ? 'flex' : 'none';
+  if (dd) dd.style.display = val === 'dia'    ? 'block' : 'none';
+  if (val === 'custom') {
+    if (!document.getElementById('meta-api-desde').value) document.getElementById('meta-api-desde').value = nDaysAgo(7);
+    if (!document.getElementById('meta-api-hasta').value) document.getElementById('meta-api-hasta').value = today();
+  }
+  if (val === 'dia') {
+    if (!document.getElementById('meta-api-dia').value) document.getElementById('meta-api-dia').value = today();
+  }
+}
+
+function loadMetaApiConfig() {
   // Mostrar estado de credenciales según las Fuentes configuradas
   const est = document.getElementById('meta-api-fuentes-estado');
   if (est) {
@@ -11377,9 +11456,11 @@ function loadMetaApiConfig() {
 let metaAPIData = [];
 
 async function fetchMetaAdsAPI() {
-  const tc      = parseFloat(localStorage.getItem('meta_api_tc') || '1') || 1;
-  const desde   = document.getElementById('meta-api-desde').value;
-  const hasta   = document.getElementById('meta-api-hasta').value;
+  const tc = parseFloat(localStorage.getItem('meta_api_tc') || '1') || 1;
+  const { desde, hasta } = rangoDe(
+    document.getElementById('meta-api-periodo')?.value || '7',
+    'meta-api-dia', 'meta-api-desde', 'meta-api-hasta'
+  );
 
   // Cuentas por fuente (cada una con su token). Sin fuentes → config legado.
   const fuentesMeta = (DB.fuentes || []).filter(f => f.meta_token && Array.isArray(f.meta_cuentas) && f.meta_cuentas.length);
@@ -11395,7 +11476,7 @@ async function fetchMetaAdsAPI() {
   }
 
   if (!cuentas.length) { showError('Agrega cuentas publicitarias a tu Fuente (panel 🤖 Fuentes)'); return; }
-  if (!desde || !hasta){ showError('Selecciona el rango de fechas'); return; }
+  if (!desde || !hasta){ showError('No se pudo resolver el rango de fechas'); return; }
 
   const btn   = document.getElementById('btn-meta-api');
   const icon  = document.getElementById('meta-api-icon');
