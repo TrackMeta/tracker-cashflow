@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("ADMIN_SERVICE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // Marcador de versión: aparece en cada respuesta JSON. Si no aparece, el deploy es viejo.
-const FN_VERSION = "2026-06-14-sched-noauth";
+const FN_VERSION = "2026-06-14-bot-pago";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -327,11 +327,11 @@ async function procesarUsuario(userId: string, conMeta: boolean, sheetDays = 5) 
     if (ws) { const al = await consolidar(wsId, ws).catch(() => [] as string[]); alertas.push(...al); }
   }
 
-  // ⏰ Recordatorio diario de token de Meta
-  // Se incluye en alertas si quedan ≤30 días. La gravedad aumenta conforme se acerca la fecha.
-  if (conMeta) {
-    for (const f of (fuentes || [])) {
-      if (!f.meta_token) continue;
+  // ⏰ Recordatorios diarios por fuente: token de Meta (≤30 días) y pago del bot (≤7 días).
+  // La gravedad aumenta conforme se acerca la fecha.
+  for (const f of (fuentes || [])) {
+    // Token de Meta por caducar
+    if (conMeta && f.meta_token) {
       try {
         const r = await fetch(`https://graph.facebook.com/v19.0/debug_token?input_token=${f.meta_token}&access_token=${f.meta_token}`);
         const jd = await r.json();
@@ -340,10 +340,16 @@ async function procesarUsuario(userId: string, conMeta: boolean, sheetDays = 5) 
           const dias = Math.ceil((exp * 1000 - Date.now()) / 86400000);
           if (dias >= 0 && dias <= 30) {
             const urgencia = dias <= 3 ? "🔴 *URGENTE*" : dias <= 7 ? "🟡 *ATENCIÓN*" : "⏰ *Aviso*";
-            alertas.push(`${urgencia} — Token de Meta por caducar · ${f.emoji || "🤖"} ${f.nombre}\nExpira en *${dias} día(s)*. Genera uno nuevo en Meta Business → Sistema → Usuarios → Token, y actualízalo en Ajustes → Fuentes antes de que venza.`);
+            alertas.push(`${urgencia} — El *token de Meta* de ${f.emoji || "🤖"} ${f.nombre} caduca en *${dias} día(s)*.\nGenera uno nuevo en Meta Business → Sistema → Usuarios → Token, y actualízalo en Ajustes → Fuentes antes de que venza, o el gasto dejará de sincronizar.`);
           }
         }
       } catch (_) { /* */ }
+    }
+    // Pago del bot (mensual) por vencer
+    const pago = nextDueDate(f.pago_vence);
+    if (pago && pago.dias >= 0 && pago.dias <= 7) {
+      const urgencia = pago.dias <= 2 ? "🔴 *URGENTE*" : pago.dias <= 5 ? "🟡 *ATENCIÓN*" : "⏰ *Aviso*";
+      alertas.push(`${urgencia} — El *pago del bot* ${f.emoji || "🤖"} ${f.nombre} vence en *${pago.dias} día(s)* (${pago.date}).\nRenuévalo antes para no perder el servicio del bot.`);
     }
   }
   return { userId, ventas: totVentas, workspaces: wsTouched.size, alertas };
@@ -404,6 +410,19 @@ const fUsd = (n: number) => `$ ${(+n || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\
 const fRoas = (n: number) => isFinite(n) && n > 0 ? `${n.toFixed(2)}x` : "—";
 const diaPeru = (off = 0) => { const d = new Date(Date.now() - 5 * 3600 * 1000); d.setUTCDate(d.getUTCDate() + off); return d.toISOString().slice(0, 10); };
 const lunesDe = (fechaStr: string) => { const d = new Date(fechaStr + "T12:00:00Z"); const dow = (d.getUTCDay() + 6) % 7; d.setUTCDate(d.getUTCDate() - dow); return d.toISOString().slice(0, 10); };
+// Fecha de pago del bot (mensual recurrente): rueda la fecha base mes a mes hasta
+// que sea >= hoy. Así el usuario la fija una vez y se renueva sola cada mes.
+function nextDueDate(venceStr: string | null | undefined): { date: string; dias: number } | null {
+  if (!venceStr) return null;
+  const base = new Date(venceStr + "T12:00:00Z");
+  if (isNaN(base.getTime())) return null;
+  const now = new Date();
+  const d = new Date(base);
+  let guard = 0;
+  while (d.getTime() < now.getTime() && guard < 600) { d.setUTCMonth(d.getUTCMonth() + 1); guard++; }
+  const dias = Math.ceil((d.getTime() - now.getTime()) / 86400000);
+  return { date: d.toISOString().slice(0, 10), dias };
+}
 
 async function tgSend(token: string, chatId: string, text: string, keyboard?: any[]) {
   const body: any = { chat_id: chatId, text, parse_mode: "Markdown", disable_web_page_preview: true };
@@ -452,12 +471,24 @@ async function reportData(userId: string, desde: string, hasta: string) {
   return { perWs, fuenteName };
 }
 
+// Moneda local para el global: la del producto (no USD) con más ingresos.
+function dispCurrency(perWs: any[]): { code: string; rate: number } | null {
+  const cands = perWs.filter((w: any) => w.ws.currency_code && w.ws.currency_code !== "USD")
+    .sort((a: any, b: any) => (b.ing / b.rate) - (a.ing / a.rate));
+  return cands.length ? { code: cands[0].ws.currency_code, rate: cands[0].rate } : null;
+}
+
 function formatReport(titulo: string, periodoTxt: string, data: any) {
   const { perWs, fuenteName } = data;
   let gInv = 0, gIng = 0, gProf = 0, gVen = 0, prov = 0;
   perWs.forEach((w: any) => { gInv += w.inv / w.rate; gIng += w.ing / w.rate; gProf += w.profit / w.rate; gVen += w.ventas; prov += w.prov; });
   const gRoas = gInv > 0 ? gIng / gInv : 0, gRoi = gInv > 0 ? gProf / gInv * 100 : 0;
-  let msg = `${titulo}\n_${periodoTxt}_\n\n🌍 *GLOBAL (USD)*\nInversión ${fUsd(gInv)} · Ingresos ${fUsd(gIng)}\n*Profit ${fUsd(gProf)}* · ROAS ${fRoas(gRoas)} · ROI ${gRoi.toFixed(1)}%\nVentas ${gVen}`;
+  // Doble moneda en el global: USD consolidado + moneda local del usuario
+  const dc = dispCurrency(perWs);
+  const localLine = dc
+    ? `\n💱 En ${dc.code}: Inv ${fMoney(gInv * dc.rate, dc.code)} · Ing ${fMoney(gIng * dc.rate, dc.code)} · *Profit ${fMoney(gProf * dc.rate, dc.code)}*`
+    : "";
+  let msg = `${titulo}\n_${periodoTxt}_\n\n🌍 *GLOBAL (USD)*\nInversión ${fUsd(gInv)} · Ingresos ${fUsd(gIng)}\n*Profit ${fUsd(gProf)}* · ROAS ${fRoas(gRoas)} · ROI ${gRoi.toFixed(1)}%\nVentas ${gVen}${localLine}`;
   const byF: Record<string, any[]> = {};
   perWs.forEach((w: any) => { const k = w.ws.fuente_id || "_"; (byF[k] = byF[k] || []).push(w); });
   const multi = Object.keys(byF).length > 1;
@@ -476,26 +507,37 @@ function formatReport(titulo: string, periodoTxt: string, data: any) {
 }
 
 // Envía el reporte de un slot tras la sync programada
-// Genera una línea de estado del token de Meta para incluir en reportes
+// Genera líneas de estado (token de Meta + pago del bot) para el reporte de la mañana
 async function tokenStatusLine(userId: string): Promise<string> {
   const fuentes = await sb("GET", `fuentes?user_id=eq.${userId}`).catch(() => []);
-  const lines: string[] = [];
+  const tokLines: string[] = [];
+  const pagoLines: string[] = [];
   for (const f of (fuentes || [])) {
-    if (!f.meta_token) continue;
-    try {
-      const r = await fetch(`https://graph.facebook.com/v19.0/debug_token?input_token=${f.meta_token}&access_token=${f.meta_token}`);
-      const jd = await r.json();
-      const exp = jd?.data?.expires_at;
-      if (!exp || exp === 0) {
-        lines.push(`🟢 ${f.emoji || "🤖"} ${f.nombre}: sin caducidad`);
-      } else {
-        const dias = Math.ceil((exp * 1000 - Date.now()) / 86400000);
-        const icon = dias <= 3 ? "🔴" : dias <= 7 ? "🟡" : dias <= 30 ? "🟠" : "🟢";
-        lines.push(`${icon} ${f.emoji || "🤖"} ${f.nombre}: *${dias}d* restantes`);
-      }
-    } catch (_) { lines.push(`⚠️ ${f.emoji || "🤖"} ${f.nombre}: no verificado`); }
+    const nom = `${f.emoji || "🤖"} ${f.nombre}`;
+    if (f.meta_token) {
+      try {
+        const r = await fetch(`https://graph.facebook.com/v19.0/debug_token?input_token=${f.meta_token}&access_token=${f.meta_token}`);
+        const jd = await r.json();
+        const exp = jd?.data?.expires_at;
+        if (!exp || exp === 0) {
+          tokLines.push(`🟢 ${nom}: sin caducidad`);
+        } else {
+          const dias = Math.ceil((exp * 1000 - Date.now()) / 86400000);
+          const icon = dias <= 3 ? "🔴" : dias <= 7 ? "🟡" : dias <= 30 ? "🟠" : "🟢";
+          tokLines.push(`${icon} ${nom}: *${dias}d*`);
+        }
+      } catch (_) { tokLines.push(`⚠️ ${nom}: no verificado`); }
+    }
+    const pago = nextDueDate(f.pago_vence);
+    if (pago) {
+      const icon = pago.dias <= 2 ? "🔴" : pago.dias <= 5 ? "🟡" : pago.dias <= 7 ? "🟠" : "🟢";
+      pagoLines.push(`${icon} ${nom}: *${pago.dias}d* (${pago.date})`);
+    }
   }
-  return lines.length ? `\n\n🔑 *Token Meta:* ${lines.join(" · ")}` : "";
+  let out = "";
+  if (tokLines.length)  out += `\n\n🔑 *Token Meta:* ${tokLines.join(" · ")}`;
+  if (pagoLines.length) out += `\n💳 *Pago del bot:* ${pagoLines.join(" · ")}`;
+  return out;
 }
 
 async function enviarReporteSlot(cfg: any, slot: "noche" | "manana") {
@@ -514,7 +556,7 @@ async function enviarReporteSlot(cfg: any, slot: "noche" | "manana") {
   }
 }
 
-const AYUDA = `🤖 *Comandos de Tracker Pro*\n\n🔄 /sync — sincronizar ahora (últimos 5 días)\n🔍 /estado — ver tokens Meta + horarios del auto-sync\n\n📊 *Reportes:*\n/hoy · /ayer · /año\n/semana — semana actual\n/semana DD/MM — semana de esa fecha\n/mes — mes actual\n/mes mayo · /mes 05/2025 — mes específico\n/dia DD/MM — un día (año actual)\n/dia DD/MM/AAAA — un día con año\n\n🔎 *Detalle:*\n/producto <nombre> — un producto\n/bot <nombre> — una fuente/bot\n/mejores — top y peores anuncios (7 días)\n/pendientes — días provisionales + ventas sin verificar\n\n_Recibes el cierre nocturno y el buenos días automáticamente, más alertas de cambio de signo, récords y rachas._`;
+const AYUDA = `🤖 *Comandos de Tracker Pro*\n\n🔄 /sync — sincronizar ahora (últimos 5 días)\n🔍 /estado — tokens Meta, pago de bots y horarios del auto-sync\n\n📊 *Reportes:*\n/hoy · /ayer · /año\n/semana — semana actual\n/semana DD/MM — semana de esa fecha\n/mes — mes actual\n/mes mayo · /mes 05/2025 — mes específico\n/dia DD/MM — un día (año actual)\n/dia DD/MM/AAAA — un día con año\n\n🔎 *Detalle:*\n/producto <nombre> — un producto\n/bot <nombre> — una fuente/bot\n/mejores — top y peores anuncios (7 días)\n/pendientes — días provisionales + ventas sin verificar\n\n_Recibes el cierre nocturno y el buenos días automáticamente, más alertas de cambio de signo, récords y rachas._`;
 
 // /pendientes — días provisionales + ventas sin verificar
 async function cmdPendientes(userId: string) {
@@ -590,24 +632,36 @@ async function tgRunCommand(userId: string, cfg: any, chatId: string, cmd: strin
     if (syncCfg?.ultima_noche)  msg += `Última noche: ${syncCfg.ultima_noche}\n`;
     if (syncCfg?.ultima_manana) msg += `Última mañana: ${syncCfg.ultima_manana}\n`;
     msg += "\n";
-    // Tokens de Meta por fuente
+    // Por cada fuente (bot): token de Meta + vencimiento del pago del bot
     for (const f of (fuentes || [])) {
-      if (!f.meta_token) continue;
-      try {
-        const r = await fetch(`https://graph.facebook.com/v19.0/debug_token?input_token=${f.meta_token}&access_token=${f.meta_token}`);
-        const jd = await r.json();
-        const exp = jd?.data?.expires_at;
-        if (!exp || exp === 0) {
-          msg += `🟢 *${f.nombre}* — token sin caducidad (sistema)\n`;
-        } else {
-          const dias = Math.ceil((exp * 1000 - Date.now()) / 86400000);
-          const icon = dias <= 3 ? "🔴" : dias <= 7 ? "🟡" : "🟢";
-          const expDate = new Date(exp * 1000).toISOString().slice(0, 10);
-          msg += `${icon} *${f.nombre}* — expira en *${dias} día(s)* (${expDate})\n`;
-        }
-      } catch (_) { msg += `⚠️ *${f.nombre}* — no se pudo verificar\n`; }
+      msg += `🤖 *${f.nombre}*\n`;
+      // Token de Meta
+      if (!f.meta_token) {
+        msg += `   🔑 Token: _sin configurar_\n`;
+      } else {
+        try {
+          const r = await fetch(`https://graph.facebook.com/v19.0/debug_token?input_token=${f.meta_token}&access_token=${f.meta_token}`);
+          const jd = await r.json();
+          const exp = jd?.data?.expires_at;
+          if (!exp || exp === 0) {
+            msg += `   🟢 Token: sin caducidad (sistema)\n`;
+          } else {
+            const dias = Math.ceil((exp * 1000 - Date.now()) / 86400000);
+            const icon = dias <= 3 ? "🔴" : dias <= 7 ? "🟡" : dias <= 30 ? "🟠" : "🟢";
+            const expDate = new Date(exp * 1000).toISOString().slice(0, 10);
+            msg += `   ${icon} Token: caduca en *${dias} día(s)* (${expDate})\n`;
+          }
+        } catch (_) { msg += `   ⚠️ Token: no se pudo verificar\n`; }
+      }
+      // Vencimiento del pago del bot (mensual)
+      const pago = nextDueDate(f.pago_vence);
+      if (pago) {
+        const icon = pago.dias <= 2 ? "🔴" : pago.dias <= 5 ? "🟡" : pago.dias <= 7 ? "🟠" : "🟢";
+        msg += `   ${icon} Pago del bot: vence en *${pago.dias} día(s)* (${pago.date})\n`;
+      }
+      msg += "\n";
     }
-    if (!(fuentes || []).some((f: any) => f.meta_token)) msg += "_Ninguna fuente tiene token de Meta._\n";
+    if (!(fuentes || []).length) msg += "_No tienes fuentes (bots) configuradas._\n";
     await tgSend(cfg.tg_token, chatId, msg);
     return;
   }

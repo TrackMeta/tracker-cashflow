@@ -2245,6 +2245,12 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <textarea id="fuente-cuentas" rows="4" placeholder="act_123456789&#10;act_987654321" style="font-family:var(--mono);font-size:11px;resize:vertical"></textarea>
       <div style="font-size:10px;color:var(--text3);margin-top:3px">Pega cada ID de cuenta publicitaria en su propia línea.</div>
     </div>
+    <div class="modal-section" style="margin-top:16px">💳 Pago del bot (mensual)</div>
+    <div class="field">
+      <label>Fecha de vencimiento del pago</label>
+      <input type="date" id="fuente-pago-vence">
+      <div style="font-size:10px;color:var(--text3);margin-top:3px">Se renueva sola cada mes. Telegram te avisa cuando se acerca (🟠 7d · 🟡 5d · 🔴 2d). Déjalo vacío si no aplica.</div>
+    </div>
     <input type="hidden" id="fuente-edit-id" value="">
     <div style="display:flex;justify-content:space-between;gap:8px;margin-top:14px">
       <button class="btn btn-red btn-sm" id="fuente-delete-btn" style="display:none" onclick="deleteFuente()">🗑️ Eliminar</button>
@@ -7693,6 +7699,17 @@ function impTab(t) {
   document.getElementById('imp-tab-btn-ajustes').classList.toggle('active', t === 'ajustes');
 }
 
+// Fecha de pago del bot (mensual recurrente): rueda mes a mes hasta hoy.
+function nextDueDateJS(venceStr) {
+  if (!venceStr) return null;
+  const base = new Date(venceStr + 'T12:00:00');
+  if (isNaN(base.getTime())) return null;
+  const now = new Date(); const d = new Date(base); let guard = 0;
+  while (d.getTime() < now.getTime() && guard < 600) { d.setMonth(d.getMonth() + 1); guard++; }
+  const dias = Math.ceil((d.getTime() - now.getTime()) / 86400000);
+  return { date: d.toISOString().slice(0, 10), dias };
+}
+
 function renderFuentesPanel() {
   const lista = document.getElementById('fuentes-lista');
   if (!lista) return;
@@ -7704,6 +7721,12 @@ function renderFuentesPanel() {
   lista.innerHTML = fuentes.map(f => {
     const nProds  = DB.workspaces.filter(w => w.fuente_id === f.id).length;
     const cuentas = Array.isArray(f.meta_cuentas) ? f.meta_cuentas : [];
+    const pago = nextDueDateJS(f.pago_vence);
+    let pagoChip = '';
+    if (pago) {
+      const col = pago.dias <= 2 ? 'var(--red)' : pago.dias <= 5 ? 'var(--orange)' : pago.dias <= 7 ? '#d97706' : 'var(--text3)';
+      pagoChip = ` · <span style="color:${col};font-weight:600">💳 pago en ${pago.dias}d</span>`;
+    }
     return `
     <div style="display:flex;align-items:center;gap:12px;padding:10px 14px;background:var(--bg3);border:1px solid var(--border);border-radius:var(--radius-sm)">
       <span style="font-size:20px">${f.emoji || '🤖'}</span>
@@ -7713,7 +7736,7 @@ function renderFuentesPanel() {
           ${f.sheets_url ? '📊 Sheet conectado' : '⚠️ Sin Sheet'} ·
           ${f.meta_token ? '🔑 Token Meta' : '⚠️ Sin token'} ·
           ${cuentas.length} cuenta${cuentas.length === 1 ? '' : 's'} ·
-          ${nProds} producto${nProds === 1 ? '' : 's'}
+          ${nProds} producto${nProds === 1 ? '' : 's'}${pagoChip}
         </div>
       </div>
       <button class="btn btn-ghost btn-sm" onclick="editFuente('${f.id}')">✏️ Editar</button>
@@ -7728,6 +7751,7 @@ function openNuevaFuente() {
   document.getElementById('fuente-sheet').value   = '';
   document.getElementById('fuente-token').value   = '';
   document.getElementById('fuente-cuentas').value = '';
+  document.getElementById('fuente-pago-vence').value = '';
   document.getElementById('fuente-edit-id').value = '';
   document.getElementById('fuente-delete-btn').style.display = 'none';
   openModal('modal-fuente');
@@ -7743,6 +7767,7 @@ function editFuente(id) {
   document.getElementById('fuente-token').value   = f.meta_token || '';
   document.getElementById('fuente-cuentas').value = (Array.isArray(f.meta_cuentas) ? f.meta_cuentas : [])
     .map(c => c.id || c).join('\n');
+  document.getElementById('fuente-pago-vence').value = f.pago_vence || '';
   document.getElementById('fuente-edit-id').value = id;
   document.getElementById('fuente-delete-btn').style.display = 'inline-flex';
   openModal('modal-fuente');
@@ -7760,6 +7785,7 @@ async function saveFuente() {
     sheets_url: document.getElementById('fuente-sheet').value.trim(),
     meta_token: document.getElementById('fuente-token').value.trim(),
     meta_cuentas: cuentas,
+    pago_vence: document.getElementById('fuente-pago-vence').value || null,
   };
   const editId = document.getElementById('fuente-edit-id').value;
   try {
