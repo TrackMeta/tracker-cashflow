@@ -7854,8 +7854,20 @@ async function forzarSyncAhora() {
     });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) {
-      est.textContent = `❌ ${res.status}: ${data.error || data.message || 'Error en la función'}`;
+      // Ping de diagnóstico para saber si el deploy es viejo o si es problema de token
+      let diag = '';
+      try {
+        const p = await fetch(`${SUPABASE_URL}/functions/v1/auto-sync`, {
+          method: 'POST', headers: { ...api._h(), 'Content-Type': 'application/json' },
+          body: JSON.stringify({ ping: true })
+        });
+        const pd = await p.json().catch(() => ({}));
+        if (!pd.version) diag = ' · ⚠️ Edge Function NO redesplegada (falta `supabase functions deploy auto-sync`)';
+        else { diag = ` · fn ${pd.version}`; if (!pd.hasServiceKey) diag += ' · ⚠️ falta SERVICE_KEY en el entorno'; }
+      } catch(_) {}
+      est.textContent = `❌ ${res.status}: ${data.error || data.message || 'Error'}${diag}`;
       est.style.color = 'var(--red)';
+      console.warn('forzarSync error', res.status, data, diag);
       return;
     }
     const ventas = data.ventas ?? (data.resumen ? data.resumen.reduce((s,r) => s + (+r.ventas||0), 0) : 0);

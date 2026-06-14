@@ -10,6 +10,8 @@
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("ADMIN_SERVICE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
+// Marcador de versión: aparece en cada respuesta JSON. Si no aparece, el deploy es viejo.
+const FN_VERSION = "2026-06-14-jwt-diag";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -720,30 +722,53 @@ Deno.serve(async (req) => {
     return json({ ok: true });
   }
 
+  // ── Ping de diagnóstico (sin auth): confirma versión + presencia de claves ──
+  // Solo devuelve booleanos, nunca el valor de las claves.
+  if (body.ping) {
+    return json({
+      ok: true, version: FN_VERSION,
+      hasServiceKey: !!SERVICE_KEY,
+      hasAutosyncSecret: !!AUTOSYNC_SECRET,
+      supabaseUrl: !!SUPABASE_URL,
+    });
+  }
+
   // ── Path A: JWT del usuario (botón "Forzar sync" desde la app) ──
   // El usuario solo puede disparar su propio sync — verificamos la identidad con Supabase Auth.
-  const userJwt = (req.headers.get("Authorization") || "").replace("Bearer ", "");
-  if (userJwt && userJwt !== SERVICE_KEY && !body.scheduled) {
+  const authHeader = req.headers.get("Authorization") || "";
+  const userJwt = authHeader.replace(/^Bearer\s+/i, "").trim();
+  // Es JWT de usuario si tiene 3 segmentos (header.payload.firma) y no es la service key.
+  const looksLikeJwt = userJwt.split(".").length === 3 && userJwt !== SERVICE_KEY;
+  if (looksLikeJwt && !body.scheduled) {
+    let userRes: Response;
     try {
-      const userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
+      userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
         headers: { apikey: SERVICE_KEY, Authorization: `Bearer ${userJwt}` },
       });
-      if (userRes.ok) {
-        const user = await userRes.json();
-        if (user?.id) {
-          const conMeta   = body.meta !== false;
-          const sheetDays = typeof body.days === "number" ? body.days : 5;
-          const r = await procesarUsuario(user.id, conMeta, sheetDays);
-          return json({ ok: true, ...r });
-        }
-      }
-    } catch (_) { /* JWT inválido o expirado — caer al auth por secreto */ }
+    } catch (e) {
+      return json({ error: "No se pudo validar el token con Supabase Auth: " + String((e as Error)?.message || e), version: FN_VERSION }, 502);
+    }
+    if (!userRes.ok) {
+      const txt = await userRes.text().catch(() => "");
+      // Token expirado u otra causa — devolvemos el motivo real, no un 401 genérico.
+      return json({ error: `Token de usuario rechazado por Auth (${userRes.status}). Cierra sesión y vuelve a entrar. ${txt.slice(0, 200)}`, version: FN_VERSION }, 401);
+    }
+    const user = await userRes.json().catch(() => null);
+    if (!user?.id) return json({ error: "El token es válido pero no trae user.id", version: FN_VERSION }, 401);
+    try {
+      const conMeta   = body.meta !== false;
+      const sheetDays = typeof body.days === "number" ? body.days : 5;
+      const r = await procesarUsuario(user.id, conMeta, sheetDays);
+      return json({ ok: true, version: FN_VERSION, ...r });
+    } catch (e) {
+      return json({ error: String((e as Error)?.message || e), version: FN_VERSION }, 500);
+    }
   }
 
   // ── Path B: secreto compartido (cron) o service role ──
   const secret = req.headers.get("x-autosync-secret") || "";
   if (AUTOSYNC_SECRET && secret !== AUTOSYNC_SECRET && userJwt !== SERVICE_KEY)
-    return json({ error: "No autorizado" }, 401);
+    return json({ error: "No autorizado (sin secreto válido ni JWT de usuario)", version: FN_VERSION }, 401);
 
   try {
     // Modo programado (lo invoca el cron cada 15 min)
