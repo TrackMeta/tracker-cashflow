@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("ADMIN_SERVICE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // Marcador de versión: aparece en cada respuesta JSON. Si no aparece, el deploy es viejo.
-const FN_VERSION = "2026-06-14-sched-hdr";
+const FN_VERSION = "2026-06-14-sched-noauth";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -388,7 +388,7 @@ async function runScheduled() {
       await correrSlot("manana", { ultima_manana: hoy });
     }
   }
-  return json({ ok: true, scheduled: true, hora_peru: `${String(peru.getUTCHours()).padStart(2, "0")}:${String(peru.getUTCMinutes()).padStart(2, "0")}`, ejecutados, errores });
+  return json({ ok: true, scheduled: true, version: FN_VERSION, hora_peru: `${String(peru.getUTCHours()).padStart(2, "0")}:${String(peru.getUTCMinutes()).padStart(2, "0")}`, ejecutados, errores });
 }
 
 // ════════════════════════════════════════════════
@@ -743,6 +743,16 @@ Deno.serve(async (req) => {
     });
   }
 
+  // ── Modo programado (cron cada 15 min) — NO exige el secreto compartido ──
+  // runScheduled es idempotente y solo hace trabajo real a las horas configuradas
+  // (marca ultima_noche/ultima_manana). No expone datos: solo dispara TU propia
+  // sincronización. Por eso lo dejamos antes del control de auth, así el cron de
+  // Supabase funciona sin tener que configurarle headers de autenticación.
+  if (isScheduled) {
+    try { return await runScheduled(); }
+    catch (e) { return json({ error: String((e as Error)?.message || e), version: FN_VERSION }, 500); }
+  }
+
   // ── Path A: JWT del usuario (botón "Forzar sync" desde la app) ──
   // El usuario solo puede disparar su propio sync — verificamos la identidad con Supabase Auth.
   const authHeader = req.headers.get("Authorization") || "";
@@ -781,9 +791,7 @@ Deno.serve(async (req) => {
     return json({ error: "No autorizado (sin secreto válido ni JWT de usuario)", version: FN_VERSION }, 401);
 
   try {
-    // Modo programado (lo invoca el cron cada 15 min)
-    if (isScheduled) return await runScheduled();
-
+    // (El modo programado ya se resolvió arriba, antes del control de auth.)
     // Modo manual / directo con service role o secreto
     const conMeta   = body.meta !== false;
     const sheetDays = typeof body.days === "number" ? body.days : 90;
