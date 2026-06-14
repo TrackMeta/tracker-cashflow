@@ -2010,6 +2010,15 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div style="font-size:12px;color:var(--text3);margin-top:6px">El sistema trae tus ventas y las concilia automáticamente. Solo revisas las excepciones.</div>
   </div>
 
+  <!-- 📜 HISTORIAL -->
+  <div class="panel" id="conc-historial-panel" style="margin-top:18px">
+    <div class="panel-header"><span class="panel-title">📜 Historial de conciliaciones</span><button class="btn btn-ghost btn-sm" onclick="concCargarHistorial()">🔄 Actualizar</button></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Fecha</th><th>Periodo</th><th class="left">Archivo</th><th>Ventas</th><th>Conciliadas</th><th>%</th><th>Diferencias</th><th></th></tr></thead>
+      <tbody id="conc-hist-tbody"><tr><td colspan="8" style="text-align:center;color:var(--text3);padding:16px">Sin conciliaciones guardadas aún</td></tr></tbody>
+    </table></div>
+  </div>
+
   <!-- ⚙️ AVANZADO: cruce manual de 2 archivos -->
   <details style="margin-top:22px;border-top:1px solid var(--border);padding-top:6px">
     <summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--text2);padding:8px 0">⚙️ Cruce manual avanzado (2 archivos: CRM + banco)</summary>
@@ -8225,7 +8234,7 @@ function renderPage(page) {
   if (page==='remarketing')  renderRemarketing();
   if (page==='vida-util')    renderVidaUtil();
   if (page==='horarios')     renderHorarios();
-  if (page==='cruce-pagos')  { /* módulo autónomo, no requiere renderizado inicial */ }
+  if (page==='cruce-pagos')  { if (typeof concCargarHistorial==='function') concCargarHistorial(); if (typeof concSetPeriodo==='function') concSetPeriodo(); }
 }
 
 // ════════════════════════════════════════════════
@@ -12930,7 +12939,7 @@ init();
     concRender();
   };
 
-  // Persistir estado_verif en la BD (por lotes)
+  // Persistir estado_verif en la BD (por lotes) + registrar en el historial
   window.concGuardar = async function(){
     const map = { verificada:'verificada', parcial:'monto_difiere', sin_match:'fantasma', revision:'revision', pendiente:'pendiente' };
     const nowISO=new Date().toISOString();
@@ -12944,8 +12953,55 @@ init();
           });
         }
       }
+      // Registrar la conciliación en el historial (#10)
+      const total=CONC.ventas.length;
+      const nVer=concCount('verificada'), nSin=concCount('sin_match');
+      const dineroConc=CONC.ventas.filter(v=>v.estado==='verificada').reduce((s,v)=>s+(+v.precio||0),0);
+      const dif=CONC.ventas.filter(v=>v.estado==='parcial').reduce((s,v)=>s+Math.abs((+v.precio||0)-(v.pago?+v.pago.monto:0)),0);
+      try{
+        await api.post('verif_historial', {
+          user_id: CURRENT_USER?.id, workspace_id: CURRENT_WORKSPACE?.id,
+          periodo_desde: CONC.desde, periodo_hasta: CONC.hasta, archivo: CONC.archivo || null,
+          total_ventas: total, conciliadas: nVer, pendientes: total-nVer-nSin, sin_match: nSin,
+          dinero_conciliado: +dineroConc.toFixed(2), diferencias: +dif.toFixed(2),
+          pct: total?Math.round(nVer/total*100):0,
+        });
+        await concCargarHistorial();
+      }catch(eh){ console.warn('historial:', eh); /* tabla puede no existir aún */ }
       showSuccess('✅ Conciliación guardada');
     }catch(e){ showError('Error guardando: '+e.message); }
+  };
+
+  // ── Historial de conciliaciones (#10) ──
+  window.concCargarHistorial = async function(){
+    const tb = document.getElementById('conc-hist-tbody'); if(!tb) return;
+    const wsId = CURRENT_WORKSPACE?.id; if(!wsId) return;
+    try{
+      const hist = await api.get('verif_historial', `workspace_id=eq.${wsId}&order=creado_at.desc&limit=50`);
+      if(!hist.length){ tb.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:16px">Sin conciliaciones guardadas aún</td></tr>'; return; }
+      const code = wsCurrencyCode();
+      tb.innerHTML = hist.map(h=>{
+        const f = h.creado_at ? new Date(h.creado_at).toLocaleString('es-PE',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
+        const pctCol = h.pct>=90?'var(--green)':h.pct>=70?'var(--orange)':'var(--red)';
+        return `<tr>
+          <td style="font-size:11px">${f}</td>
+          <td style="font-size:11px">${h.periodo_desde||'?'} → ${h.periodo_hasta||'?'}</td>
+          <td class="left muted" style="font-size:11px">${escH(h.archivo||'—')}</td>
+          <td>${h.total_ventas??'—'}</td>
+          <td style="color:var(--green)">${h.conciliadas??'—'}</td>
+          <td style="color:${pctCol};font-weight:700">${h.pct??0}%</td>
+          <td style="color:${(+h.diferencias)>0?'var(--red)':'var(--text3)'}">${fmtMoney(+h.diferencias||0,code)}</td>
+          <td><button class="btn btn-ghost btn-sm" title="Eliminar" onclick="concBorrarHistorial('${h.id}')">🗑️</button></td>
+        </tr>`;
+      }).join('');
+    }catch(e){
+      tb.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--orange);padding:14px;font-size:11px">⚠️ Falta crear la tabla <code>verif_historial</code> en Supabase. Corre la migración SQL que te indicó el asistente.</td></tr>';
+    }
+  };
+  window.concBorrarHistorial = async function(id){
+    if(!confirm('¿Eliminar este registro del historial?')) return;
+    try{ await api.delete('verif_historial', id); await concCargarHistorial(); }
+    catch(e){ showError('Error: '+e.message); }
   };
 
   window.concReset = function(){
