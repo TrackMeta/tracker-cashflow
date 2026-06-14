@@ -7852,21 +7852,25 @@ async function forzarSyncAhora() {
       headers: { ...api._h(), 'Content-Type': 'application/json' },
       body: JSON.stringify({ days: 5 })
     });
-    const data = await res.json();
-    if (data.ok !== false) {
-      const v = data.ventas ?? (data.resumen ? data.resumen.reduce((s,r) => s + (r.ventas||0), 0) : 0);
-      est.textContent = `✅ ${v} ventas · ${data.workspaces ?? (data.resumen?.length ?? '?')} prod.`;
-      est.style.color = 'var(--green)';
-      await loadAutosyncConfig();
-    } else {
-      est.textContent = '❌ ' + (data.error || 'Error');
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      est.textContent = `❌ ${res.status}: ${data.error || data.message || 'Error en la función'}`;
       est.style.color = 'var(--red)';
+      return;
     }
+    const ventas = data.ventas ?? (data.resumen ? data.resumen.reduce((s,r) => s + (+r.ventas||0), 0) : 0);
+    const prods  = data.workspaces ?? (data.resumen ? data.resumen.reduce((s,r) => s + (+r.workspaces||0), 0) : '?');
+    est.textContent = `✅ ${ventas} ventas · ${prods} prod.`;
+    est.style.color = 'var(--green)';
+    // Mostrar alertas si hay (ej: token próximo a caducar)
+    const alertas = data.alertas ?? data.resumen?.flatMap(r => r.alertas || []) ?? [];
+    if (alertas.length) showSuccess('🔔 ' + alertas[0]);
+    await loadAutosyncConfig();
   } catch(e) {
     est.textContent = '❌ ' + e.message;
     est.style.color = 'var(--red)';
   } finally {
-    setTimeout(() => { btn.disabled = false; }, 3000);
+    setTimeout(() => { btn.disabled = false; }, 4000);
   }
 }
 

@@ -325,7 +325,8 @@ async function procesarUsuario(userId: string, conMeta: boolean, sheetDays = 5) 
     if (ws) { const al = await consolidar(wsId, ws).catch(() => [] as string[]); alertas.push(...al); }
   }
 
-  // ⏰ Recordatorio de token de Meta por caducar (≤7 días)
+  // ⏰ Recordatorio diario de token de Meta
+  // Se incluye en alertas si quedan ≤30 días. La gravedad aumenta conforme se acerca la fecha.
   if (conMeta) {
     for (const f of (fuentes || [])) {
       if (!f.meta_token) continue;
@@ -335,7 +336,10 @@ async function procesarUsuario(userId: string, conMeta: boolean, sheetDays = 5) 
         const exp = jd?.data?.expires_at; // 0 = no expira (system user)
         if (exp && exp > 0) {
           const dias = Math.ceil((exp * 1000 - Date.now()) / 86400000);
-          if (dias >= 0 && dias <= 7) alertas.push(`⏰ *Token de Meta por caducar* — ${f.emoji || "🤖"} ${f.nombre}\nExpira en ${dias} día(s). Genera uno nuevo y actualízalo en Ajustes → Fuentes, o el gasto dejará de sincronizar.`);
+          if (dias >= 0 && dias <= 30) {
+            const urgencia = dias <= 3 ? "🔴 *URGENTE*" : dias <= 7 ? "🟡 *ATENCIÓN*" : "⏰ *Aviso*";
+            alertas.push(`${urgencia} — Token de Meta por caducar · ${f.emoji || "🤖"} ${f.nombre}\nExpira en *${dias} día(s)*. Genera uno nuevo en Meta Business → Sistema → Usuarios → Token, y actualízalo en Ajustes → Fuentes antes de que venza.`);
+          }
         }
       } catch (_) { /* */ }
     }
@@ -470,6 +474,28 @@ function formatReport(titulo: string, periodoTxt: string, data: any) {
 }
 
 // Envía el reporte de un slot tras la sync programada
+// Genera una línea de estado del token de Meta para incluir en reportes
+async function tokenStatusLine(userId: string): Promise<string> {
+  const fuentes = await sb("GET", `fuentes?user_id=eq.${userId}`).catch(() => []);
+  const lines: string[] = [];
+  for (const f of (fuentes || [])) {
+    if (!f.meta_token) continue;
+    try {
+      const r = await fetch(`https://graph.facebook.com/v19.0/debug_token?input_token=${f.meta_token}&access_token=${f.meta_token}`);
+      const jd = await r.json();
+      const exp = jd?.data?.expires_at;
+      if (!exp || exp === 0) {
+        lines.push(`🟢 ${f.emoji || "🤖"} ${f.nombre}: sin caducidad`);
+      } else {
+        const dias = Math.ceil((exp * 1000 - Date.now()) / 86400000);
+        const icon = dias <= 3 ? "🔴" : dias <= 7 ? "🟡" : dias <= 30 ? "🟠" : "🟢";
+        lines.push(`${icon} ${f.emoji || "🤖"} ${f.nombre}: *${dias}d* restantes`);
+      }
+    } catch (_) { lines.push(`⚠️ ${f.emoji || "🤖"} ${f.nombre}: no verificado`); }
+  }
+  return lines.length ? `\n\n🔑 *Token Meta:* ${lines.join(" · ")}` : "";
+}
+
 async function enviarReporteSlot(cfg: any, slot: "noche" | "manana") {
   if (!cfg.tg_token || !cfg.tg_chat_id || cfg.tg_activo === false) return;
   if (slot === "noche") {
@@ -479,7 +505,10 @@ async function enviarReporteSlot(cfg: any, slot: "noche" | "manana") {
   } else {
     const ayer = diaPeru(-1);
     const data = await reportData(cfg.user_id, ayer, ayer);
-    await tgSend(cfg.tg_token, cfg.tg_chat_id, formatReport("☀️ *BUENOS DÍAS*", `Ayer ${ayer}`, data), reportKb());
+    // El reporte de mañana siempre incluye el estado del token de Meta
+    const tokLine = await tokenStatusLine(cfg.user_id).catch(() => "");
+    const msg = formatReport("☀️ *BUENOS DÍAS*", `Ayer ${ayer}`, data) + tokLine;
+    await tgSend(cfg.tg_token, cfg.tg_chat_id, msg, reportKb());
   }
 }
 
