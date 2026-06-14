@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("ADMIN_SERVICE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // Marcador de versión: aparece en cada respuesta JSON. Si no aparece, el deploy es viejo.
-const FN_VERSION = "2026-06-14-jwt-diag";
+const FN_VERSION = "2026-06-14-sched-hdr";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -711,6 +711,16 @@ Deno.serve(async (req) => {
   let body: any = {};
   try { body = rawBody ? JSON.parse(rawBody) : {}; } catch { body = {}; }
 
+  // Modo programado: aceptar la señal desde el body, un header o el query param.
+  // La UI de Cron de Supabase a veces solo deja poner headers, no body — por eso
+  // somos tolerantes. Sin esto, una llamada sin "scheduled" caería al sync manual
+  // de 90 días para TODOS los usuarios (carísimo si corre cada 15 min).
+  const isScheduled =
+    body.scheduled === true ||
+    String(req.headers.get("x-scheduled") || "").toLowerCase() === "true" ||
+    String(req.headers.get("scheduled") || "").toLowerCase() === "true" ||
+    String(url.searchParams.get("scheduled") || "").toLowerCase() === "true";
+
   // Webhook de Telegram (identificado por ?tg=<userId>)
   // IMPORTANTE: responder 200 de inmediato y procesar en segundo plano.
   // Si se hace el sync con await antes de responder, tarda >60s, Telegram cree
@@ -739,7 +749,7 @@ Deno.serve(async (req) => {
   const userJwt = authHeader.replace(/^Bearer\s+/i, "").trim();
   // Es JWT de usuario si tiene 3 segmentos (header.payload.firma) y no es la service key.
   const looksLikeJwt = userJwt.split(".").length === 3 && userJwt !== SERVICE_KEY;
-  if (looksLikeJwt && !body.scheduled) {
+  if (looksLikeJwt && !isScheduled) {
     let userRes: Response;
     try {
       userRes = await fetch(`${SUPABASE_URL}/auth/v1/user`, {
@@ -772,7 +782,7 @@ Deno.serve(async (req) => {
 
   try {
     // Modo programado (lo invoca el cron cada 15 min)
-    if (body.scheduled) return await runScheduled();
+    if (isScheduled) return await runScheduled();
 
     // Modo manual / directo con service role o secreto
     const conMeta   = body.meta !== false;
