@@ -1,0 +1,7 @@
+# CLI de Supabase (binarios locales, no versionar)
+.tools/
+supabase/.temp/
+
+# Servidor de preview local (no versionar)
+.claude/serve.ps1
+.claude/launch.json

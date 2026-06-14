@@ -8609,6 +8609,31 @@ function renderConfianza(desde, hasta) {
     <span style="color:var(--text3)">(${lista}) — el gasto puede ajustarse en 24-48h</span>${verifTxt}`;
 }
 
+// ── Celda-día del Calendario Profit (diseño unificado: producto y global) ──
+// Número abreviado para Ingresos/Egresos (sin saturar la celda).
+function fmtCompactNum(n){
+  const a = Math.abs(+n||0);
+  if (a >= 1000) return (n/1000).toFixed(a >= 10000 ? 0 : 1).replace(/\.0$/,'') + 'k';
+  return Math.round(n).toString();
+}
+// Construye el HTML de una celda con jerarquía: Profit (principal) › Ingresos/Egresos › ROAS·ventas.
+function bitaDiaCellHTML(o){
+  // o: { dia, onclick, title, bg, fg, borde, grueso, marca, profitStr, secStr, ing, egr, footStr }
+  const secLine = o.secStr ? `<span style="font-size:10px;font-weight:600;color:var(--text3);font-family:var(--mono);line-height:1">${o.secStr}</span>` : '';
+  return `<div onclick="${o.onclick}" title="${o.title}" style="min-height:106px;border-radius:9px;background:${o.bg};border:${o.grueso?'2px':'1px'} solid ${o.borde};display:flex;flex-direction:column;cursor:pointer;padding:5px 6px 6px;transition:transform .1s" onmouseover="this.style.transform='scale(1.03)'" onmouseout="this.style.transform=''">
+    <div style="display:flex;justify-content:space-between;align-items:center;line-height:1;min-height:14px"><span style="font-size:12px;font-weight:800;color:var(--text2)">${o.dia}</span>${o.marca||''}</div>
+    <div style="display:flex;flex-direction:column;align-items:center;justify-content:center;flex:1;gap:1px;margin:1px 0">
+      <span style="font-size:18px;font-weight:800;color:${o.fg};font-family:var(--mono);line-height:1.05">${o.profitStr}</span>
+      ${secLine}
+    </div>
+    <div style="display:flex;justify-content:center;gap:8px;font-size:9.5px;font-family:var(--mono);line-height:1;margin-bottom:3px;font-weight:600">
+      <span style="color:var(--green)" title="Ingresos">▲${fmtCompactNum(o.ing)}</span>
+      <span style="color:var(--orange)" title="Egresos">▼${fmtCompactNum(o.egr)}</span>
+    </div>
+    <div style="text-align:center;font-size:9px;color:var(--text3);font-family:var(--mono);line-height:1">${o.footStr}</div>
+  </div>`;
+}
+
 // ════════════════════════════════════════════════
 // BITÁCORA (Año → Mes → Día) — Etapa 4
 // ════════════════════════════════════════════════
@@ -8789,16 +8814,19 @@ function bitaGlobalMes(g){
   for (let i=0;i<primerDow;i++) cal += '<div></div>';
   for (let dia=1;dia<=diasEnMes;dia++){
     const fecha = `${prefijo}-${_pad2(dia)}`; const d = diaMap[fecha];
-    if (!d){ cal += `<div style="min-height:78px;border-radius:8px;background:var(--bg3);opacity:0.35;padding:5px 7px;font-size:12px;font-weight:700;color:var(--text3)">${dia}</div>`; continue; }
+    if (!d){ cal += `<div style="min-height:106px;border-radius:9px;background:var(--bg3);opacity:0.35;padding:5px 7px;font-size:12px;font-weight:700;color:var(--text3)">${dia}</div>`; continue; }
     const M=d.M; let bg='var(--bg3)',fg='var(--text3)',bd='transparent';
     if (M.inversion>0||M.ingresos>0){ if(M.profit<0){bg='var(--red-dim)';fg='var(--red)';} else if(M.profit>=maxP*0.6){bg='var(--green-dim)';fg='var(--green)';bd='var(--green)';} else {bg='rgba(16,185,129,0.10)';fg='var(--teal)';} }
     const cons = diaConsolidado(null, fecha);
-    const locLine = gblCode() !== 'USD' ? `<span style="font-size:10px;font-weight:700;color:var(--text3);font-family:var(--mono);line-height:1">${fmtMoney(M.profit*gblRate(), gblCode()).replace(/\.\d+$/,'')}</span>` : '';
-    cal += `<div onclick="bitaAbrirDiaGlobal('${fecha}')" title="Ver ${fecha} en Dashboard Global" style="min-height:78px;border-radius:8px;background:${bg};border:1px solid ${bd};display:flex;flex-direction:column;gap:2px;cursor:pointer;padding:5px 7px">
-      <div style="display:flex;justify-content:space-between;line-height:1"><span style="font-size:12px;font-weight:800;color:var(--text2)">${dia}</span>${cons?'':'<span style="font-size:9px">⏳</span>'}</div>
-      <span style="font-size:16px;font-weight:800;color:${fg};font-family:var(--mono);line-height:1.15">${fmt.d(M.profit).replace(/\.\d+$/,'')}</span>
-      ${locLine}
-      <div style="font-size:9.5px;color:var(--text3);font-family:var(--mono);margin-top:auto">${fmt.roas(M.roas)} · ${M.ventas}v</div></div>`;
+    const secStr = gblCode() !== 'USD' ? fmtMoney(M.profit*gblRate(), gblCode()).replace(/\.\d+$/,'') : '';
+    cal += bitaDiaCellHTML({
+      dia, onclick: `bitaAbrirDiaGlobal('${fecha}')`, title: `Ver ${fecha} en Dashboard Global`,
+      bg, fg, borde: bd, grueso: false, marca: cons?'':'<span style="font-size:9px">⏳</span>',
+      profitStr: fmt.d(M.profit).replace(/\.\d+$/,''),
+      secStr,
+      ing: M.ingresos, egr: M.inversion,
+      footStr: `${fmt.roas(M.roas)} · ${M.ventas}v`,
+    });
   }
   cal += '</div>';
   document.getElementById('bita-calendario').innerHTML = cal;
@@ -9018,7 +9046,7 @@ function bitaCalendario(dias){
     const fecha = `${prefijo}-${_pad2(dia)}`;
     const d = diaMap[fecha];
     if (!d){
-      html += `<div style="min-height:78px;border-radius:8px;background:var(--bg3);opacity:0.35;display:flex;align-items:flex-start;padding:5px 7px"><span style="font-size:12px;color:var(--text3);font-weight:700">${dia}</span></div>`;
+      html += `<div style="min-height:106px;border-radius:9px;background:var(--bg3);opacity:0.35;display:flex;align-items:flex-start;padding:5px 7px"><span style="font-size:12px;color:var(--text3);font-weight:700">${dia}</span></div>`;
       continue;
     }
     const c = colorDe(d.M);
@@ -9027,15 +9055,15 @@ function bitaCalendario(dias){
     let borde = c.borde || 'transparent', marca = cons ? '' : '<span style="font-size:9px">⏳</span>';
     if (fecha === mejorF) { borde = '#facc15'; marca = '<span style="font-size:12px" title="Mejor día del mes">🥇</span>'; }
     else if (fecha === peorF) { borde = 'var(--red)'; marca = '<span style="font-size:12px" title="Peor día del mes">⚠️</span>'; }
-    const usdLine = code !== 'USD'
-      ? `<span style="font-size:11px;font-weight:700;color:var(--text2);font-family:var(--mono);line-height:1.1">${fmt.d(toUSD(d.M.profit)).replace(/\.\d+$/,'')}</span>`
-      : '';
-    html += `<div onclick="bitaAbrirDia('${fecha}')" title="${fecha}" style="min-height:78px;border-radius:8px;background:${c.bg};border:${fecha===mejorF||fecha===peorF?'2px':'1px'} solid ${borde};display:flex;flex-direction:column;gap:2px;cursor:pointer;padding:5px 7px">
-      <div style="display:flex;justify-content:space-between;align-items:center;line-height:1"><span style="font-size:12px;font-weight:800;color:var(--text2)">${dia}</span>${marca}</div>
-      <span style="font-size:16px;font-weight:800;color:${c.fg};font-family:var(--mono);line-height:1.15">${fmtMoney(d.M.profit, code).replace(/\.\d+$/,'')}</span>
-      ${usdLine}
-      <div style="font-size:9.5px;color:var(--text3);font-family:var(--mono);line-height:1;margin-top:auto">${fmt.roas(d.M.roas)} · ${d.M.ventas}v</div>
-    </div>`;
+    const secStr = code !== 'USD' ? fmt.d(toUSD(d.M.profit)).replace(/\.\d+$/,'') : '';
+    html += bitaDiaCellHTML({
+      dia, onclick: `bitaAbrirDia('${fecha}')`, title: fecha,
+      bg: c.bg, fg: c.fg, borde, grueso: (fecha===mejorF||fecha===peorF), marca,
+      profitStr: fmtMoney(d.M.profit, code).replace(/\.\d+$/,''),
+      secStr,
+      ing: d.M.ingresos, egr: d.M.inversion,
+      footStr: `${fmt.roas(d.M.roas)} · ${d.M.ventas}v`,
+    });
   }
   html += '</div>';
   document.getElementById('bita-calendario').innerHTML = html;
