@@ -2033,8 +2033,25 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     </table></div>
   </div>
 
+  <!-- 🔧 SCRIPT DE BORRADO DEL SHEET -->
+  <details style="margin-top:18px">
+    <summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--text2);padding:8px 0">🔧 Borrar filas del Sheet — conectar script (opcional)</summary>
+    <div style="margin-top:10px;padding:14px;background:var(--bg3);border-radius:10px">
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Para que <strong>"Eliminar del Sheet definitivamente"</strong> borre filas reales de tu Google Sheet, despliega el script que te indicó el asistente como <strong>Web App</strong> y pega aquí su URL (termina en <code>/exec</code>).</div>
+      <div class="field" style="margin-bottom:10px">
+        <label>URL del Web App del script</label>
+        <input type="url" id="conc-script-url" placeholder="https://script.google.com/macros/s/.../exec" style="font-size:11px;font-family:var(--mono)">
+      </div>
+      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
+        <button class="btn btn-primary btn-sm" onclick="concGuardarScriptUrl()">💾 Guardar URL</button>
+        <button class="btn btn-ghost btn-sm" onclick="concProbarScript()">🧪 Probar conexión</button>
+        <span id="conc-script-estado" style="font-size:11px;color:var(--text3)"></span>
+      </div>
+    </div>
+  </details>
+
   <!-- ⚙️ AVANZADO: cruce manual de 2 archivos -->
-  <details style="margin-top:22px;border-top:1px solid var(--border);padding-top:6px">
+  <details style="margin-top:18px;border-top:1px solid var(--border);padding-top:6px">
     <summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--text2);padding:8px 0">⚙️ Cruce manual avanzado (2 archivos: CRM + banco)</summary>
     <div style="margin-top:12px;font-size:11px;color:var(--text3);margin-bottom:12px">Herramienta detallada: sube el Excel del CRM y el del banco para detectar pagos fantasma, huérfanos y duplicados con tablas completas.</div>
 
@@ -7836,6 +7853,7 @@ function impTab(t) {
     // Reubicar el flujo de conciliación dentro de la pestaña (una sola vez)
     const root = document.getElementById('conc-root');
     if (root && cTab && !cTab.contains(root)) cTab.appendChild(root);
+    const su=document.getElementById('conc-script-url'); if(su) su.value=DB.config?.script_url||'';
     if (typeof concCargarHistorial === 'function') concCargarHistorial();
     if (typeof concSetPeriodo === 'function') concSetPeriodo();
   }
@@ -13203,6 +13221,30 @@ init();
         await concConciliar();
       } else { showError('El script respondió error: '+((data&&data.error)||'no se pudo eliminar')); }
     }catch(e){ showError('No se pudo contactar el script del Sheet: '+e.message+'. ¿Re-desplegaste el código actualizado?'); }
+  };
+
+  // Guardar la URL del Web App del script en config
+  window.concGuardarScriptUrl = async function(){
+    const url=(document.getElementById('conc-script-url').value||'').trim();
+    try{
+      if(DB.config.id) await api.patch('config', DB.config.id, { script_url:url });
+      else { const r=await api.post('config', { script_url:url, user_id:CURRENT_USER?.id, workspace_id:CURRENT_WORKSPACE?.id }); if(r&&r[0]) DB.config.id=r[0].id; }
+      DB.config.script_url=url;
+      showSuccess('✅ URL del script guardada');
+    }catch(e){ showError('Error guardando: '+e.message); }
+  };
+  // Probar que el Web App responde
+  window.concProbarScript = async function(){
+    const url=(document.getElementById('conc-script-url').value||'').trim();
+    const est=document.getElementById('conc-script-estado');
+    if(!url){ est.textContent='Pega la URL primero'; est.style.color='var(--orange)'; return; }
+    est.textContent='⏳ probando...'; est.style.color='var(--text3)';
+    try{
+      const r=await fetch(url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify({action:'ping'}) });
+      const d=await r.json().catch(()=>({}));
+      if(d&&d.ok){ est.textContent='✅ Script conectado'; est.style.color='var(--green)'; }
+      else { est.textContent='⚠️ Respondió pero sin ok — revisa el deploy'; est.style.color='var(--orange)'; }
+    }catch(e){ est.textContent='❌ No responde — ¿es público y termina en /exec?'; est.style.color='var(--red)'; }
   };
 
   window.concDesvincular = function(id){
