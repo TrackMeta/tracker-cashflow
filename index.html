@@ -1995,13 +1995,21 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   <div id="conc-resultado" style="display:none">
     <div class="cards-row cards-4" id="conc-kpis" style="margin-bottom:14px"></div>
     <div id="conc-avisos" style="margin-bottom:14px"></div>
+    <!-- Leyenda de colores (fija) -->
+    <div style="display:flex;gap:14px;flex-wrap:wrap;font-size:11px;color:var(--text2);padding:8px 12px;background:var(--bg3);border-radius:8px;margin-bottom:12px">
+      <strong style="color:var(--text3)">Leyenda:</strong>
+      <span>🟢 Conciliado</span><span>🟡 Parcial</span><span>🔴 Sin coincidencia</span><span>🔵 Revisión manual</span><span>⚪ Pendiente</span><span>🟣 Modificado manualmente</span>
+    </div>
     <div id="conc-filtros" style="margin-bottom:12px"></div>
     <div class="panel">
-      <div class="panel-header"><span class="panel-title">Conciliación — revisa las excepciones</span><span id="conc-lista-count" style="font-size:11px;color:var(--text3)"></span></div>
-      <div class="tbl-wrap"><table>
-        <thead><tr><th style="width:34px"><input type="checkbox" id="conc-sel-all" onchange="concSelAll(this)"></th><th class="left">Estado</th><th>Venta (fecha · hora)</th><th>Monto</th><th class="left">Pago del banco</th><th>Δ</th><th>Acciones</th></tr></thead>
-        <tbody id="conc-tbody"></tbody>
-      </table></div>
+      <div class="panel-header">
+        <span class="panel-title">Emparejamiento — VENTA (Sheet) ←→ PAGO (Banco)</span>
+        <div style="display:flex;gap:12px;align-items:center">
+          <label style="font-size:11px;color:var(--text3);cursor:pointer"><input type="checkbox" id="conc-sel-all" onchange="concSelAll(this)" style="margin-right:4px">Seleccionar todo</label>
+          <span id="conc-lista-count" style="font-size:11px;color:var(--text3)"></span>
+        </div>
+      </div>
+      <div class="panel-body" id="conc-lista-cards" style="display:grid;gap:8px"></div>
     </div>
   </div>
   <div id="conc-empty" class="empty" style="padding:30px">
@@ -12281,6 +12289,9 @@ init();
     const iOrig  = header.findIndex(h => h.includes('origen'));
     const iMonto = header.findIndex(h => h.includes('monto'));
     const iFecha = header.findIndex(h => h.includes('fecha'));
+    // Columnas opcionales (no todos los bancos las traen)
+    const iOper  = header.findIndex(h => h.includes('operaci') || h.includes('nro') || h.includes('número') || h.includes('numero') || h.includes('referencia'));
+    const iDesc  = header.findIndex(h => h.includes('descrip') || h.includes('concepto') || h.includes('mensaje') || h.includes('detalle') || h.includes('glosa'));
 
     const pagos = [];
     for (let i = headerIdx + 1; i < rows.length; i++) {
@@ -12309,6 +12320,8 @@ init();
         hora: `${String(dt.getHours()).padStart(2,'0')}:${String(dt.getMinutes()).padStart(2,'0')}:${String(dt.getSeconds()).padStart(2,'0')}`,
         monto,
         origen: String(r[iOrig] || '').trim(),
+        operacion: iOper >= 0 ? String(r[iOper] || '').trim() : '',
+        descripcion: iDesc >= 0 ? String(r[iDesc] || '').trim() : '',
       });
     }
     return pagos;
@@ -12775,8 +12788,16 @@ init();
     const wsId = CURRENT_WORKSPACE?.id;
     if(!wsId){ alert('Selecciona un producto.'); return; }
     if(!CONC.pagos.length){ return; }
-    const ventas = await api.get('crm_ventas', `workspace_id=eq.${wsId}&fecha=gte.${CONC.desde}&fecha=lte.${CONC.hasta}&select=id,fecha,ad_id,hora,precio,estado_verif`);
-    const pool = CONC.pagos.map((p,i)=>({ ...p, _i:i, used:false }));
+    const ventas = await api.get('crm_ventas', `workspace_id=eq.${wsId}&fecha=gte.${CONC.desde}&fecha=lte.${CONC.hasta}&select=id,fecha,ad_id,hora,precio,estado_verif,telefono,producto,cliente`).catch(async()=>
+      // Fallback si aún no existen las columnas nuevas (telefono/producto/cliente)
+      await api.get('crm_ventas', `workspace_id=eq.${wsId}&fecha=gte.${CONC.desde}&fecha=lte.${CONC.hasta}&select=id,fecha,ad_id,hora,precio,estado_verif`)
+    );
+    // CRÍTICO: solo conciliar pagos del banco DENTRO del periodo. "Total" usa un rango enorme,
+    // así que el mismo filtro sirve. Nunca se analizan movimientos fuera del rango.
+    CONC.pagosPeriodo = CONC.pagos.filter(p => p.fechaDia >= CONC.desde && p.fechaDia <= CONC.hasta);
+    const info = document.getElementById('conc-bank-info');
+    if (info) info.textContent = `${CONC.pagos.length} pagos en el archivo · ${CONC.pagosPeriodo.length} dentro del periodo (${CONC.desde} → ${CONC.hasta})`;
+    const pool = CONC.pagosPeriodo.map((p,i)=>({ ...p, _i:i, used:false }));
     const vts = ventas.map(v=>({ ...v, _dt:new Date(v.hora), estado:'pendiente', pago:null, candidatos:[] }))
                       .sort((a,b)=>a._dt-b._dt);
     for(const v of vts){
@@ -12850,16 +12871,17 @@ init();
     const el = document.getElementById('conc-avisos'); el.innerHTML='';
     const avisos=[];
     const nSin=concCount('sin_match'), nPar=concCount('parcial');
-    // pagos duplicados en banco
-    const pk={}; CONC.pagos.forEach(p=>{ const k=p.monto+'|'+(p.origen||'').toLowerCase().replace(/\s/g,'').slice(0,12); pk[k]=(pk[k]||0)+1; });
+    // Solo sobre el periodo activo (pagos ya filtrados)
+    const pagosP = CONC.pagosPeriodo || [];
+    const pk={}; pagosP.forEach(p=>{ const k=p.monto+'|'+(p.origen||'').toLowerCase().replace(/\s/g,'').slice(0,12); pk[k]=(pk[k]||0)+1; });
     const dupPagos=Object.values(pk).filter(n=>n>=2).reduce((s,n)=>s+n-1,0);
-    // ventas duplicadas (mismo ad_id+precio en <20min)
+    // ventas duplicadas (mismo ad_id+precio en <20min) — dentro del periodo
     let dupVentas=0;
     for(let i=0;i<CONC.ventas.length;i++){ for(let j=i+1;j<CONC.ventas.length;j++){ const a=CONC.ventas[i],b=CONC.ventas[j]; if(a.ad_id===b.ad_id && Math.abs(+a.precio-+b.precio)<0.01 && Math.abs(a._dt-b._dt)/60000<=20){ dupVentas++; break; } } }
-    if(nSin) avisos.push(['🔴',`${nSin} venta(s) sin pago en el banco`,'Pueden ser capturas falsas del bot o pagos por otro medio. Revísalas o márcalas manualmente.']);
-    if(CONC.huerfanos.length) avisos.push(['🏦',`${CONC.huerfanos.length} pago(s) sin venta (huérfanos)`,'Llegó plata sin venta registrada — el bot pudo saltarse el registro. Considera agregarla al Sheet.']);
+    if(nSin) avisos.push(['🔴',`${nSin} venta(s) sin pago en el periodo`,'Pueden ser capturas falsas del bot o pagos por otro medio. Revísalas o márcalas manualmente.']);
+    if(CONC.huerfanos.length) avisos.push(['🏦',`${CONC.huerfanos.length} pago(s) huérfano(s) en el periodo`,'Llegó plata sin venta registrada — el bot pudo saltarse el registro. Considera agregarla al Sheet.']);
     if(nPar) avisos.push(['🟡',`${nPar} pago(s) con monto distinto`,'El monto del banco no coincide exacto. Usa "Ignorar diferencias pequeñas" si son centavos.']);
-    if(dupPagos) avisos.push(['🔁',`${dupPagos} posible(s) pago(s) duplicado(s) en el banco`,'Mismo monto y pagador repetido — verifica que no sea doble cobro.']);
+    if(dupPagos) avisos.push(['🔁',`${dupPagos} posible(s) pago(s) duplicado(s) en el periodo`,'Mismo monto y pagador repetido — verifica que no sea doble cobro.']);
     if(dupVentas) avisos.push(['🔁',`${dupVentas} posible(s) venta(s) duplicada(s)`,'Mismo anuncio y monto en pocos minutos — posible duplicado del bot.']);
     if(!avisos.length){ el.innerHTML=''; return; }
     el.innerHTML = `<div class="panel" style="margin-bottom:0"><div class="panel-header"><span class="panel-title">🧠 Detección de problemas</span></div><div class="panel-body" style="display:grid;gap:6px">${avisos.map(a=>`<div style="font-size:12px;padding:8px 10px;background:var(--bg3);border-radius:6px"><strong>${a[0]} ${a[1]}</strong><div style="font-size:11px;color:var(--text3);margin-top:2px">${a[2]}</div></div>`).join('')}</div></div>`;
@@ -12880,29 +12902,60 @@ init();
 
   function concRenderTabla(){
     const code = wsCurrencyCode();
-    const tb = document.getElementById('conc-tbody');
+    const cont = document.getElementById('conc-lista-cards');
     const lista = CONC.filtro==='todos' ? CONC.ventas : CONC.ventas.filter(v=>v.estado===CONC.filtro);
     document.getElementById('conc-lista-count').textContent = `${lista.length} de ${CONC.ventas.length}`;
-    if(!lista.length){ tb.innerHTML='<tr><td colspan="7" style="text-align:center;color:var(--text3);padding:20px">Sin ventas en este filtro</td></tr>'; return; }
-    // opciones de pagos huérfanos para reasignar
+    if(!lista.length){ cont.innerHTML='<div style="text-align:center;color:var(--text3);padding:20px">Sin ventas en este filtro</div>'; return; }
+    const adMap={}; (DB.anuncios||[]).forEach(a=>{ adMap[a.ad_id]=a.nombre||a.ad_id; });
     const optHuer = CONC.huerfanos.map(p=>`<option value="${p._i}">${p.hora} · ${escH(p.origen||'')} · ${fmtMoney(p.monto,code)}</option>`).join('');
-    tb.innerHTML = lista.map(v=>{
-      const hora = v.hora ? new Date(v.hora).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'}) : '—';
-      const delta = v.pago ? (Math.abs(+v.precio-+v.pago.monto)<0.01 ? '<span style="color:var(--green)">=</span>' : `<span style="color:var(--red)">${(+v.pago.monto-+v.precio>0?'+':'')}${(+v.pago.monto-+v.precio).toFixed(2)}</span>`) : '—';
-      const pagoTxt = v.pago ? `${v.pago.hora} · ${escH(v.pago.origen||'')} · ${fmtMoney(v.pago.monto,code)}` : '<span style="color:var(--text3)">— sin pago —</span>';
+    cont.innerHTML = lista.map(v=>{
+      const horaV = v.hora ? new Date(v.hora).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'}) : '—';
+      const producto = v.producto || CURRENT_WORKSPACE?.nombre || '—';
+      const creative = adMap[v.ad_id] || v.ad_id || '—';
+      const numero = v.telefono || '—';
+      const cliente = v.cliente || '';
+      const diff = v.pago ? (+v.pago.monto - +v.precio) : 0;
+      const delta = v.pago ? (Math.abs(diff)<0.01 ? '<span style="color:var(--green);font-weight:700">= monto OK</span>' : `<span style="color:var(--red);font-weight:700">Δ ${diff>0?'+':''}${diff.toFixed(2)}</span>`) : '';
+      // VENTA box
+      const ventaBox = `<div style="background:var(--bg3);border-radius:8px;padding:8px 10px;min-width:0">
+        <div style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:3px">🛒 Venta (Sheet)</div>
+        <div style="font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escH(producto)}</div>
+        <div style="font-size:13px;font-weight:800;font-family:var(--mono);color:var(--text)">${fmtMoney(v.precio,code)}</div>
+        <div style="font-size:11px;color:var(--text2)">📅 ${fmt.date(v.fecha)} · ${horaV}</div>
+        <div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escH(creative)}">🎯 ${escH(creative)}</div>
+        <div style="font-size:10px;color:var(--text3)">📞 ${escH(numero)}${cliente?' · '+escH(cliente):''}</div>
+      </div>`;
+      // PAGO box (o vacío con reasignar)
+      let pagoBox;
+      if(v.pago){
+        const p=v.pago;
+        pagoBox = `<div style="background:rgba(16,185,129,0.07);border-radius:8px;padding:8px 10px;min-width:0">
+          <div style="font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;margin-bottom:3px">🏦 Pago (Banco)</div>
+          <div style="font-size:12px;font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escH(p.origen||'—')}</div>
+          <div style="font-size:13px;font-weight:800;font-family:var(--mono);color:var(--text)">${fmtMoney(p.monto,code)}</div>
+          <div style="font-size:11px;color:var(--text2)">📅 ${p.fechaDia} · ${p.hora}</div>
+          ${p.operacion?`<div style="font-size:10px;color:var(--text3)">#️⃣ ${escH(p.operacion)}</div>`:''}
+          ${p.descripcion?`<div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escH(p.descripcion)}">📝 ${escH(p.descripcion)}</div>`:''}
+        </div>`;
+      } else {
+        pagoBox = `<div style="background:var(--bg3);border-radius:8px;padding:8px 10px;border:1px dashed var(--border2);display:flex;flex-direction:column;justify-content:center;gap:5px">
+          <div style="font-size:11px;color:var(--text3);text-align:center">— sin pago en el periodo —</div>
+          ${CONC.huerfanos.length?`<select onchange="concReasignar('${v.id}',this.value)" style="background:var(--bg2);border:1px solid var(--border2);border-radius:6px;padding:4px 6px;color:var(--text);font-size:11px"><option value="">🔗 Asignar pago…</option>${optHuer}</select>`:''}
+        </div>`;
+      }
+      // CENTER
       let acciones='';
       if(v.pago) acciones += `<button class="btn btn-ghost btn-sm" title="Desvincular" onclick="concDesvincular('${v.id}')">🔗✖</button>`;
-      if(v.estado!=='verificada') acciones += ` <button class="btn btn-ghost btn-sm" title="Marcar verificada" onclick="concMarcar('${v.id}','verificada')">✓</button>`;
-      if(!v.pago && CONC.huerfanos.length) acciones += ` <select onchange="concReasignar('${v.id}',this.value)" style="background:var(--bg3);border:1px solid var(--border2);border-radius:6px;padding:3px 5px;color:var(--text);font-size:11px"><option value="">Asignar pago…</option>${optHuer}</select>`;
-      return `<tr>
-        <td><input type="checkbox" class="conc-chk" data-id="${v.id}"></td>
-        <td class="left"><span title="${CONC_LABEL[v.estado]}">${CONC_ICON[v.estado]} ${CONC_LABEL[v.estado]}</span></td>
-        <td>${fmt.date(v.fecha)} · ${hora}</td>
-        <td>${fmtMoney(v.precio,code)}</td>
-        <td class="left" style="font-size:11px">${pagoTxt}</td>
-        <td>${delta}</td>
-        <td style="white-space:nowrap">${acciones||'—'}</td>
-      </tr>`;
+      if(v.estado!=='verificada') acciones += `<button class="btn btn-ghost btn-sm" title="Marcar verificada" onclick="concMarcar('${v.id}','verificada')">✓</button>`;
+      if(v.estado!=='revision') acciones += `<button class="btn btn-ghost btn-sm" title="Marcar para revisión" onclick="concMarcar('${v.id}','revision')">🔵</button>`;
+      const center = `<div style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:3px">
+        <input type="checkbox" class="conc-chk" data-id="${v.id}">
+        <div style="font-size:20px;line-height:1">${CONC_ICON[v.estado]}${v.manual?'<span title="Modificado manualmente" style="font-size:12px">🟣</span>':''}</div>
+        <div style="font-size:9px;color:var(--text3)">${CONC_LABEL[v.estado]}</div>
+        <div style="font-size:10px">${delta}</div>
+        <div style="display:flex;gap:2px;justify-content:center;flex-wrap:wrap">${acciones}</div>
+      </div>`;
+      return `<div style="border:1px solid var(--border);border-radius:10px;padding:9px;display:grid;grid-template-columns:1fr 110px 1fr;gap:8px;align-items:stretch;background:var(--bg2)">${ventaBox}${center}${pagoBox}</div>`;
     }).join('');
   }
 
@@ -12914,9 +12967,16 @@ init();
 
   window.concDesvincular = function(id){
     const v=concVenta(id); if(!v||!v.pago) return;
+    const pagoAnt=v.pago, estadoAnt=v.estado, manualAnt=v.manual;
     v.pago.used=false; CONC.huerfanos.push(v.pago); CONC.huerfanos.sort((a,b)=>a.fecha-b.fecha);
-    v.pago=null; v.estado='sin_match';
+    v.pago=null; v.estado='sin_match'; v.manual=true;
     concRender();
+    // Notificación con deshacer (#3)
+    concToast('Venta desvinculada', ()=>{
+      const i=CONC.huerfanos.indexOf(pagoAnt); if(i>=0) CONC.huerfanos.splice(i,1);
+      pagoAnt.used=true; v.pago=pagoAnt; v.estado=estadoAnt; v.manual=manualAnt;
+      concRender();
+    });
   };
   window.concReasignar = function(id, pagoIdx){
     if(pagoIdx==='') return;
@@ -12925,11 +12985,24 @@ init();
     if(idx<0) return;
     const pago=CONC.huerfanos.splice(idx,1)[0]; pago.used=true;
     if(v.pago){ v.pago.used=false; CONC.huerfanos.push(v.pago); }
-    v.pago=pago;
+    v.pago=pago; v.manual=true;
     v.estado = Math.abs(+v.precio-+pago.monto)<0.01 ? 'verificada' : 'parcial';
     concRender();
   };
-  window.concMarcar = function(id, estado){ const v=concVenta(id); if(!v) return; v.estado=estado; concRender(); };
+  window.concMarcar = function(id, estado){ const v=concVenta(id); if(!v) return; v.estado=estado; v.manual=true; concRender(); };
+
+  // Toast con acción de deshacer (se mantiene ~6s)
+  let _concToastT=null;
+  function concToast(msg, undoFn){
+    let t=document.getElementById('conc-toast');
+    if(!t){ t=document.createElement('div'); t.id='conc-toast'; t.style.cssText='position:fixed;bottom:24px;left:50%;transform:translateX(-50%);z-index:99999;background:var(--text);color:var(--bg);padding:10px 16px;border-radius:10px;box-shadow:0 6px 24px rgba(0,0,0,0.25);display:flex;align-items:center;gap:14px;font-size:13px;font-weight:600'; document.body.appendChild(t); }
+    t.innerHTML=`<span>↩️ ${msg}</span>`;
+    const b=document.createElement('button'); b.textContent='Deshacer'; b.style.cssText='background:var(--accent);color:#fff;border:none;border-radius:7px;padding:5px 12px;font-weight:700;cursor:pointer;font-size:12px';
+    b.onclick=()=>{ if(undoFn) undoFn(); t.remove(); if(_concToastT) clearTimeout(_concToastT); };
+    t.appendChild(b); t.style.display='flex';
+    if(_concToastT) clearTimeout(_concToastT);
+    _concToastT=setTimeout(()=>{ if(t) t.remove(); }, 6000);
+  }
 
   window.concBulk = function(accion){
     if(accion==='verificar-todas'){ CONC.ventas.forEach(v=>{ if(v.estado!=='sin_match'||v.pago) v.estado='verificada'; }); }
