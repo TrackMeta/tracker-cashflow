@@ -57,6 +57,7 @@ function parseSheetCSV(text: string) {
   const iValor = findH(["valor", "value", "precio", "monto"]);
   const iTel = findH(["numero de celular", "telefono", "phone", "celular"]);
   const iProd = findH(["producto", "product"]);
+  const iCli = findH(["nombre del cliente", "nombre cliente", "cliente", "nombre", "customer name", "customer", "id cliente"]);
   const iUp = [findH(["upsell 1", "upsell1"]), findH(["upsell 2", "upsell2"]), findH(["upsell 3", "upsell3"]), findH(["upsell 4", "upsell4"])];
   if (iAdId < 0 || iFecha < 0) return [];
   const parseVal = (raw: string) => parseFloat((raw || "").toString().replace(/S\/\s*/i, "").replace(/[^0-9.]/g, "")) || 0;
@@ -75,6 +76,7 @@ function parseSheetCSV(text: string) {
       adId, fecha, hora: horaRaw, valor,
       telefono: iTel >= 0 ? (cols[iTel] || "").replace(/"/g, "").trim() : "",
       producto: iProd >= 0 ? (cols[iProd] || "").replace(/"/g, "").trim() : "",
+      cliente: iCli >= 0 ? (cols[iCli] || "").replace(/"/g, "").trim() : "",
       up1: iUp[0] >= 0 ? parseVal(cols[iUp[0]]) : 0, up2: iUp[1] >= 0 ? parseVal(cols[iUp[1]]) : 0,
       up3: iUp[2] >= 0 ? parseVal(cols[iUp[2]]) : 0, up4: iUp[3] >= 0 ? parseVal(cols[iUp[3]]) : 0,
     });
@@ -145,7 +147,7 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
     const idx = exacto ? exacto[1] : activos.reduce((bi, [p, i]) => Math.abs(r.valor - p) < Math.abs(r.valor - activos[bi][0]) ? i : bi, 0);
     if (idx === 0) g.v1++; else if (idx === 1) g.v2++; else if (idx === 2) g.v3++; else g.v4++;
     g.upsell += r.up1 + r.up2 + r.up3 + r.up4;
-    if (r.hora && r.valor > 0) crmRows.push({ fecha: r.fecha, ad_id: r.adId, hora: r.hora, precio: r.valor, telefono: r.telefono || null, producto: r.producto || null, workspace_id: wsId, user_id: job.userId });
+    if (r.hora && r.valor > 0) crmRows.push({ fecha: r.fecha, ad_id: r.adId, hora: r.hora, precio: r.valor, telefono: r.telefono || null, producto: r.producto || null, cliente: r.cliente || null, workspace_id: wsId, user_id: job.userId });
   }
 
   // Consolidar por wsId+adId+fecha

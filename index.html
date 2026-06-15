@@ -466,7 +466,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div class="nav-item" onclick="navTo('horarios',this)"><span class="icon">🕐</span> Horarios</div>
     <div class="nav-section">Datos</div>
     <div class="nav-item" onclick="navTo('registro',this)"><span class="icon">📅</span> Registro Diario</div>
-    <div class="nav-item" onclick="navTo('cruce-pagos',this)"><span class="icon">🔎</span> Conciliación</div>
+    <div class="nav-item" onclick="navTo('importar',this); impTab('conciliacion')"><span class="icon">🔎</span> Conciliación</div>
     <div class="nav-item" onclick="navTo('catalogo',this)"><span class="icon">📖</span> Catálogo</div>
     <div class="nav-section">Sistema</div>
     <div class="nav-item" onclick="navTo('chats-ventas',this)"><span class="icon">💬</span> Chats vs Ventas</div>
@@ -1098,8 +1098,12 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 
   <div class="tab-bar" style="margin-bottom:18px">
     <button class="tab-btn active" id="imp-tab-btn-importar" onclick="impTab('importar')">📥 Importar y verificar</button>
+    <button class="tab-btn" id="imp-tab-btn-conciliacion" onclick="impTab('conciliacion')">🔎 Conciliación</button>
     <button class="tab-btn" id="imp-tab-btn-ajustes" onclick="impTab('ajustes')">⚙️ Ajustes</button>
   </div>
+
+  <!-- ════════ TAB CONCILIACIÓN ════════ -->
+  <div id="imp-tab-conciliacion" style="display:none"></div>
 
   <!-- ════════ TAB AJUSTES ════════ -->
   <div id="imp-tab-ajustes" style="display:none">
@@ -1399,7 +1403,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div class="panel-body">
       <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Elige un periodo, sube solo el reporte de tu banco/billetera y el sistema concilia tus ventas automáticamente. Solo revisas las excepciones.</div>
       <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-primary" onclick="navTo('cruce-pagos',null)">🔎 Abrir conciliación</button>
+        <button class="btn btn-primary" onclick="impTab('conciliacion')">🔎 Abrir conciliación</button>
         <button class="btn btn-ghost" onclick="marcarVerificadoBulk()">✓ Marcar todas verificadas</button>
       </div>
       <div style="font-size:11px;color:var(--text3);margin-top:8px">Usa <strong>"Marcar todas verificadas"</strong> cuando ya confirmaste que la suma de tus ventas cuadra con tus pagos y no necesitas conciliar fila por fila.</div>
@@ -1942,11 +1946,12 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   <div class="page-header">
     <div>
       <div class="page-title">🔎 Conciliación de Pagos</div>
-      <div class="page-sub">Sube solo el reporte del banco — el sistema concilia tus ventas automáticamente</div>
+      <div class="page-sub">Conciliación global — todas tus ventas del periodo contra el reporte del banco</div>
     </div>
     <button class="btn btn-ghost btn-sm" onclick="concReset()">🗑️ Reiniciar</button>
   </div>
 
+  <div id="conc-root">
   <!-- ① PERIODO -->
   <div class="panel" style="margin-bottom:14px">
     <div class="panel-header"><span class="panel-title">① Elige el periodo</span></div>
@@ -2170,6 +2175,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <div style="font-size:12px;color:var(--text3);margin-top:6px">Exporta el Excel del CRM y el Reporte de Transacciones de Yape/Plin del mismo día</div>
     </div>
   </details>
+  </div><!-- /conc-root -->
 </div>
 
 </main>
@@ -3682,7 +3688,7 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
       g.upsell += r.up1 + r.up2 + r.up3 + r.up4;
 
       if (r.hora && r.valor > 0) {
-        crmRows.push({ fecha: r.fecha, ad_id: r.adId, hora: r.hora, precio: r.valor, telefono: r.telefono || null, producto: r.producto || null, workspace_id: wsId, user_id: CURRENT_USER?.id });
+        crmRows.push({ fecha: r.fecha, ad_id: r.adId, hora: r.hora, precio: r.valor, telefono: r.telefono || null, producto: r.producto || null, cliente: r.cliente || null, workspace_id: wsId, user_id: CURRENT_USER?.id });
       }
     }
 
@@ -3810,6 +3816,7 @@ function _parseSheetCSV(text) {
   const iValor = findH(['valor','value','precio','monto']);
   const iTel   = findH(['numero de celular','telefono','phone','celular']);
   const iProd  = findH(['producto','product']);
+  const iCli   = findH(['nombre del cliente','nombre cliente','cliente','nombre','customer name','customer','id cliente']);
   const iUp1   = findH(['upsell 1','upsell1']);
   const iUp2   = findH(['upsell 2','upsell2']);
   const iUp3   = findH(['upsell 3','upsell3']);
@@ -3829,7 +3836,8 @@ function _parseSheetCSV(text) {
     if (valor <= 0) continue;
     const telefono = iTel >= 0 ? (cols[iTel]||'').replace(/"/g,'').trim() : '';
     const productoRaw = iProd >= 0 ? (cols[iProd]||'').replace(/"/g,'').trim() : '';
-    rows.push({ adId, fecha, hora: horaRaw, valor, telefono, producto: productoRaw,
+    const cliente = iCli >= 0 ? (cols[iCli]||'').replace(/"/g,'').trim() : '';
+    rows.push({ adId, fecha, hora: horaRaw, valor, telefono, producto: productoRaw, cliente,
       up1: iUp1>=0 ? parseVal(cols[iUp1]) : 0, up2: iUp2>=0 ? parseVal(cols[iUp2]) : 0,
       up3: iUp3>=0 ? parseVal(cols[iUp3]) : 0, up4: iUp4>=0 ? parseVal(cols[iUp4]) : 0 });
   }
@@ -7782,8 +7790,19 @@ async function marcarVerificadoBulk() {
 function impTab(t) {
   document.getElementById('imp-tab-importar').style.display = t === 'importar' ? 'block' : 'none';
   document.getElementById('imp-tab-ajustes').style.display  = t === 'ajustes'  ? 'block' : 'none';
+  const cTab = document.getElementById('imp-tab-conciliacion');
+  if (cTab) cTab.style.display = t === 'conciliacion' ? 'block' : 'none';
   document.getElementById('imp-tab-btn-importar').classList.toggle('active', t === 'importar');
   document.getElementById('imp-tab-btn-ajustes').classList.toggle('active', t === 'ajustes');
+  const cBtn = document.getElementById('imp-tab-btn-conciliacion');
+  if (cBtn) cBtn.classList.toggle('active', t === 'conciliacion');
+  if (t === 'conciliacion') {
+    // Reubicar el flujo de conciliación dentro de la pestaña (una sola vez)
+    const root = document.getElementById('conc-root');
+    if (root && cTab && !cTab.contains(root)) cTab.appendChild(root);
+    if (typeof concCargarHistorial === 'function') concCargarHistorial();
+    if (typeof concSetPeriodo === 'function') concSetPeriodo();
+  }
 }
 
 // Fecha de pago del bot (mensual recurrente): rueda mes a mes hasta hoy.
@@ -12752,13 +12771,13 @@ init();
   };
 
   async function concResumenVentas(){
-    const wsId = CURRENT_WORKSPACE?.id;
     const el = document.getElementById('conc-resumen-ventas'); if(!el) return;
-    if(!wsId){ el.textContent='Selecciona un producto primero.'; return; }
     el.textContent='⏳ contando ventas...';
     try{
-      const v = await api.get('crm_ventas', `workspace_id=eq.${wsId}&fecha=gte.${CONC.desde}&fecha=lte.${CONC.hasta}&select=id`);
-      el.innerHTML = `<span style="color:var(--accent)">📋 ${v.length} venta(s)</span> en el periodo se conciliarán`;
+      // Global: todas las ventas del usuario en el periodo (RLS limita a sus filas)
+      const v = await api.get('crm_ventas', `fecha=gte.${CONC.desde}&fecha=lte.${CONC.hasta}&select=id`);
+      const nProd = (DB.workspaces||[]).length;
+      el.innerHTML = `<span style="color:var(--accent)">📋 ${v.length} venta(s)</span> de ${nProd} producto(s) en el periodo se conciliarán`;
     }catch(e){ el.textContent='Error contando ventas'; }
   }
 
@@ -12783,14 +12802,14 @@ init();
     }catch(err){ title.textContent='❌ '+err.message; }
   }
 
-  // ── Paso 3: motor de emparejamiento ──
+  // ── Paso 3: motor de emparejamiento (GLOBAL: todos los productos) ──
   async function concConciliar(){
-    const wsId = CURRENT_WORKSPACE?.id;
-    if(!wsId){ alert('Selecciona un producto.'); return; }
     if(!CONC.pagos.length){ return; }
-    const ventas = await api.get('crm_ventas', `workspace_id=eq.${wsId}&fecha=gte.${CONC.desde}&fecha=lte.${CONC.hasta}&select=id,fecha,ad_id,hora,precio,estado_verif,telefono,producto,cliente`).catch(async()=>
+    // Global: todas las ventas del usuario en el periodo (RLS limita a sus filas).
+    const baseQ = `fecha=gte.${CONC.desde}&fecha=lte.${CONC.hasta}`;
+    const ventas = await api.get('crm_ventas', `${baseQ}&select=id,fecha,ad_id,hora,precio,estado_verif,workspace_id,telefono,producto,cliente`).catch(async()=>
       // Fallback si aún no existen las columnas nuevas (telefono/producto/cliente)
-      await api.get('crm_ventas', `workspace_id=eq.${wsId}&fecha=gte.${CONC.desde}&fecha=lte.${CONC.hasta}&select=id,fecha,ad_id,hora,precio,estado_verif`)
+      await api.get('crm_ventas', `${baseQ}&select=id,fecha,ad_id,hora,precio,estado_verif,workspace_id`)
     );
     // CRÍTICO: solo conciliar pagos del banco DENTRO del periodo. "Total" usa un rango enorme,
     // así que el mismo filtro sirve. Nunca se analizan movimientos fuera del rango.
@@ -12907,12 +12926,14 @@ init();
     document.getElementById('conc-lista-count').textContent = `${lista.length} de ${CONC.ventas.length}`;
     if(!lista.length){ cont.innerHTML='<div style="text-align:center;color:var(--text3);padding:20px">Sin ventas en este filtro</div>'; return; }
     const adMap={}; (DB.anuncios||[]).forEach(a=>{ adMap[a.ad_id]=a.nombre||a.ad_id; });
+    const wsMap={}; (DB.workspaces||[]).forEach(w=>{ wsMap[w.id]={nombre:w.nombre,emoji:w.emoji||'📦'}; });
     const optHuer = CONC.huerfanos.map(p=>`<option value="${p._i}">${p.hora} · ${escH(p.origen||'')} · ${fmtMoney(p.monto,code)}</option>`).join('');
     cont.innerHTML = lista.map(v=>{
       const horaV = v.hora ? new Date(v.hora).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'}) : '—';
-      const producto = v.producto || CURRENT_WORKSPACE?.nombre || '—';
+      const ws = wsMap[v.workspace_id];
+      const producto = v.producto || (ws?`${ws.emoji} ${ws.nombre}`:null) || CURRENT_WORKSPACE?.nombre || '—';
       const creative = adMap[v.ad_id] || v.ad_id || '—';
-      const numero = v.telefono || '—';
+      const numero = v.telefono || '';
       const cliente = v.cliente || '';
       const diff = v.pago ? (+v.pago.monto - +v.precio) : 0;
       const delta = v.pago ? (Math.abs(diff)<0.01 ? '<span style="color:var(--green);font-weight:700">= monto OK</span>' : `<span style="color:var(--red);font-weight:700">Δ ${diff>0?'+':''}${diff.toFixed(2)}</span>`) : '';
@@ -12923,7 +12944,8 @@ init();
         <div style="font-size:13px;font-weight:800;font-family:var(--mono);color:var(--text)">${fmtMoney(v.precio,code)}</div>
         <div style="font-size:11px;color:var(--text2)">📅 ${fmt.date(v.fecha)} · ${horaV}</div>
         <div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escH(creative)}">🎯 ${escH(creative)}</div>
-        <div style="font-size:10px;color:var(--text3)">📞 ${escH(numero)}${cliente?' · '+escH(cliente):''}</div>
+        <div style="font-size:10px;color:var(--text3)">📞 ${numero?escH(numero):'—'}</div>
+        <div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">🆔 ${cliente?escH(cliente):'—'}</div>
       </div>`;
       // PAGO box (o vacío con reasignar)
       let pagoBox;
@@ -13033,7 +13055,7 @@ init();
       const dif=CONC.ventas.filter(v=>v.estado==='parcial').reduce((s,v)=>s+Math.abs((+v.precio||0)-(v.pago?+v.pago.monto:0)),0);
       try{
         await api.post('verif_historial', {
-          user_id: CURRENT_USER?.id, workspace_id: CURRENT_WORKSPACE?.id,
+          user_id: CURRENT_USER?.id, workspace_id: null,
           periodo_desde: CONC.desde, periodo_hasta: CONC.hasta, archivo: CONC.archivo || null,
           total_ventas: total, conciliadas: nVer, pendientes: total-nVer-nSin, sin_match: nSin,
           dinero_conciliado: +dineroConc.toFixed(2), diferencias: +dif.toFixed(2),
@@ -13048,9 +13070,9 @@ init();
   // ── Historial de conciliaciones (#10) ──
   window.concCargarHistorial = async function(){
     const tb = document.getElementById('conc-hist-tbody'); if(!tb) return;
-    const wsId = CURRENT_WORKSPACE?.id; if(!wsId) return;
     try{
-      const hist = await api.get('verif_historial', `workspace_id=eq.${wsId}&order=creado_at.desc&limit=50`);
+      // Global: todo el historial del usuario (RLS limita a sus filas)
+      const hist = await api.get('verif_historial', `order=creado_at.desc&limit=50`);
       if(!hist.length){ tb.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:16px">Sin conciliaciones guardadas aún</td></tr>'; return; }
       const code = wsCurrencyCode();
       tb.innerHTML = hist.map(h=>{
