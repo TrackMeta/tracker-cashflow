@@ -4679,7 +4679,7 @@ async function renderGlobal() {
 
     const diasGlobal = new Set();
     const profitDiaUsd = {};   // fecha -> profit total en USD (todos los productos)
-    let verifOk = 0, verifTot = 0;
+    let crmVal = [];
     for (const ws of DB.workspaces) {
       if (!SELECTED_WS_IDS.has(ws.id)) continue;
       const regs = await api.get('registros',
@@ -4700,9 +4700,8 @@ async function renderGlobal() {
       regs.forEach(r => diasGlobal.add(r.fecha));
       // Verificación de ventas de este producto en el período
       try {
-        const cv = await api.get('crm_ventas', `workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&select=estado_verif`);
-        verifTot += cv.length;
-        verifOk  += cv.filter(v => v.estado_verif === 'verificada').length;
+        const cv = await api.get('crm_ventas', `workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&select=estado_verif,ciclo`);
+        crmVal.push(...cv);
       } catch(e) {}
     }
     // Franja de confianza global (consolidación por antigüedad + verificación)
@@ -4712,11 +4711,7 @@ async function renderGlobal() {
       const cons = diasGlobal.size - provis.length;
       let txt = `<span style="color:var(--green);font-weight:600">✅ ${cons} día(s) consolidado(s)</span>`;
       if (provis.length) txt += ` <span style="color:var(--text3)">·</span> <span style="color:var(--orange);font-weight:600">⏳ ${provis.length} provisional(es)</span>`;
-      if (verifTot) {
-        const pct = Math.round(verifOk/verifTot*100);
-        const col = pct>=90?'var(--green)':pct>=70?'var(--orange)':'var(--red)';
-        txt += ` <span style="color:var(--text3)">·</span> <span style="color:${col};font-weight:600">✅ ${pct}% ventas verificadas</span> <span style="color:var(--text3)">(${verifOk}/${verifTot})</span>`;
-      }
+      txt += validacionTxt(crmVal);
       cb.innerHTML = txt;
     }
 
@@ -8226,7 +8221,7 @@ async function loadAll() {
   DB.diaEstado = await api.get('dia_estado', `order=fecha.desc&limit=400${baseFilter}`).catch(() => []);
 
   // Resumen de verificación de ventas (Etapa 3) — ligero: solo fecha + estado
-  DB.crmVerif = await api.get('crm_ventas', `select=fecha,estado_verif&order=fecha.desc&limit=8000${baseFilter}`).catch(() => []);
+  DB.crmVerif = await api.get('crm_ventas', `select=fecha,estado_verif,ciclo&order=fecha.desc&limit=8000${baseFilter}`).catch(() => []);
 
   if (cfgArr.length) DB.config = cfgArr[0];
   else DB.config = { id:null, p1:10, p2:7, p3:5, p4:3, igv:0.18, tc:4.0, sat_caida:0.30, sat_dias:3, estados:[], alerta_gasto_min:5, alerta_roas_min:1, roas_gasto_min:1, gastos_extras:[] };
@@ -8765,6 +8760,40 @@ function renderAccionDia(regs, ant) {
   </div>`;
 }
 
+// Resumen de validación de ventas (Fase 4): manda el CICLO DE VIDA, no el origen.
+// Validada = la venta superó toda la auditoría (ciclo finalizado). Por construcción,
+// `finalizado` solo lo alcanzan los resultados buenos (🟢 conciliado / 🔵 revisión OK /
+// 🟣 manual); las excepciones (🔴/🟡) quedan en `en_proceso` hasta resolverse.
+function validacionResumen(rows) {
+  let val = 0, pend = 0, rev = 0, err = 0;
+  for (const v of (rows || [])) {
+    if (v.ciclo === 'descartado') continue;            // ignoradas: fuera del conteo
+    if (v.ciclo === 'finalizado') { val++; continue; } // validada
+    if (v.ciclo === 'en_proceso') {                    // auditada con excepción
+      if (v.estado_verif === 'sin_match' || v.estado_verif === 'fantasma') err++;
+      else rev++;
+      continue;
+    }
+    pend++;                                             // pendiente (cola de conciliación)
+  }
+  const total = val + pend + rev + err;
+  return { val, pend, rev, err, total, pct: total ? Math.round(val / total * 100) : 0 };
+}
+
+// Texto compacto para las franjas de confianza (Dashboard / Global / Bitácora).
+function validacionTxt(rows) {
+  const r = validacionResumen(rows);
+  if (!r.total) return '';
+  const col = r.pct >= 90 ? 'var(--green)' : r.pct >= 70 ? 'var(--orange)' : 'var(--red)';
+  let t = ` <span style="color:var(--text3)">·</span> <span style="color:${col};font-weight:600">✅ ${r.val}/${r.total} validadas</span>`;
+  const extra = [];
+  if (r.pend) extra.push(`⏳ ${r.pend}`);
+  if (r.rev)  extra.push(`🔵 ${r.rev}`);
+  if (r.err)  extra.push(`🔴 ${r.err}`);
+  if (extra.length) t += ` <span style="color:var(--text3)">(${extra.join(' · ')})</span>`;
+  return t;
+}
+
 // Franja de confianza: cuántos días del período están consolidados vs provisionales
 function renderConfianza(desde, hasta) {
   const box = document.getElementById('dash-confianza');
@@ -8776,15 +8805,8 @@ function renderConfianza(desde, hasta) {
   let consolidados = 0; const provis = [];
   dias.forEach(f => { if (diaConsolidado(wsId, f)) consolidados++; else provis.push(f); });
 
-  // % de ventas verificadas en el período (Etapa 3) — desde el cache ligero
-  let verifTxt = '';
-  const cv = (DB.crmVerif || []).filter(v => v.fecha >= desde && v.fecha <= hasta);
-  if (cv.length) {
-    const ok = cv.filter(v => v.estado_verif === 'verificada').length;
-    const pct = Math.round(ok / cv.length * 100);
-    const col = pct >= 90 ? 'var(--green)' : pct >= 70 ? 'var(--orange)' : 'var(--red)';
-    verifTxt = ` <span style="color:var(--text3)">·</span> <span style="color:${col};font-weight:600">✅ ${pct}% ventas verificadas</span> <span style="color:var(--text3)">(${ok}/${cv.length})</span>`;
-  }
+  // Ventas validadas en el período (Fase 4) — desde el cache ligero, por ciclo de vida
+  const verifTxt = validacionTxt((DB.crmVerif || []).filter(v => v.fecha >= desde && v.fecha <= hasta));
 
   if (!provis.length) {
     box.innerHTML = `<span style="color:var(--green);font-weight:600">✅ ${consolidados} día${consolidados===1?'':'s'} consolidado${consolidados===1?'':'s'}</span> <span style="color:var(--text3)">— cifras finales</span>${verifTxt}`;
@@ -9350,14 +9372,7 @@ function bitaConfianza(regs){
   let cons = 0; const prov = [];
   dias.forEach(f => { if (diaConsolidado(wsId, f)) cons++; else prov.push(f); });
   const desde = dias.sort()[0], hasta = dias.sort()[dias.length-1];
-  let verifTxt = '';
-  const cv = (DB.crmVerif || []).filter(v => v.fecha >= desde && v.fecha <= hasta);
-  if (cv.length) {
-    const ok = cv.filter(v => v.estado_verif === 'verificada').length;
-    const pct = Math.round(ok / cv.length * 100);
-    const col = pct >= 90 ? 'var(--green)' : pct >= 70 ? 'var(--orange)' : 'var(--red)';
-    verifTxt = ` <span style="color:var(--text3)">·</span> <span style="color:${col};font-weight:600">✅ ${pct}% verificado</span>`;
-  }
+  const verifTxt = validacionTxt((DB.crmVerif || []).filter(v => v.fecha >= desde && v.fecha <= hasta));
   box.innerHTML = (prov.length
     ? `<span style="color:var(--green);font-weight:600">✅ ${cons} consolidados</span> · <span style="color:var(--orange);font-weight:600">⏳ ${prov.length} provisionales</span> <span style="color:var(--text3)">(pueden ajustarse)</span>`
     : `<span style="color:var(--green);font-weight:600">✅ ${cons} días consolidados — cifras finales</span>`) + verifTxt;
