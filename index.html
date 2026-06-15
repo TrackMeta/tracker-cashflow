@@ -3816,7 +3816,7 @@ function _parseSheetCSV(text) {
   const iValor = findH(['valor','value','precio','monto']);
   const iTel   = findH(['numero de celular','telefono','phone','celular']);
   const iProd  = findH(['producto','product']);
-  const iCli   = findH(['nombre del cliente','nombre cliente','cliente','nombre','customer name','customer','id cliente']);
+  const iCli   = findH(['nombre del cliente','nombre cliente','id cliente','cliente','nombre','customer name','customer','id']);
   const iUp1   = findH(['upsell 1','upsell1']);
   const iUp2   = findH(['upsell 2','upsell2']);
   const iUp3   = findH(['upsell 3','upsell3']);
@@ -12772,13 +12772,12 @@ init();
 
   async function concResumenVentas(){
     const el = document.getElementById('conc-resumen-ventas'); if(!el) return;
-    el.textContent='⏳ contando ventas...';
+    el.textContent='⏳ leyendo ventas del Sheet...';
     try{
-      // Global: todas las ventas del usuario en el periodo (RLS limita a sus filas)
-      const v = await api.get('crm_ventas', `fecha=gte.${CONC.desde}&fecha=lte.${CONC.hasta}&select=id`);
-      const nProd = (DB.workspaces||[]).length;
-      el.innerHTML = `<span style="color:var(--accent)">📋 ${v.length} venta(s)</span> de ${nProd} producto(s) en el periodo se conciliarán`;
-    }catch(e){ el.textContent='Error contando ventas'; }
+      const v = await concLeerVentas(CONC.desde, CONC.hasta);
+      const nProd = new Set(v.map(x=>x.workspace_id).filter(Boolean)).size;
+      el.innerHTML = `<span style="color:var(--accent)">📋 ${v.length} venta(s)</span>${nProd?` de ${nProd} producto(s)`:''} en el periodo se conciliarán`;
+    }catch(e){ el.textContent='Error leyendo ventas'; }
   }
 
   // ── Paso 2: cargar archivo del banco ──
@@ -12802,15 +12801,47 @@ init();
     }catch(err){ title.textContent='❌ '+err.message; }
   }
 
-  // ── Paso 3: motor de emparejamiento (GLOBAL: todos los productos) ──
+  // Lee TODAS las ventas directo del Google Sheet (frescas, con ID + celular).
+  // Cachea el parse para no re-descargar en cada cambio de periodo.
+  async function concFetchSheetVentas(){
+    const fuentesConSheet = (DB.fuentes||[]).filter(f => f.sheets_url);
+    const jobs = fuentesConSheet.length
+      ? fuentesConSheet.map(f => ({ url:f.sheets_url, wsList: DB.workspaces.filter(w => w.fuente_id === f.id) }))
+      : ((DB.config.sheets_url || DB.config.sheets_id) ? [{ url: DB.config.sheets_url || DB.config.sheets_id, wsList: DB.workspaces }] : []);
+    jobs.forEach(j => { if (!j.wsList.length) j.wsList = DB.workspaces; });
+    if (!jobs.length) return [];
+    const adIdToWs = {}; (DB.anuncios||[]).forEach(a => { if (a.ad_id) adIdToWs[a.ad_id] = a.workspace_id; });
+    const out = [], seen = new Set();
+    for (const job of jobs){
+      const sheetId = (job.url.match(/\/d\/([a-zA-Z0-9_-]+)/) || [])[1] || job.url;
+      let csv;
+      try { const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`); if (!res.ok) continue; csv = await res.text(); } catch(e){ continue; }
+      const rows = _parseSheetCSV(csv);
+      const wsNames = job.wsList.map(w => w.nombre || '');
+      const wsNombreToId = {}; job.wsList.forEach(w => { wsNombreToId[w.nombre||''] = w.id; });
+      for (const r of rows){
+        const prodNorm = _normalizarProducto(r.producto || '', wsNames);
+        const wsId = wsNombreToId[prodNorm] || adIdToWs[r.adId] || job.wsList[0]?.id;
+        const key = `${r.adId}|${r.hora}|${r.telefono}`; if (seen.has(key)) continue; seen.add(key);
+        out.push({ id:`sheet|${r.adId}|${r.hora}`, fecha:r.fecha, ad_id:r.adId, hora:r.hora, precio:r.valor,
+          telefono:r.telefono||'', cliente:r.cliente||'', producto:r.producto||'', workspace_id:wsId });
+      }
+    }
+    return out;
+  }
+  async function concLeerVentas(desde, hasta){
+    if (!CONC._sheetAll){ try { CONC._sheetAll = await concFetchSheetVentas(); } catch(e){ CONC._sheetAll = []; } }
+    if (CONC._sheetAll.length) return CONC._sheetAll.filter(v => v.fecha >= desde && v.fecha <= hasta);
+    // Fallback: crm_ventas (copia sincronizada) si no hay Sheet accesible
+    const baseQ = `fecha=gte.${desde}&fecha=lte.${hasta}`;
+    return await api.get('crm_ventas', `${baseQ}&select=id,fecha,ad_id,hora,precio,workspace_id,telefono,producto,cliente`).catch(async()=>
+      await api.get('crm_ventas', `${baseQ}&select=id,fecha,ad_id,hora,precio,workspace_id`)).catch(()=>[]);
+  }
+
+  // ── Paso 3: motor de emparejamiento (GLOBAL: todos los productos, desde el Sheet) ──
   async function concConciliar(){
     if(!CONC.pagos.length){ return; }
-    // Global: todas las ventas del usuario en el periodo (RLS limita a sus filas).
-    const baseQ = `fecha=gte.${CONC.desde}&fecha=lte.${CONC.hasta}`;
-    const ventas = await api.get('crm_ventas', `${baseQ}&select=id,fecha,ad_id,hora,precio,estado_verif,workspace_id,telefono,producto,cliente`).catch(async()=>
-      // Fallback si aún no existen las columnas nuevas (telefono/producto/cliente)
-      await api.get('crm_ventas', `${baseQ}&select=id,fecha,ad_id,hora,precio,estado_verif,workspace_id`)
-    );
+    const ventas = await concLeerVentas(CONC.desde, CONC.hasta);
     // CRÍTICO: solo conciliar pagos del banco DENTRO del periodo. "Total" usa un rango enorme,
     // así que el mismo filtro sirve. Nunca se analizan movimientos fuera del rango.
     CONC.pagosPeriodo = CONC.pagos.filter(p => p.fechaDia >= CONC.desde && p.fechaDia <= CONC.hasta);
@@ -13034,19 +13065,33 @@ init();
     concRender();
   };
 
-  // Persistir estado_verif en la BD (por lotes) + registrar en el historial
+  // Persistir estado_verif en la BD (por clave natural) + registrar en el historial.
+  // Las ventas vienen del Sheet (id sintético): emparejamos contra crm_ventas por
+  // workspace+ad_id+hora; las que existan se actualizan (PATCH por id), las nuevas
+  // (ventas de hoy aún sin sincronizar) se insertan con su estado.
   window.concGuardar = async function(){
     const map = { verificada:'verificada', parcial:'monto_difiere', sin_match:'fantasma', revision:'revision', pendiente:'pendiente' };
     const nowISO=new Date().toISOString();
-    const grupos={}; CONC.ventas.forEach(v=>{ const e=map[v.estado]||v.estado; (grupos[e]=grupos[e]||[]).push(v.id); });
     try{
-      for(const [estado,ids] of Object.entries(grupos)){
+      const existing = await api.get('crm_ventas', `fecha=gte.${CONC.desde}&fecha=lte.${CONC.hasta}&select=id,workspace_id,ad_id,hora`).catch(()=>[]);
+      const exMap={}; existing.forEach(e=>{ exMap[`${e.workspace_id}|${e.ad_id}|${e.hora}`]=e.id; });
+      const patchByEstado={}, inserts=[];
+      CONC.ventas.forEach(v=>{
+        const ev = map[v.estado]||v.estado;
+        const id = exMap[`${v.workspace_id}|${v.ad_id}|${v.hora}`];
+        if(id){ (patchByEstado[ev]=patchByEstado[ev]||[]).push(id); }
+        else if(v.workspace_id){ inserts.push({ fecha:v.fecha, ad_id:v.ad_id, hora:v.hora, precio:v.precio, telefono:v.telefono||null, producto:v.producto||null, cliente:v.cliente||null, workspace_id:v.workspace_id, user_id:CURRENT_USER?.id, estado_verif:ev, verificado_at:nowISO }); }
+      });
+      for(const [estado,ids] of Object.entries(patchByEstado)){
         for(let i=0;i<ids.length;i+=100){
           await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas?id=in.(${ids.slice(i,i+100).join(',')})`,{
             method:'PATCH', headers:{...api._h(),'Prefer':'return=minimal'},
             body:JSON.stringify({ estado_verif:estado, verificado_at:nowISO })
           });
         }
+      }
+      for(let i=0;i<inserts.length;i+=100){
+        await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas`,{ method:'POST', headers:{...api._h(),'Prefer':'resolution=ignore-duplicates,return=minimal'}, body:JSON.stringify(inserts.slice(i,i+100)) }).catch(()=>{});
       }
       // Registrar la conciliación en el historial (#10)
       const total=CONC.ventas.length;
@@ -13100,7 +13145,7 @@ init();
   };
 
   window.concReset = function(){
-    CONC.desde=null; CONC.hasta=null; CONC.ventas=[]; CONC.pagos=[]; CONC.huerfanos=[]; CONC.filtro='todos'; CONC.archivo=null;
+    CONC.desde=null; CONC.hasta=null; CONC.ventas=[]; CONC.pagos=[]; CONC.huerfanos=[]; CONC.filtro='todos'; CONC.archivo=null; CONC._sheetAll=null;
     document.getElementById('dz-conc').style.borderColor='';
     document.getElementById('dz-conc-title').textContent='Arrastra el reporte de transacciones (Excel)';
     document.getElementById('conc-bank-info').style.display='none';

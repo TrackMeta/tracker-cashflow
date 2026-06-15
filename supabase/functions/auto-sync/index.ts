@@ -57,7 +57,7 @@ function parseSheetCSV(text: string) {
   const iValor = findH(["valor", "value", "precio", "monto"]);
   const iTel = findH(["numero de celular", "telefono", "phone", "celular"]);
   const iProd = findH(["producto", "product"]);
-  const iCli = findH(["nombre del cliente", "nombre cliente", "cliente", "nombre", "customer name", "customer", "id cliente"]);
+  const iCli = findH(["nombre del cliente", "nombre cliente", "id cliente", "cliente", "nombre", "customer name", "customer", "id"]);
   const iUp = [findH(["upsell 1", "upsell1"]), findH(["upsell 2", "upsell2"]), findH(["upsell 3", "upsell3"]), findH(["upsell 4", "upsell4"])];
   if (iAdId < 0 || iFecha < 0) return [];
   const parseVal = (raw: string) => parseFloat((raw || "").toString().replace(/S\/\s*/i, "").replace(/[^0-9.]/g, "")) || 0;
