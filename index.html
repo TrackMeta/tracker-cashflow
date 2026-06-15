@@ -2037,9 +2037,9 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   <details style="margin-top:18px">
     <summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--text2);padding:8px 0">🔧 Borrar filas del Sheet — conectar script (opcional)</summary>
     <div style="margin-top:10px;padding:14px;background:var(--bg3);border-radius:10px">
-      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Para que <strong>"Eliminar del Sheet definitivamente"</strong> borre filas reales de tu Google Sheet, despliega el script que te indicó el asistente como <strong>Web App</strong> y pega aquí su URL (termina en <code>/exec</code>).</div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Cada bot tiene su propio Sheet y su propio script. Configura la URL del Web App de <strong>cada bot en Ajustes → Fuentes</strong> (campo "URL del script de borrado"). El campo de abajo es solo un <strong>respaldo</strong> para una configuración de un único Sheet (modo antiguo).</div>
       <div class="field" style="margin-bottom:10px">
-        <label>URL del Web App del script</label>
+        <label>URL del Web App del script (respaldo / Sheet único)</label>
         <input type="url" id="conc-script-url" placeholder="https://script.google.com/macros/s/.../exec" style="font-size:11px;font-family:var(--mono)">
       </div>
       <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
@@ -2344,6 +2344,11 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div class="field" style="margin-top:10px">
       <label>URL del Google Sheet (ventas)</label>
       <input type="url" id="fuente-sheet" placeholder="https://docs.google.com/spreadsheets/d/..." style="font-family:var(--mono);font-size:11px">
+    </div>
+    <div class="field" style="margin-top:10px">
+      <label>URL del script de borrado (Web App, opcional)</label>
+      <input type="url" id="fuente-script" placeholder="https://script.google.com/macros/s/.../exec" style="font-family:var(--mono);font-size:11px">
+      <div style="font-size:10px;color:var(--text3);margin-top:3px">Solo si quieres borrar filas de ESTE Sheet desde la Conciliación. Despliega el Apps Script de este Sheet como Web App y pega su URL (/exec).</div>
     </div>
 
     <div class="modal-section" style="margin-top:16px">📘 Meta Ads (publicidad de este bot)</div>
@@ -3307,6 +3312,7 @@ function doPost(e) {
         var adId = (row[iAdId]||'').toString().replace(/\\.0$/,'').trim();
         var fr = row[iFecha], f='', h='';
         if (fr instanceof Date){ f = Utilities.formatDate(fr,'America/Lima','yyyy-MM-dd'); h = Utilities.formatDate(fr,'America/Lima','HH:mm:ss'); }
+        else { var s = (fr||'').toString().trim(); if (s.indexOf('T')>=0){ f = s.split('T')[0]; h = s.split('T')[1].substring(0,8); } else { var sp = s.split(' '); f = sp[0]||''; h = (sp[1]||'').substring(0,8); } }
         var val = parseFloat((row[iValor]||'0').toString().replace(/[^0-9.]/g,''))||0;
         for (var k=0;k<body.rows.length;k++){
           var t = body.rows[k];
@@ -7909,6 +7915,7 @@ function openNuevaFuente() {
   document.getElementById('fuente-emoji').value   = '🤖';
   document.getElementById('fuente-nombre').value  = '';
   document.getElementById('fuente-sheet').value   = '';
+  document.getElementById('fuente-script').value  = '';
   document.getElementById('fuente-token').value   = '';
   document.getElementById('fuente-cuentas').value = '';
   document.getElementById('fuente-pago-vence').value = '';
@@ -7924,6 +7931,7 @@ function editFuente(id) {
   document.getElementById('fuente-emoji').value   = f.emoji || '🤖';
   document.getElementById('fuente-nombre').value  = f.nombre || '';
   document.getElementById('fuente-sheet').value   = f.sheets_url || '';
+  document.getElementById('fuente-script').value  = f.script_url || '';
   document.getElementById('fuente-token').value   = f.meta_token || '';
   document.getElementById('fuente-cuentas').value = (Array.isArray(f.meta_cuentas) ? f.meta_cuentas : [])
     .map(c => c.id || c).join('\n');
@@ -7943,6 +7951,7 @@ async function saveFuente() {
     nombre,
     emoji: document.getElementById('fuente-emoji').value.trim() || '🤖',
     sheets_url: document.getElementById('fuente-sheet').value.trim(),
+    script_url: document.getElementById('fuente-script').value.trim(),
     meta_token: document.getElementById('fuente-token').value.trim(),
     meta_cuentas: cuentas,
     pago_vence: document.getElementById('fuente-pago-vence').value || null,
@@ -12860,8 +12869,8 @@ init();
   async function concFetchSheetVentas(){
     const fuentesConSheet = (DB.fuentes||[]).filter(f => f.sheets_url);
     const jobs = fuentesConSheet.length
-      ? fuentesConSheet.map(f => ({ url:f.sheets_url, wsList: DB.workspaces.filter(w => w.fuente_id === f.id) }))
-      : ((DB.config.sheets_url || DB.config.sheets_id) ? [{ url: DB.config.sheets_url || DB.config.sheets_id, wsList: DB.workspaces }] : []);
+      ? fuentesConSheet.map(f => ({ url:f.sheets_url, fuenteId:f.id, scriptUrl:f.script_url||'', wsList: DB.workspaces.filter(w => w.fuente_id === f.id) }))
+      : ((DB.config.sheets_url || DB.config.sheets_id) ? [{ url: DB.config.sheets_url || DB.config.sheets_id, fuenteId:null, scriptUrl:DB.config.script_url||'', wsList: DB.workspaces }] : []);
     jobs.forEach(j => { if (!j.wsList.length) j.wsList = DB.workspaces; });
     if (!jobs.length) return [];
     const adIdToWs = {}; (DB.anuncios||[]).forEach(a => { if (a.ad_id) adIdToWs[a.ad_id] = a.workspace_id; });
@@ -12878,7 +12887,8 @@ init();
         const wsId = wsNombreToId[prodNorm] || adIdToWs[r.adId] || job.wsList[0]?.id;
         const key = `${r.adId}|${r.hora}|${r.telefono}`; if (seen.has(key)) continue; seen.add(key);
         out.push({ id:`sheet|${r.adId}|${r.hora}`, fecha:r.fecha, ad_id:r.adId, hora:r.hora, precio:r.valor,
-          telefono:r.telefono||'', cliente:r.cliente||'', producto:r.producto||'', workspace_id:wsId });
+          telefono:r.telefono||'', cliente:r.cliente||'', producto:r.producto||'', workspace_id:wsId,
+          fuente_id:job.fuenteId, script_url:job.scriptUrl });
       }
     }
     return out;
@@ -13205,22 +13215,33 @@ init();
     </div>`;
   }
 
-  // Borrado REAL en el Sheet vía Apps Script (única acción que toca el Sheet)
+  // Resuelve la URL del script de un registro: la de su fuente, o el fallback global
+  function _concScriptUrlDe(v){ return v.script_url || (DB.fuentes||[]).find(f=>f.id===v.fuente_id)?.script_url || DB.config?.script_url || ''; }
+
+  // Borrado REAL en el/los Sheet(s) vía Apps Script. Cada registro va al script de SU bot.
   window.concVaciarPapelera = async function(){
     const pap=CONC.papelera||[]; if(!pap.length) return;
-    const scriptUrl = DB.config?.script_url;
-    if(!scriptUrl){ showError('Para borrar filas del Sheet, conecta su script primero (Ajustes → Conectar Google Sheet → re-desplegar el código actualizado).'); return; }
-    if(!confirm(`¿Eliminar DEFINITIVAMENTE ${pap.length} registro(s) de tu Google Sheet?\n\nEsta acción no se puede deshacer.`)) return;
-    const rows = pap.map(v=>({ adId:String(v.ad_id||''), fecha:v.fecha, hora:(v.hora&&v.hora.includes('T'))?v.hora.split('T')[1].slice(0,8):'', valor:+v.precio }));
-    try{
-      const res = await fetch(scriptUrl, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({action:'delete', rows}) });
-      const data = await res.json().catch(()=>({}));
-      if(data && data.ok){
-        showSuccess(`✅ ${data.deleted??pap.length} registro(s) eliminado(s) del Sheet`);
-        CONC.papelera=[]; CONC._sheetAll=null;
-        await concConciliar();
-      } else { showError('El script respondió error: '+((data&&data.error)||'no se pudo eliminar')); }
-    }catch(e){ showError('No se pudo contactar el script del Sheet: '+e.message+'. ¿Re-desplegaste el código actualizado?'); }
+    // Agrupar por URL de script (cada bot tiene su propio Sheet/script)
+    const grupos={}, sinScript=[];
+    pap.forEach(v=>{ const u=_concScriptUrlDe(v); if(u){ (grupos[u]=grupos[u]||[]).push(v); } else { sinScript.push(v); } });
+    if(!Object.keys(grupos).length){ showError('Ninguno de estos registros tiene un script de Sheet conectado. Configura el script en Ajustes → Fuentes (o en el bloque "🔧 Borrar filas del Sheet").'); return; }
+    if(!confirm(`¿Eliminar DEFINITIVAMENTE ${pap.length-sinScript.length} registro(s) de tu(s) Google Sheet(s)?\n\nEsta acción no se puede deshacer.${sinScript.length?`\n\n(${sinScript.length} quedarán en la papelera por no tener script conectado.)`:''}`)) return;
+    let totalDeleted=0, errores=0;
+    for(const [url,items] of Object.entries(grupos)){
+      const rows = items.map(v=>({ adId:String(v.ad_id||''), fecha:v.fecha, hora:(v.hora&&v.hora.includes('T'))?v.hora.split('T')[1].slice(0,8):'', valor:+v.precio }));
+      try{
+        const res = await fetch(url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({action:'delete', rows}) });
+        const data = await res.json().catch(()=>({}));
+        if(data && data.ok){ totalDeleted += (data.deleted??items.length); }
+        else { errores++; }
+      }catch(e){ errores++; }
+    }
+    if(totalDeleted) showSuccess(`✅ ${totalDeleted} registro(s) eliminado(s) del Sheet`);
+    if(errores) showError(`${errores} script(s) no respondieron bien. ¿Re-desplegaste el código actualizado y la URL es la correcta?`);
+    CONC.papelera = sinScript;
+    CONC._sheetAll=null;
+    await concConciliar();
+    concRenderPapelera();
   };
 
   // Guardar la URL del Web App del script en config
