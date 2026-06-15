@@ -3682,7 +3682,7 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
       g.upsell += r.up1 + r.up2 + r.up3 + r.up4;
 
       if (r.hora && r.valor > 0) {
-        crmRows.push({ fecha: r.fecha, ad_id: r.adId, hora: r.hora, precio: r.valor, workspace_id: wsId, user_id: CURRENT_USER?.id });
+        crmRows.push({ fecha: r.fecha, ad_id: r.adId, hora: r.hora, precio: r.valor, telefono: r.telefono || null, producto: r.producto || null, workspace_id: wsId, user_id: CURRENT_USER?.id });
       }
     }
 

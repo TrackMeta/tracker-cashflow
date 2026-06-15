@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("ADMIN_SERVICE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // Marcador de versión: aparece en cada respuesta JSON. Si no aparece, el deploy es viejo.
-const FN_VERSION = "2026-06-14-bot-pago";
+const FN_VERSION = "2026-06-14-crm-enrich";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -145,7 +145,7 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
     const idx = exacto ? exacto[1] : activos.reduce((bi, [p, i]) => Math.abs(r.valor - p) < Math.abs(r.valor - activos[bi][0]) ? i : bi, 0);
     if (idx === 0) g.v1++; else if (idx === 1) g.v2++; else if (idx === 2) g.v3++; else g.v4++;
     g.upsell += r.up1 + r.up2 + r.up3 + r.up4;
-    if (r.hora && r.valor > 0) crmRows.push({ fecha: r.fecha, ad_id: r.adId, hora: r.hora, precio: r.valor, workspace_id: wsId, user_id: job.userId });
+    if (r.hora && r.valor > 0) crmRows.push({ fecha: r.fecha, ad_id: r.adId, hora: r.hora, precio: r.valor, telefono: r.telefono || null, producto: r.producto || null, workspace_id: wsId, user_id: job.userId });
   }
 
   // Consolidar por wsId+adId+fecha
