@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("ADMIN_SERVICE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // Marcador de versión: aparece en cada respuesta JSON. Si no aparece, el deploy es viejo.
-const FN_VERSION = "2026-06-14-crm-enrich";
+const FN_VERSION = "2026-06-15-crm-merge-ciclo";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -182,16 +182,31 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
     }
   }
 
-  // crm_ventas: reescribir por workspace
+  // crm_ventas: merge NO destructivo. Sincronizar = crear ventas nuevas.
+  // Las ventas ya existentes conservan su ciclo de vida y resultado de auditoría:
+  // NUNCA se borran ni se pisan. Solo se insertan las nuevas, en estado `pendiente`.
   if (crmRows.length) {
-    const wsIds = [...new Set(crmRows.map((r) => r.workspace_id))];
-    for (const wsId of wsIds) {
-      await sb("DELETE", `crm_ventas?workspace_id=eq.${wsId}&fecha=gte.${fechaMin}`).catch(() => {});
-    }
     const cseen = new Set<string>();
     const uniq = crmRows.filter((r) => { const k = `${r.ad_id}|${r.hora}|${r.precio}`; if (cseen.has(k)) return false; cseen.add(k); return true; });
-    for (let i = 0; i < uniq.length; i += 100) {
-      await sb("POST", "crm_ventas", uniq.slice(i, i + 100), "return=minimal").catch(() => {});
+
+    // Clave natural robusta al offset de timezone: epoch de `hora` + ad_id + precio.
+    const natKey = (wsId: string, adId: string, hora: string, precio: number) =>
+      `${wsId}|${adId}|${new Date(hora).getTime()}|${+precio}`;
+
+    const wsIds = [...new Set(uniq.map((r) => r.workspace_id))];
+    const existKeys = new Set<string>();
+    for (const wsId of wsIds) {
+      const ex = await sb("GET", `crm_ventas?workspace_id=eq.${wsId}&fecha=gte.${fechaMin}&select=ad_id,hora,precio`).catch(() => []);
+      (ex || []).forEach((e: any) => existKeys.add(natKey(wsId, e.ad_id, e.hora, e.precio)));
+    }
+
+    const nuevos = uniq.filter((r) => !existKeys.has(natKey(r.workspace_id, r.ad_id, r.hora, r.precio)));
+    const nowISO = new Date().toISOString();
+    for (let i = 0; i < nuevos.length; i += 100) {
+      const lote = nuevos.slice(i, i + 100).map((r) => ({
+        ...r, ciclo: "pendiente", estado_verif: "pendiente", origen: "auto", sincronizado_at: nowISO,
+      }));
+      await sb("POST", "crm_ventas", lote, "return=minimal").catch(() => {});
     }
   }
 
