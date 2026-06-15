@@ -12983,6 +12983,14 @@ init();
       if(bt>=0){ pool[bt].used=true; v.estado='parcial'; v.pago=pool[bt]; continue; }
       v.estado='sin_match';
     }
+    // Cobertura del reporte (fix del bug "fantasma"): un día SIN datos bancarios no puede
+    // declarar "sin coincidencia". Las ventas fuera del rango que el archivo realmente cubre
+    // quedan ⚪ pendientes (no 🔴) — se conciliarán cuando subas un reporte que cubra su fecha.
+    const _bankDias = CONC.pagos.map(p=>p.fechaDia).filter(Boolean).sort();
+    if(_bankDias.length){
+      const covDesde=_bankDias[0], covHasta=_bankDias[_bankDias.length-1];
+      for(const v of vts){ if(v.estado==='sin_match' && (v.fecha<covDesde || v.fecha>covHasta)) v.estado='pendiente'; }
+    }
     CONC.ventas = vts;
     CONC.huerfanos = pool.filter(p=>!p.used);
     CONC.filtro = 'todos';
@@ -13360,23 +13368,32 @@ init();
   // workspace+ad_id+hora; las que existan se actualizan (PATCH por id), las nuevas
   // (ventas de hoy aún sin sincronizar) se insertan con su estado.
   window.concGuardar = async function(){
-    const map = { verificada:'verificada', parcial:'monto_difiere', sin_match:'fantasma', revision:'revision', pendiente:'pendiente' };
+    // estado interno → (resultado visual 6-colores, ciclo de vida)
+    const mapEv    = { verificada:'conciliado', parcial:'parcial', sin_match:'sin_match', revision:'revision_manual', pendiente:'pendiente' };
+    const mapCiclo = { verificada:'finalizado', parcial:'en_proceso', sin_match:'en_proceso', revision:'en_proceso', pendiente:'pendiente' };
     const nowISO=new Date().toISOString();
+    // Clave natural robusta al offset de timezone (epoch de hora + ad_id + precio).
+    const natKey=(ws,ad,hora,precio)=>`${ws}|${ad}|${new Date(hora).getTime()}|${+precio}`;
     try{
-      const existing = await api.get('crm_ventas', `fecha=gte.${CONC.desde}&fecha=lte.${CONC.hasta}&select=id,workspace_id,ad_id,hora`).catch(()=>[]);
-      const exMap={}; existing.forEach(e=>{ exMap[`${e.workspace_id}|${e.ad_id}|${e.hora}`]=e.id; });
-      const patchByEstado={}, inserts=[];
+      const existing = await api.get('crm_ventas', `fecha=gte.${CONC.desde}&fecha=lte.${CONC.hasta}&select=id,workspace_id,ad_id,hora,precio`).catch(()=>[]);
+      const exMap={}; existing.forEach(e=>{ exMap[natKey(e.workspace_id,e.ad_id,e.hora,e.precio)]=e.id; });
+      const patchByEstado={}, inserts=[];   // agrupa por estado INTERNO (de ahí derivamos ev+ciclo)
       CONC.ventas.forEach(v=>{
-        const ev = map[v.estado]||v.estado;
-        const id = exMap[`${v.workspace_id}|${v.ad_id}|${v.hora}`];
-        if(id){ (patchByEstado[ev]=patchByEstado[ev]||[]).push(id); }
-        else if(v.workspace_id){ inserts.push({ fecha:v.fecha, ad_id:v.ad_id, hora:v.hora, precio:v.precio, telefono:v.telefono||null, producto:v.producto||null, cliente:v.cliente||null, workspace_id:v.workspace_id, user_id:CURRENT_USER?.id, estado_verif:ev, verificado_at:nowISO }); }
+        const id = exMap[natKey(v.workspace_id,v.ad_id,v.hora,v.precio)];
+        if(id){ (patchByEstado[v.estado]=patchByEstado[v.estado]||[]).push(id); }
+        else if(v.workspace_id){
+          const ciclo=mapCiclo[v.estado]||'pendiente';
+          inserts.push({ fecha:v.fecha, ad_id:v.ad_id, hora:v.hora, precio:v.precio, telefono:v.telefono||null, producto:v.producto||null, cliente:v.cliente||null, workspace_id:v.workspace_id, user_id:CURRENT_USER?.id, origen:'sheets', estado_verif:mapEv[v.estado]||v.estado, ciclo, sincronizado_at:nowISO, conciliado_at: ciclo==='pendiente'?null:nowISO, verificado_at:nowISO });
+        }
       });
       for(const [estado,ids] of Object.entries(patchByEstado)){
+        const ev=mapEv[estado]||estado, ciclo=mapCiclo[estado]||'pendiente';
+        const body={ estado_verif:ev, ciclo, verificado_at:nowISO };
+        if(ciclo!=='pendiente') body.conciliado_at=nowISO;
         for(let i=0;i<ids.length;i+=100){
           await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas?id=in.(${ids.slice(i,i+100).join(',')})`,{
             method:'PATCH', headers:{...api._h(),'Prefer':'return=minimal'},
-            body:JSON.stringify({ estado_verif:estado, verificado_at:nowISO })
+            body:JSON.stringify(body)
           });
         }
       }

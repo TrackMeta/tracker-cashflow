@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("ADMIN_SERVICE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // Marcador de versión: aparece en cada respuesta JSON. Si no aparece, el deploy es viejo.
-const FN_VERSION = "2026-06-15-crm-merge-ciclo";
+const FN_VERSION = "2026-06-15-ciclo-vida-conc";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -481,8 +481,8 @@ async function reportData(userId: string, desde: string, hasta: string) {
     const consMap: Record<string, boolean> = {}; estados.forEach((e: any) => { consMap[e.fecha] = e.consolidado; });
     const diasData = [...new Set(regs.map((r: any) => r.fecha))] as string[];
     let prov = 0; diasData.forEach((f) => { const c = consMap[f] !== undefined ? consMap[f] : (f < diaPeru(-2)); if (!c) prov++; });
-    const totalV = await sbCount(`crm_ventas?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}`);
-    const okV = await sbCount(`crm_ventas?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&estado_verif=eq.verificada`);
+    const totalV = await sbCount(`crm_ventas?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&ciclo=neq.descartado`);
+    const okV = await sbCount(`crm_ventas?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&ciclo=eq.finalizado`);
     perWs.push({ ws, inv, ing, profit, roas, roi, ventas: v1 + v2 + v3 + v4, v1, v2, v3, v4, rate, prov, totalV, okV, dias: diasData.length });
   }
   return { perWs, fuenteName };
@@ -516,7 +516,7 @@ function formatReport(titulo: string, periodoTxt: string, data: any) {
       const code = w.ws.currency_code || "PEN";
       const loc = code === "USD" ? "" : ` (${fMoney(w.profit, code)})`;
       msg += `\n\n📦 *${w.ws.emoji || "📦"} ${w.ws.nombre}* (${code})\nInv ${fUsd(w.inv / w.rate)} · Ing ${fUsd(w.ing / w.rate)}\nProfit ${fUsd(w.profit / w.rate)}${loc}\nROAS ${fRoas(w.roas)} · ROI ${w.roi.toFixed(1)}% · Ventas ${w.ventas} (P1:${w.v1} P2:${w.v2} P3:${w.v3} P4:${w.v4})`;
-      if (w.totalV > 0) msg += `\n✅ Verificado: ${Math.round(w.okV / w.totalV * 100)}% (${w.okV}/${w.totalV})`;
+      if (w.totalV > 0) msg += `\n✅ Validado: ${Math.round(w.okV / w.totalV * 100)}% (${w.okV}/${w.totalV})`;
     }
   }
   if (prov > 0) msg += `\n\n⏳ _${prov} día(s) provisional(es) — el gasto puede ajustarse._`;
@@ -583,7 +583,7 @@ async function cmdPendientes(userId: string) {
   let nada = true;
   for (const ws of (workspaces || [])) {
     const prov = await sb("GET", `dia_estado?workspace_id=eq.${ws.id}&fecha=gte.${desde}&consolidado=eq.false&select=fecha&order=fecha.desc`);
-    const sinVerif = await sbCount(`crm_ventas?workspace_id=eq.${ws.id}&fecha=gte.${desde}&estado_verif=neq.verificada`);
+    const sinVerif = await sbCount(`crm_ventas?workspace_id=eq.${ws.id}&fecha=gte.${desde}&ciclo=neq.finalizado&ciclo=neq.descartado`);
     if ((prov || []).length || sinVerif) {
       nada = false;
       msg += `\n\n📦 *${ws.emoji || "📦"} ${ws.nombre}*`;
