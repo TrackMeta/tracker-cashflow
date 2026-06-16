@@ -1952,10 +1952,20 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   </div>
 
   <div id="conc-root">
-  <!-- ① PERIODO -->
+  <!-- ⓪ BANDEJA / ESTADO DE LA COLA -->
   <div class="panel" style="margin-bottom:14px">
-    <div class="panel-header"><span class="panel-title">① Elige el periodo</span></div>
+    <div class="panel-header"><span class="panel-title">🗂️ Tu cola de conciliación</span><button class="btn btn-ghost btn-sm" onclick="concBandeja()">🔄 Actualizar</button></div>
     <div class="panel-body">
+      <div class="cards-row cards-4" id="conc-bandeja-cards" style="margin-bottom:10px"></div>
+      <div id="conc-bandeja-guia" style="font-size:12px;color:var(--text2)"></div>
+    </div>
+  </div>
+
+  <!-- ① PERIODO (filtro opcional) -->
+  <div class="panel" style="margin-bottom:14px">
+    <div class="panel-header"><span class="panel-title">① Filtro de periodo (opcional)</span></div>
+    <div class="panel-body">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:8px">La cola se concilia automáticamente; el reporte del banco define el rango real. Usa esto solo si quieres acotar la vista a fechas concretas.</div>
       <div style="display:flex;gap:10px;align-items:center;flex-wrap:wrap">
         <select id="conc-periodo" onchange="concSetPeriodo()" style="background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:8px 12px;color:var(--text);font-size:13px;font-family:var(--font)">
           <option value="hoy">📍 Hoy</option>
@@ -7877,6 +7887,7 @@ function impTab(t) {
     if (root && cTab && !cTab.contains(root)) cTab.appendChild(root);
     const su=document.getElementById('conc-script-url'); if(su) su.value=DB.config?.script_url||'';
     if (typeof concCargarHistorial === 'function') concCargarHistorial();
+    if (typeof concBandeja === 'function') concBandeja();
     if (typeof concSetPeriodo === 'function') concSetPeriodo();
   }
 }
@@ -12883,6 +12894,30 @@ init();
     }catch(e){ el.textContent='Error leyendo ventas'; }
   }
 
+  // ── Bandeja inteligente (Fase 3): estado de la cola desde la BD (todas las ventas) ──
+  // No requiere subir nada: al entrar, encuentras el trabajo pendiente.
+  window.concBandeja = async function(){
+    const box = document.getElementById('conc-bandeja-cards'); if(!box) return;
+    box.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">⏳ Cargando la cola...</div>';
+    const guia = document.getElementById('conc-bandeja-guia');
+    try{
+      const rows = await api.get('crm_ventas', 'select=ciclo,estado_verif&limit=50000');
+      const r = validacionResumen(rows);
+      const desc = rows.filter(v=>v.ciclo==='descartado').length;
+      box.innerHTML = [
+        kpiCard('Validadas', r.val, r.val?'green':'teal', `${r.pct}% del total`),
+        kpiCard('Pendientes', r.pend, r.pend?'orange':'green', '⚪ en cola'),
+        kpiCard('Por revisar', r.rev, r.rev?'orange':'green', '🔵 revisión manual'),
+        kpiCard('Con error', r.err, r.err?'red':'green', '🔴 sin coincidencia'),
+      ].join('');
+      if(guia){
+        if(r.pend) guia.innerHTML = `Tienes <strong style="color:var(--orange)">${r.pend} venta(s) pendiente(s)</strong> de conciliar. Sube el reporte del banco abajo y se resolverán las que cubra su rango de fechas.`;
+        else if(r.rev||r.err) guia.innerHTML = `Todo sincronizado. Quedan <strong>${r.rev+r.err}</strong> excepción(es) por resolver abajo.${desc?` <span style="color:var(--text3)">(${desc} descartada(s))</span>`:''}`;
+        else guia.innerHTML = `✅ Todo validado.${desc?` <span style="color:var(--text3)">(${desc} descartada(s))</span>`:''}`;
+      }
+    }catch(e){ box.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">No se pudo cargar la cola.</div>'; }
+  };
+
   // ── Paso 2: cargar archivo del banco ──
   window.concDropBank = function(e){ e.preventDefault(); cruceDragLeave('dz-conc'); const f=e.dataTransfer.files[0]; if(f) concProcesarBanco(f); };
   window.concLoadBank = function(e){ const f=e.target.files[0]; if(f) concProcesarBanco(f); };
@@ -13202,15 +13237,28 @@ init();
   function _concLoadIgnorados(){ try { return new Set(JSON.parse(localStorage.getItem('conc_ignorados')||'[]')); } catch(e){ return new Set(); } }
   function _concSaveIgnorados(set){ try { localStorage.setItem('conc_ignorados', JSON.stringify([...set])); } catch(e){} }
 
+  // Best-effort: refleja el ciclo de vida en la BD por clave natural (epoch+precio).
+  async function _concSetCiclo(v, ciclo){
+    if(!v.workspace_id) return;
+    try{
+      const cands = await api.get('crm_ventas', `workspace_id=eq.${v.workspace_id}&ad_id=eq.${encodeURIComponent(v.ad_id)}&select=id,hora,precio`);
+      const t = new Date(v.hora).getTime();
+      const row = (cands||[]).find(c => new Date(c.hora).getTime()===t && Math.abs(+c.precio - +v.precio)<0.01);
+      if(row) await api.patch('crm_ventas', row.id, { ciclo, conciliado_at: ciclo==='descartado'? new Date().toISOString() : null });
+    }catch(e){}
+  }
+
   window.concIgnorar = function(id){
     const v=concVenta(id); if(!v) return;
     const set=_concLoadIgnorados(); set.add(_concKey(v)); _concSaveIgnorados(set);
+    _concSetCiclo(v, 'descartado');            // persiste como descartada (fuera del conteo)
     // sacar de la conciliación: liberar su pago si tenía
     if(v.pago){ v.pago.used=false; CONC.huerfanos.push(v.pago); v.pago=null; }
     CONC.ventas = CONC.ventas.filter(x=>x!==v);
     concAuditar(); concRender();
     concToast('Venta ignorada (excluida de la conciliación)', ()=>{
       const s=_concLoadIgnorados(); s.delete(_concKey(v)); _concSaveIgnorados(s);
+      _concSetCiclo(v, 'pendiente');           // deshacer: vuelve a la cola
       CONC.ventas.push(v); CONC.ventas.sort((a,b)=>a._dt-b._dt); concAuditar(); concRender();
     });
   };
