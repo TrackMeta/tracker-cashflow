@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("ADMIN_SERVICE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // Marcador de versión: aparece en cada respuesta JSON. Si no aparece, el deploy es viejo.
-const FN_VERSION = "2026-06-15-ciclo-vida-conc";
+const FN_VERSION = "2026-06-15-resync-cambios";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -182,31 +182,42 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
     }
   }
 
-  // crm_ventas: merge NO destructivo. Sincronizar = crear ventas nuevas.
-  // Las ventas ya existentes conservan su ciclo de vida y resultado de auditoría:
-  // NUNCA se borran ni se pisan. Solo se insertan las nuevas, en estado `pendiente`.
+  // crm_ventas: merge NO destructivo con detección de cambios.
+  // Identidad = workspace + ad_id + hora (el precio NO entra: si cambia, es la MISMA
+  // venta modificada en el Sheet → se reabre a pendiente con aviso). Las idénticas no
+  // se reescriben (evita duplicados y conserva su auditoría).
   if (crmRows.length) {
     const cseen = new Set<string>();
     const uniq = crmRows.filter((r) => { const k = `${r.ad_id}|${r.hora}|${r.precio}`; if (cseen.has(k)) return false; cseen.add(k); return true; });
 
-    // Clave natural robusta al offset de timezone: epoch de `hora` + ad_id + precio.
-    const natKey = (wsId: string, adId: string, hora: string, precio: number) =>
-      `${wsId}|${adId}|${new Date(hora).getTime()}|${+precio}`;
-
+    const idKey = (wsId: string, adId: string, hora: string) => `${wsId}|${adId}|${new Date(hora).getTime()}`;
     const wsIds = [...new Set(uniq.map((r) => r.workspace_id))];
-    const existKeys = new Set<string>();
+    const exMap = new Map<string, any>();
     for (const wsId of wsIds) {
-      const ex = await sb("GET", `crm_ventas?workspace_id=eq.${wsId}&fecha=gte.${fechaMin}&select=ad_id,hora,precio`).catch(() => []);
-      (ex || []).forEach((e: any) => existKeys.add(natKey(wsId, e.ad_id, e.hora, e.precio)));
+      const ex = await sb("GET", `crm_ventas?workspace_id=eq.${wsId}&fecha=gte.${fechaMin}&select=id,ad_id,hora,precio,ciclo,historial`).catch(() => []);
+      (ex || []).forEach((e: any) => exMap.set(idKey(wsId, e.ad_id, e.hora), e));
     }
 
-    const nuevos = uniq.filter((r) => !existKeys.has(natKey(r.workspace_id, r.ad_id, r.hora, r.precio)));
     const nowISO = new Date().toISOString();
+    const nuevos: any[] = [], modificados: any[] = [];
+    for (const r of uniq) {
+      const ex = exMap.get(idKey(r.workspace_id, r.ad_id, r.hora));
+      if (!ex) { nuevos.push(r); continue; }
+      if (Math.abs((+ex.precio) - (+r.precio)) > 0.001) modificados.push({ ex, r });
+    }
     for (let i = 0; i < nuevos.length; i += 100) {
       const lote = nuevos.slice(i, i + 100).map((r) => ({
         ...r, ciclo: "pendiente", estado_verif: "pendiente", origen: "auto", sincronizado_at: nowISO,
       }));
       await sb("POST", "crm_ventas", lote, "return=minimal").catch(() => {});
+    }
+    for (const { ex, r } of modificados) {
+      const hist = Array.isArray(ex.historial) ? ex.historial : [];
+      hist.push({ t: nowISO, accion: "Modificada en Sheets", detalle: `monto ${ex.precio} → ${r.precio}` });
+      await sb("PATCH", `crm_ventas?id=eq.${ex.id}`, {
+        precio: r.precio, telefono: r.telefono || null, producto: r.producto || null, cliente: r.cliente || null,
+        ciclo: "pendiente", estado_verif: "pendiente", sincronizado_at: nowISO, historial: hist,
+      }, "return=minimal").catch(() => {});
     }
   }
 
