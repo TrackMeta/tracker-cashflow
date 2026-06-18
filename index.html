@@ -1395,21 +1395,6 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     </div>
   </div>
 
-  <div class="divider" style="margin:22px 0"></div>
-
-  <!-- VERIFICAR VENTAS (pagos) -->
-  <div class="panel" style="border-left:3px solid var(--green)">
-    <div class="panel-header"><span class="panel-title">✅ Conciliación de pagos</span></div>
-    <div class="panel-body">
-      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Elige un periodo, sube solo el reporte de tu banco/billetera y el sistema concilia tus ventas automáticamente. Solo revisas las excepciones.</div>
-      <div style="display:flex;gap:8px;flex-wrap:wrap">
-        <button class="btn btn-primary" onclick="impTab('conciliacion')">🔎 Abrir conciliación</button>
-        <button class="btn btn-ghost" onclick="marcarVerificadoBulk()">✓ Marcar todas verificadas</button>
-      </div>
-      <div style="font-size:11px;color:var(--text3);margin-top:8px">Usa <strong>"Marcar todas verificadas"</strong> cuando ya confirmaste que la suma de tus ventas cuadra con tus pagos y no necesitas conciliar fila por fila.</div>
-    </div>
-  </div>
-
   </div><!-- /imp-tab-importar -->
 </div>
 
@@ -2034,32 +2019,6 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div style="font-size:12px;color:var(--text3);margin-top:6px">El sistema trae tus ventas y las concilia automáticamente. Solo revisas las excepciones.</div>
   </div>
 
-  <!-- 📜 HISTORIAL -->
-  <div class="panel" id="conc-historial-panel" style="margin-top:18px">
-    <div class="panel-header"><span class="panel-title">📜 Historial de conciliaciones</span><button class="btn btn-ghost btn-sm" onclick="concCargarHistorial()">🔄 Actualizar</button></div>
-    <div class="tbl-wrap"><table>
-      <thead><tr><th>Fecha</th><th>Periodo</th><th class="left">Archivo</th><th>Ventas</th><th>Conciliadas</th><th>%</th><th>Diferencias</th><th></th></tr></thead>
-      <tbody id="conc-hist-tbody"><tr><td colspan="8" style="text-align:center;color:var(--text3);padding:16px">Sin conciliaciones guardadas aún</td></tr></tbody>
-    </table></div>
-  </div>
-
-  <!-- 🔧 SCRIPT DE BORRADO DEL SHEET -->
-  <details style="margin-top:18px">
-    <summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--text2);padding:8px 0">🔧 Borrar filas del Sheet — conectar script (opcional)</summary>
-    <div style="margin-top:10px;padding:14px;background:var(--bg3);border-radius:10px">
-      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">Cada bot tiene su propio Sheet y su propio script. Configura la URL del Web App de <strong>cada bot en Ajustes → Fuentes</strong> (campo "URL del script de borrado"). El campo de abajo es solo un <strong>respaldo</strong> para una configuración de un único Sheet (modo antiguo).</div>
-      <div class="field" style="margin-bottom:10px">
-        <label>URL del Web App del script (respaldo / Sheet único)</label>
-        <input type="url" id="conc-script-url" placeholder="https://script.google.com/macros/s/.../exec" style="font-size:11px;font-family:var(--mono)">
-      </div>
-      <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap">
-        <button class="btn btn-primary btn-sm" onclick="concGuardarScriptUrl()">💾 Guardar URL</button>
-        <button class="btn btn-ghost btn-sm" onclick="concProbarScript()">🧪 Probar conexión</button>
-        <span id="conc-script-estado" style="font-size:11px;color:var(--text3)"></span>
-      </div>
-    </div>
-  </details>
-
   <!-- ⚙️ AVANZADO: cruce manual de 2 archivos -->
   <details style="margin-top:18px;border-top:1px solid var(--border);padding-top:6px">
     <summary style="cursor:pointer;font-size:13px;font-weight:700;color:var(--text2);padding:8px 0">⚙️ Cruce manual avanzado (2 archivos: CRM + banco)</summary>
@@ -2354,6 +2313,10 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div class="field" style="margin-top:10px">
       <label>URL del Google Sheet (ventas)</label>
       <input type="url" id="fuente-sheet" placeholder="https://docs.google.com/spreadsheets/d/..." style="font-family:var(--mono);font-size:11px">
+      <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
+        <button class="btn btn-ghost btn-sm" type="button" onclick="probarSheetFuente()">🧪 Probar conexión</button>
+        <span id="fuente-sheet-estado" style="font-size:11px;color:var(--text3)"></span>
+      </div>
     </div>
     <div class="field" style="margin-top:10px">
       <label>URL del script de borrado (Web App, opcional)</label>
@@ -4061,6 +4024,15 @@ const api = {
     if (!r.ok) await this._handleErr(r);
     return r.json();
   },
+  // Conteo exacto sin traer filas (HEAD + count=exact). Evita el tope de ~1000 filas
+  // que corta los resultados de un .get() normal — usar SIEMPRE para contadores.
+  async count(table, params='') {
+    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
+      method: 'HEAD', headers: { ...this._h(), 'Prefer': 'count=exact', 'Range': '0-0' }
+    });
+    const cr = r.headers.get('content-range') || '*/0';
+    return parseInt(cr.split('/')[1] || '0') || 0;
+  },
   async post(table, data) {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
       method: 'POST', headers: { ...this._h(), 'Prefer': 'return=representation' },
@@ -4689,7 +4661,6 @@ async function renderGlobal() {
 
     const diasGlobal = new Set();
     const profitDiaUsd = {};   // fecha -> profit total en USD (todos los productos)
-    let crmVal = [];
     for (const ws of DB.workspaces) {
       if (!SELECTED_WS_IDS.has(ws.id)) continue;
       const regs = await api.get('registros',
@@ -4708,11 +4679,6 @@ async function renderGlobal() {
         profitDiaUsd[f] = (profitDiaUsd[f] || 0) + calcMetricsWithConfig(rs, cfg).profit / rate;
       });
       regs.forEach(r => diasGlobal.add(r.fecha));
-      // Verificación de ventas de este producto en el período
-      try {
-        const cv = await api.get('crm_ventas', `workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&select=estado_verif,ciclo`);
-        crmVal.push(...cv);
-      } catch(e) {}
     }
     // Franja de confianza global (consolidación por antigüedad + verificación)
     const cb = document.getElementById('global-confianza');
@@ -4721,7 +4687,8 @@ async function renderGlobal() {
       const cons = diasGlobal.size - provis.length;
       let txt = `<span style="color:var(--green);font-weight:600">✅ ${cons} día(s) consolidado(s)</span>`;
       if (provis.length) txt += ` <span style="color:var(--text3)">·</span> <span style="color:var(--orange);font-weight:600">⏳ ${provis.length} provisional(es)</span>`;
-      txt += validacionTxt(crmVal);
+      const wsIdsSel = DB.workspaces.filter(w=>SELECTED_WS_IDS.has(w.id)).map(w=>w.id);
+      if (wsIdsSel.length) txt += _validacionTxtFromRes(await validacionConteo(`workspace_id=in.(${wsIdsSel.join(',')})&fecha=gte.${desde}&fecha=lte.${hasta}`));
       cb.innerHTML = txt;
     }
 
@@ -7856,22 +7823,6 @@ async function migrarFuentes() {
 // FUENTES (BOTS) — CRUD
 // ════════════════════════════════════════════════
 // Marca todas las ventas del producto activo como verificadas (cuando los totales ya cuadran)
-async function marcarVerificadoBulk() {
-  const wsId = CURRENT_WORKSPACE?.id;
-  if (!wsId) return;
-  if (!confirm(`¿Marcar TODAS las ventas de "${CURRENT_WORKSPACE.nombre}" como verificadas?\n\nÚsalo solo si ya confirmaste que la suma de tus ventas cuadra con tus pagos reales.`)) return;
-  try {
-    setSyncStatus('loading', 'Marcando verificadas...');
-    await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas?workspace_id=eq.${wsId}&estado_verif=neq.verificada`, {
-      method: 'PATCH', headers: { ...api._h(), 'Prefer': 'return=minimal' },
-      body: JSON.stringify({ estado_verif: 'verificada', verificado_at: new Date().toISOString() })
-    });
-    await loadAll();
-    setSyncStatus('ok', 'Sincronizado ✓');
-    showSuccess('✅ Ventas marcadas como verificadas');
-  } catch(e) { setSyncStatus('error', 'Error'); showError('Error: ' + e.message); }
-}
-
 function impTab(t) {
   document.getElementById('imp-tab-importar').style.display = t === 'importar' ? 'block' : 'none';
   document.getElementById('imp-tab-ajustes').style.display  = t === 'ajustes'  ? 'block' : 'none';
@@ -7885,8 +7836,6 @@ function impTab(t) {
     // Reubicar el flujo de conciliación dentro de la pestaña (una sola vez)
     const root = document.getElementById('conc-root');
     if (root && cTab && !cTab.contains(root)) cTab.appendChild(root);
-    const su=document.getElementById('conc-script-url'); if(su) su.value=DB.config?.script_url||'';
-    if (typeof concCargarHistorial === 'function') concCargarHistorial();
     if (typeof concBandeja === 'function') concBandeja();
     if (typeof concSetPeriodo === 'function') concSetPeriodo();
   }
@@ -7937,8 +7886,25 @@ function renderFuentesPanel() {
   }).join('');
 }
 
+// Probar la conexión al Google Sheet de la fuente (lee el CSV público).
+async function probarSheetFuente() {
+  const url = (document.getElementById('fuente-sheet').value || '').trim();
+  const est = document.getElementById('fuente-sheet-estado');
+  if (!url) { est.textContent = 'Pega la URL del Sheet primero'; est.style.color = 'var(--orange)'; return; }
+  est.textContent = '⏳ probando...'; est.style.color = 'var(--text3)';
+  try {
+    const sheetId = (url.match(/\/d\/([a-zA-Z0-9_-]+)/) || [])[1] || url;
+    const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`);
+    if (!res.ok) { est.textContent = `❌ No accesible (${res.status}) — ¿el Sheet es público?`; est.style.color = 'var(--red)'; return; }
+    const rows = _parseSheetCSV(await res.text());
+    if (!rows.length) { est.textContent = '⚠️ Conecta, pero no se leyeron ventas — revisa columnas (Ad ID, Fecha y hora, Valor)'; est.style.color = 'var(--orange)'; return; }
+    est.textContent = `✅ Conectado · ${rows.length} fila(s) leídas`; est.style.color = 'var(--green)';
+  } catch (e) { est.textContent = '❌ Error de conexión — revisa la URL'; est.style.color = 'var(--red)'; }
+}
+
 function openNuevaFuente() {
   document.getElementById('fuente-modal-title').textContent = '🤖 Nueva Fuente';
+  { const e = document.getElementById('fuente-sheet-estado'); if (e) e.textContent = ''; }
   document.getElementById('fuente-emoji').value   = '🤖';
   document.getElementById('fuente-nombre').value  = '';
   document.getElementById('fuente-sheet').value   = '';
@@ -7965,6 +7931,7 @@ function editFuente(id) {
   document.getElementById('fuente-pago-vence').value = f.pago_vence || '';
   document.getElementById('fuente-edit-id').value = id;
   document.getElementById('fuente-delete-btn').style.display = 'inline-flex';
+  { const e = document.getElementById('fuente-sheet-estado'); if (e) e.textContent = ''; }
   openModal('modal-fuente');
 }
 
@@ -8351,7 +8318,7 @@ function renderPage(page) {
   if (page==='remarketing')  renderRemarketing();
   if (page==='vida-util')    renderVidaUtil();
   if (page==='horarios')     renderHorarios();
-  if (page==='cruce-pagos')  { if (typeof concCargarHistorial==='function') concCargarHistorial(); if (typeof concSetPeriodo==='function') concSetPeriodo(); }
+  if (page==='cruce-pagos')  { if (typeof concBandeja==='function') concBandeja(); if (typeof concSetPeriodo==='function') concSetPeriodo(); }
 }
 
 // ════════════════════════════════════════════════
@@ -8792,8 +8759,7 @@ function validacionResumen(rows) {
 }
 
 // Texto compacto para las franjas de confianza (Dashboard / Global / Bitácora).
-function validacionTxt(rows) {
-  const r = validacionResumen(rows);
+function _validacionTxtFromRes(r) {
   if (!r.total) return '';
   const col = r.pct >= 90 ? 'var(--green)' : r.pct >= 70 ? 'var(--orange)' : 'var(--red)';
   let t = ` <span style="color:var(--text3)">·</span> <span style="color:${col};font-weight:600">✅ ${r.val}/${r.total} validadas</span>`;
@@ -8803,6 +8769,21 @@ function validacionTxt(rows) {
   if (r.err)  extra.push(`🔴 ${r.err}`);
   if (extra.length) t += ` <span style="color:var(--text3)">(${extra.join(' · ')})</span>`;
   return t;
+}
+function validacionTxt(rows) { return _validacionTxtFromRes(validacionResumen(rows)); }
+
+// Conteo exacto por consultas COUNT (no trae filas → inmune al tope de ~1000).
+// `params` = filtro base, ej. `workspace_id=in.(a,b)&fecha=gte.X&fecha=lte.Y`.
+async function validacionConteo(params) {
+  const q = params ? params + '&' : '';
+  const [val, pend, err, rev] = await Promise.all([
+    api.count('crm_ventas', `${q}ciclo=eq.finalizado`),
+    api.count('crm_ventas', `${q}ciclo=eq.pendiente`),
+    api.count('crm_ventas', `${q}ciclo=eq.en_proceso&estado_verif=in.(sin_match,fantasma)`),
+    api.count('crm_ventas', `${q}ciclo=eq.en_proceso&estado_verif=not.in.(sin_match,fantasma)`),
+  ]);
+  const total = val + pend + rev + err;
+  return { val, pend, rev, err, total, pct: total ? Math.round(val / total * 100) : 0 };
 }
 
 // Franja de confianza: cuántos días del período están consolidados vs provisionales
@@ -12904,9 +12885,8 @@ init();
     box.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">⏳ Cargando la cola...</div>';
     const guia = document.getElementById('conc-bandeja-guia');
     try{
-      const rows = await api.get('crm_ventas', 'select=ciclo,estado_verif&limit=50000');
-      const r = validacionResumen(rows);
-      const desc = rows.filter(v=>v.ciclo==='descartado').length;
+      const r = await validacionConteo('');
+      const desc = await api.count('crm_ventas', 'ciclo=eq.descartado');
       box.innerHTML = [
         kpiCard('Validadas', r.val, r.val?'green':'teal', `${r.pct}% del total`),
         kpiCard('Pendientes', r.pend, r.pend?'orange':'green', '⚪ en cola'),
@@ -13390,30 +13370,6 @@ init();
     concRenderPapelera();
   };
 
-  // Guardar la URL del Web App del script en config
-  window.concGuardarScriptUrl = async function(){
-    const url=(document.getElementById('conc-script-url').value||'').trim();
-    try{
-      if(DB.config.id) await api.patch('config', DB.config.id, { script_url:url });
-      else { const r=await api.post('config', { script_url:url, user_id:CURRENT_USER?.id, workspace_id:CURRENT_WORKSPACE?.id }); if(r&&r[0]) DB.config.id=r[0].id; }
-      DB.config.script_url=url;
-      showSuccess('✅ URL del script guardada');
-    }catch(e){ showError('Error guardando: '+e.message); }
-  };
-  // Probar que el Web App responde
-  window.concProbarScript = async function(){
-    const url=(document.getElementById('conc-script-url').value||'').trim();
-    const est=document.getElementById('conc-script-estado');
-    if(!url){ est.textContent='Pega la URL primero'; est.style.color='var(--orange)'; return; }
-    est.textContent='⏳ probando...'; est.style.color='var(--text3)';
-    try{
-      const r=await fetch(url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body:JSON.stringify({action:'ping'}) });
-      const d=await r.json().catch(()=>({}));
-      if(d&&d.ok){ est.textContent='✅ Script conectado'; est.style.color='var(--green)'; }
-      else { est.textContent='⚠️ Respondió pero sin ok — revisa el deploy'; est.style.color='var(--orange)'; }
-    }catch(e){ est.textContent='❌ No responde — ¿es público y termina en /exec?'; est.style.color='var(--red)'; }
-  };
-
   window.concDesvincular = function(id){
     const v=concVenta(id); if(!v||!v.pago) return;
     const pagoAnt=v.pago, estadoAnt=v.estado, manualAnt=v.manual;
@@ -13498,55 +13454,8 @@ init();
       for(let i=0;i<inserts.length;i+=100){
         await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas`,{ method:'POST', headers:{...api._h(),'Prefer':'resolution=ignore-duplicates,return=minimal'}, body:JSON.stringify(inserts.slice(i,i+100)) }).catch(()=>{});
       }
-      // Registrar la conciliación en el historial (#10)
-      const total=CONC.ventas.length;
-      const nVer=concCount('verificada'), nSin=concCount('sin_match');
-      const dineroConc=CONC.ventas.filter(v=>v.estado==='verificada').reduce((s,v)=>s+(+v.precio||0),0);
-      const dif=CONC.ventas.filter(v=>v.estado==='parcial').reduce((s,v)=>s+Math.abs((+v.precio||0)-(v.pago?+v.pago.monto:0)),0);
-      try{
-        await api.post('verif_historial', {
-          user_id: CURRENT_USER?.id, workspace_id: null,
-          periodo_desde: CONC.desde, periodo_hasta: CONC.hasta, archivo: CONC.archivo || null,
-          total_ventas: total, conciliadas: nVer, pendientes: total-nVer-nSin, sin_match: nSin,
-          dinero_conciliado: +dineroConc.toFixed(2), diferencias: +dif.toFixed(2),
-          pct: total?Math.round(nVer/total*100):0,
-        });
-        await concCargarHistorial();
-      }catch(eh){ console.warn('historial:', eh); /* tabla puede no existir aún */ }
       showSuccess('✅ Conciliación guardada');
     }catch(e){ showError('Error guardando: '+e.message); }
-  };
-
-  // ── Historial de conciliaciones (#10) ──
-  window.concCargarHistorial = async function(){
-    const tb = document.getElementById('conc-hist-tbody'); if(!tb) return;
-    try{
-      // Global: todo el historial del usuario (RLS limita a sus filas)
-      const hist = await api.get('verif_historial', `order=creado_at.desc&limit=50`);
-      if(!hist.length){ tb.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--text3);padding:16px">Sin conciliaciones guardadas aún</td></tr>'; return; }
-      const code = wsCurrencyCode();
-      tb.innerHTML = hist.map(h=>{
-        const f = h.creado_at ? new Date(h.creado_at).toLocaleString('es-PE',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}) : '—';
-        const pctCol = h.pct>=90?'var(--green)':h.pct>=70?'var(--orange)':'var(--red)';
-        return `<tr>
-          <td style="font-size:11px">${f}</td>
-          <td style="font-size:11px">${h.periodo_desde||'?'} → ${h.periodo_hasta||'?'}</td>
-          <td class="left muted" style="font-size:11px">${escH(h.archivo||'—')}</td>
-          <td>${h.total_ventas??'—'}</td>
-          <td style="color:var(--green)">${h.conciliadas??'—'}</td>
-          <td style="color:${pctCol};font-weight:700">${h.pct??0}%</td>
-          <td style="color:${(+h.diferencias)>0?'var(--red)':'var(--text3)'}">${fmtMoney(+h.diferencias||0,code)}</td>
-          <td><button class="btn btn-ghost btn-sm" title="Eliminar" onclick="concBorrarHistorial('${h.id}')">🗑️</button></td>
-        </tr>`;
-      }).join('');
-    }catch(e){
-      tb.innerHTML='<tr><td colspan="8" style="text-align:center;color:var(--orange);padding:14px;font-size:11px">⚠️ Falta crear la tabla <code>verif_historial</code> en Supabase. Corre la migración SQL que te indicó el asistente.</td></tr>';
-    }
-  };
-  window.concBorrarHistorial = async function(id){
-    if(!confirm('¿Eliminar este registro del historial?')) return;
-    try{ await api.delete('verif_historial', id); await concCargarHistorial(); }
-    catch(e){ showError('Error: '+e.message); }
   };
 
   window.concReset = function(){
