@@ -12868,6 +12868,9 @@ init();
   const CONC_ICON  = { verificada:'🟢', parcial:'🟡', sin_match:'🔴', revision:'🔵', pendiente:'⚪' };
   const CONC_LABEL = { verificada:'Verificada', parcial:'Parcial', sin_match:'Sin coincidencia', revision:'Revisión', pendiente:'Pendiente' };
   const CONC_DIF_TOL = 0.5; // diferencia "pequeña" que se puede ignorar
+  const ORIGEN_INFO = { sheets:'📊 Sheets', telegram:'✈️ Telegram', auto:'🤖 Auto-sync', manual:'✍️ Manual', historico:'🗄️ Histórico' };
+  const origenLbl = o => ORIGEN_INFO[o] || o || '—';
+  const fDT = iso => { if(!iso) return null; try { return new Date(iso).toLocaleString('es-PE',{day:'2-digit',month:'2-digit',year:'2-digit',hour:'2-digit',minute:'2-digit'}); } catch(e){ return iso; } };
 
   // ── Paso 1: resolver periodo + resumen de ventas ──
   window.concSetPeriodo = async function(){
@@ -12984,6 +12987,13 @@ init();
     // Excluir las que el usuario marcó como ignoradas (persistido)
     const ign = _concLoadIgnorados();
     if(ign.size) ventas = ventas.filter(v => !ign.has(`${v.workspace_id}|${v.ad_id}|${v.hora}`));
+    // Trazabilidad (Fase 5): adjuntar metadata de crm_ventas por clave natural (epoch+precio).
+    const _meta = {};
+    try {
+      const mr = await api.get('crm_ventas', `fecha=gte.${CONC.desde}&fecha=lte.${CONC.hasta}&select=ad_id,hora,precio,workspace_id,origen,sincronizado_at,conciliado_at,historial`);
+      (mr||[]).forEach(m => { _meta[`${m.workspace_id}|${m.ad_id}|${new Date(m.hora).getTime()}|${+m.precio}`] = m; });
+    } catch(e){}
+    CONC._meta = _meta;
     CONC.papelera = [];
     // CRÍTICO: solo conciliar pagos del banco DENTRO del periodo. "Total" usa un rango enorme,
     // así que el mismo filtro sirve. Nunca se analizan movimientos fuera del rango.
@@ -12991,8 +13001,11 @@ init();
     const info = document.getElementById('conc-bank-info');
     if (info) info.textContent = `${CONC.pagos.length} pagos en el archivo · ${CONC.pagosPeriodo.length} dentro del periodo (${CONC.desde} → ${CONC.hasta})`;
     const pool = CONC.pagosPeriodo.map((p,i)=>({ ...p, _i:i, used:false }));
-    const vts = ventas.map(v=>({ ...v, _dt:new Date(v.hora), estado:'pendiente', pago:null, candidatos:[] }))
-                      .sort((a,b)=>a._dt-b._dt);
+    const vts = ventas.map(v=>{
+      const m = _meta[`${v.workspace_id}|${v.ad_id}|${new Date(v.hora).getTime()}|${+v.precio}`] || {};
+      return { ...v, _dt:new Date(v.hora), estado:'pendiente', pago:null, candidatos:[],
+        origen:m.origen, sincronizado_at:m.sincronizado_at, conciliado_at:m.conciliado_at, historial:Array.isArray(m.historial)?m.historial:[] };
+    }).sort((a,b)=>a._dt-b._dt);
     for(const v of vts){
       const precio=+v.precio;
       const cands=[];
@@ -13181,6 +13194,10 @@ init();
         <div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escH(creative)}">🎯 ${escH(creative)}</div>
         <div style="font-size:10px;color:var(--text3)">📞 ${numero?escH(numero):'—'}</div>
         <div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">🆔 ${cliente?escH(cliente):'—'}</div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px;display:flex;align-items:center;gap:5px;border-top:1px dashed var(--border2);padding-top:3px">
+          <span title="Origen del dato">${origenLbl(v.origen)}</span>${v.sincronizado_at?`<span style="color:var(--text3)">· sinc. ${fmt.date(String(v.sincronizado_at).slice(0,10))}</span>`:''}
+          <button class="btn btn-ghost btn-sm" style="padding:0 5px;font-size:10px;margin-left:auto" title="Ver trazabilidad" onclick="concTraza('${v.id}')">🕘</button>
+        </div>
       </div>`;
       // PAGO box (o vacío con reasignar)
       let pagoBox;
@@ -13232,6 +13249,35 @@ init();
     setTimeout(()=>{ const card=document.querySelector(`#conc-lista-cards [data-vid="${CSS.escape(id)}"]`); if(card){ card.scrollIntoView({behavior:'smooth',block:'center'}); card.style.outline='2px solid var(--accent)'; setTimeout(()=>card.style.outline='',1600); } },80);
   };
 
+  // Trazabilidad (Fase 5): modal con origen, fechas, resultado e historial de acciones.
+  window.concTraza = function(id){
+    const v = concVenta(id); if(!v) return;
+    const code = wsCurrencyCode();
+    const filas = [
+      ['Origen', origenLbl(v.origen)],
+      ['Sincronizada', fDT(v.sincronizado_at) || '—'],
+      ['Conciliada', fDT(v.conciliado_at) || '—'],
+      ['Resultado', `${CONC_ICON[v.estado]||''} ${CONC_LABEL[v.estado]||v.estado}`],
+      ['Monto', fmtMoney(v.precio, code)],
+    ];
+    const hist = Array.isArray(v.historial)?v.historial:[];
+    const histHtml = hist.length
+      ? hist.map(h=>`<div style="font-size:11px;padding:6px 0;border-bottom:1px solid var(--border2)"><span style="color:var(--text3)">${fDT(h.t)||''}</span> · ${escH(h.accion||h.action||'')}${h.detalle?` <span style="color:var(--text3)">— ${escH(h.detalle)}</span>`:''}</div>`).join('')
+      : '<div style="font-size:11px;color:var(--text3);padding:6px 0">Sin acciones manuales registradas todavía.</div>';
+    let ov = document.getElementById('conc-traza-modal'); if(ov) ov.remove();
+    ov = document.createElement('div'); ov.id='conc-traza-modal';
+    ov.style.cssText='position:fixed;inset:0;z-index:99998;background:rgba(0,0,0,0.5);display:flex;align-items:center;justify-content:center;padding:20px';
+    ov.onclick=(e)=>{ if(e.target===ov) ov.remove(); };
+    ov.innerHTML=`<div style="background:var(--bg2);border:1px solid var(--border);border-radius:12px;max-width:420px;width:100%;padding:18px;box-shadow:0 10px 40px rgba(0,0,0,0.4)">
+      <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:12px"><strong style="font-size:14px">🕘 Trazabilidad de la venta</strong><button class="btn btn-ghost btn-sm" onclick="document.getElementById('conc-traza-modal').remove()">✖</button></div>
+      <div style="font-size:12px;color:var(--text2);margin-bottom:10px">${escH(v.producto||'')} · ${escH(v.cliente||v.telefono||'')}</div>
+      ${filas.map(f=>`<div style="display:flex;justify-content:space-between;font-size:12px;padding:4px 0"><span style="color:var(--text3)">${f[0]}</span><span style="font-weight:600">${f[1]}</span></div>`).join('')}
+      <div style="font-size:11px;font-weight:700;color:var(--text3);text-transform:uppercase;margin:12px 0 4px">Historial de acciones</div>
+      ${histHtml}
+    </div>`;
+    document.body.appendChild(ov);
+  };
+
   // Clave para persistir ignorados entre recargas
   const _concKey = v => `${v.workspace_id}|${v.ad_id}|${v.hora}`;
   function _concLoadIgnorados(){ try { return new Set(JSON.parse(localStorage.getItem('conc_ignorados')||'[]')); } catch(e){ return new Set(); } }
@@ -13241,10 +13287,14 @@ init();
   async function _concSetCiclo(v, ciclo){
     if(!v.workspace_id) return;
     try{
-      const cands = await api.get('crm_ventas', `workspace_id=eq.${v.workspace_id}&ad_id=eq.${encodeURIComponent(v.ad_id)}&select=id,hora,precio`);
+      const cands = await api.get('crm_ventas', `workspace_id=eq.${v.workspace_id}&ad_id=eq.${encodeURIComponent(v.ad_id)}&select=id,hora,precio,historial`);
       const t = new Date(v.hora).getTime();
       const row = (cands||[]).find(c => new Date(c.hora).getTime()===t && Math.abs(+c.precio - +v.precio)<0.01);
-      if(row) await api.patch('crm_ventas', row.id, { ciclo, conciliado_at: ciclo==='descartado'? new Date().toISOString() : null });
+      if(row){
+        const hist = Array.isArray(row.historial)?row.historial:[];
+        hist.push({ t:new Date().toISOString(), accion: ciclo==='descartado'?'Descartada (ignorada)':'Reactivada a la cola' });
+        await api.patch('crm_ventas', row.id, { ciclo, conciliado_at: ciclo==='descartado'? new Date().toISOString() : null, historial: hist });
+      }
     }catch(e){}
   }
 
@@ -13431,7 +13481,7 @@ init();
         if(id){ (patchByEstado[v.estado]=patchByEstado[v.estado]||[]).push(id); }
         else if(v.workspace_id){
           const ciclo=mapCiclo[v.estado]||'pendiente';
-          inserts.push({ fecha:v.fecha, ad_id:v.ad_id, hora:v.hora, precio:v.precio, telefono:v.telefono||null, producto:v.producto||null, cliente:v.cliente||null, workspace_id:v.workspace_id, user_id:CURRENT_USER?.id, origen:'sheets', estado_verif:mapEv[v.estado]||v.estado, ciclo, sincronizado_at:nowISO, conciliado_at: ciclo==='pendiente'?null:nowISO, verificado_at:nowISO });
+          inserts.push({ fecha:v.fecha, ad_id:v.ad_id, hora:v.hora, precio:v.precio, telefono:v.telefono||null, producto:v.producto||null, cliente:v.cliente||null, workspace_id:v.workspace_id, user_id:CURRENT_USER?.id, origen:'sheets', estado_verif:mapEv[v.estado]||v.estado, ciclo, sincronizado_at:nowISO, conciliado_at: ciclo==='pendiente'?null:nowISO, verificado_at:nowISO, historial:[{t:nowISO, accion:'Registrada al conciliar'}] });
         }
       });
       for(const [estado,ids] of Object.entries(patchByEstado)){
