@@ -3329,6 +3329,7 @@ function procesarFila(sheet, row) {
   var iUp3=findCol(headers,['upsell 3','upsell3']), iUp4=findCol(headers,['upsell 4','upsell4']);
   if (iAdId<0||iFecha<0) return;
   var row_data=sheet.getRange(row,1,1,sheet.getLastColumn()).getValues()[0];
+  var valor=parseFloat((row_data[iValor]||'0').toString().replace(/[^0-9.]/g,''))||0;
   var adId=(row_data[iAdId]||'').toString().replace(/\\.0$/,'').trim(); if(!adId) return;
   var wsId=getWorkspaceForAd(adId);
   var precios=getPreciosWorkspace(wsId);
