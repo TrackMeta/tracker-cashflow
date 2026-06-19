@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("ADMIN_SERVICE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // Marcador de versión: aparece en cada respuesta JSON. Si no aparece, el deploy es viejo.
-const FN_VERSION = "2026-06-18-import-por-producto";
+const FN_VERSION = "2026-06-18-telegram-proy-conf";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -477,64 +477,87 @@ async function sbCount(path: string): Promise<number> {
   return parseInt(cr.split("/")[1] || "0") || 0;
 }
 
-// Reúne métricas por workspace para un rango
+// Reúne métricas por workspace para un rango.
+// Ingresos PROYECTADOS (todas menos descartadas) y CONFIRMADOS (solo validadas)
+// salen de la RPC ingresos_ciclo (suma crm_ventas.precio sin tope de filas).
 async function reportData(userId: string, desde: string, hasta: string) {
   const workspaces = await sb("GET", `workspaces?user_id=eq.${userId}`);
   const fuentes = await sb("GET", `fuentes?user_id=eq.${userId}`);
   const fuenteName: Record<string, string> = {};
   (fuentes || []).forEach((f: any) => { fuenteName[f.id] = `${f.emoji || "🤖"} ${f.nombre}`; });
+  // Ingresos por ciclo (Proyectado/Confirmado) vía RPC; fallback vacío si no existe.
+  const rpc = await sb("POST", "rpc/ingresos_ciclo", { p_desde: desde, p_hasta: hasta }).catch(() => []);
+  const ingMap: Record<string, any> = {};
+  (rpc || []).forEach((r: any) => { ingMap[r.workspace_id] = r; });
   const perWs: any[] = [];
   for (const ws of (workspaces || [])) {
     const cfg = (await sb("GET", `config?workspace_id=eq.${ws.id}&select=p1,p2,p3,p4&limit=1`))?.[0] || { p1: 10, p2: 7, p3: 5, p4: 3 };
     const regs = await sb("GET", `registros?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&select=fecha,gasto_meta,gasto_tiktok,v1,v2,v3,v4,upsell_total`) || [];
     let inv = 0, up = 0, v1 = 0, v2 = 0, v3 = 0, v4 = 0;
     regs.forEach((r: any) => { inv += (+r.gasto_meta || 0) + (+r.gasto_tiktok || 0); v1 += +r.v1 || 0; v2 += +r.v2 || 0; v3 += +r.v3 || 0; v4 += +r.v4 || 0; up += +r.upsell_total || 0; });
-    const ing = v1 * (+cfg.p1) + v2 * (+cfg.p2) + v3 * (+cfg.p3) + v4 * (+cfg.p4) + up;
-    const profit = ing - inv, roas = inv > 0 ? ing / inv : 0, roi = inv > 0 ? profit / inv * 100 : 0;
+    const ingReg = v1 * (+cfg.p1) + v2 * (+cfg.p2) + v3 * (+cfg.p3) + v4 * (+cfg.p4) + up; // fallback
+    const ic = ingMap[ws.id] || {};
+    const ingProy = ic.ing_proyectado != null ? +ic.ing_proyectado : ingReg;
+    const ingConf = +ic.ing_confirmado || 0;
+    const nTotal = +ic.n_total || 0, nConf = +ic.n_confirmado || 0;
     const rate = ws.currency_code === "USD" ? 1 : (+ws.usd_rate || 3.7);
     const estados = await sb("GET", `dia_estado?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&select=fecha,consolidado`) || [];
     const consMap: Record<string, boolean> = {}; estados.forEach((e: any) => { consMap[e.fecha] = e.consolidado; });
     const diasData = [...new Set(regs.map((r: any) => r.fecha))] as string[];
     let prov = 0; diasData.forEach((f) => { const c = consMap[f] !== undefined ? consMap[f] : (f < diaPeru(-2)); if (!c) prov++; });
-    const totalV = await sbCount(`crm_ventas?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&ciclo=neq.descartado`);
-    const okV = await sbCount(`crm_ventas?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&ciclo=eq.finalizado`);
-    perWs.push({ ws, inv, ing, profit, roas, roi, ventas: v1 + v2 + v3 + v4, v1, v2, v3, v4, rate, prov, totalV, okV, dias: diasData.length });
+    perWs.push({ ws, inv, ingProy, ingConf, v1, v2, v3, v4, ventas: v1 + v2 + v3 + v4, rate, prov, nTotal, nConf, dias: diasData.length });
   }
   return { perWs, fuenteName };
 }
 
-// Moneda local para el global: la del producto (no USD) con más ingresos.
+// Moneda local para el global: la del producto (no USD) con más ingresos proyectados.
 function dispCurrency(perWs: any[]): { code: string; rate: number } | null {
   const cands = perWs.filter((w: any) => w.ws.currency_code && w.ws.currency_code !== "USD")
-    .sort((a: any, b: any) => (b.ing / b.rate) - (a.ing / a.rate));
+    .sort((a: any, b: any) => (b.ingProy / b.rate) - (a.ingProy / a.rate));
   return cands.length ? { code: cands[0].ws.currency_code, rate: cands[0].rate } : null;
 }
 
 function formatReport(titulo: string, periodoTxt: string, data: any) {
-  const { perWs, fuenteName } = data;
-  let gInv = 0, gIng = 0, gProf = 0, gVen = 0, prov = 0;
-  perWs.forEach((w: any) => { gInv += w.inv / w.rate; gIng += w.ing / w.rate; gProf += w.profit / w.rate; gVen += w.ventas; prov += w.prov; });
-  const gRoas = gInv > 0 ? gIng / gInv : 0, gRoi = gInv > 0 ? gProf / gInv * 100 : 0;
-  // Doble moneda en el global: USD consolidado + moneda local del usuario
+  const { perWs } = data;
+  const SEP = "\n━━━━━━━━━━━━━━━";
+  const sign = (n: number) => (n >= 0 ? "🟢" : "🔴");
+  let gInv = 0, gProy = 0, gConf = 0, gVen = 0, gNTotal = 0, gNConf = 0, prov = 0;
+  perWs.forEach((w: any) => {
+    gInv += w.inv / w.rate; gProy += w.ingProy / w.rate; gConf += w.ingConf / w.rate;
+    gVen += w.ventas; gNTotal += w.nTotal; gNConf += w.nConf; prov += w.prov;
+  });
+  const profProy = gProy - gInv, profConf = gConf - gInv;
+  const roasProy = gInv > 0 ? gProy / gInv : 0, roasConf = gInv > 0 ? gConf / gInv : 0;
   const dc = dispCurrency(perWs);
-  const localLine = dc
-    ? `\n💱 En ${dc.code}: Inv ${fMoney(gInv * dc.rate, dc.code)} · Ing ${fMoney(gIng * dc.rate, dc.code)} · *Profit ${fMoney(gProf * dc.rate, dc.code)}*`
-    : "";
-  let msg = `${titulo}\n_${periodoTxt}_\n\n🌍 *GLOBAL (USD)*\nInversión ${fUsd(gInv)} · Ingresos ${fUsd(gIng)}\n*Profit ${fUsd(gProf)}* · ROAS ${fRoas(gRoas)} · ROI ${gRoi.toFixed(1)}%\nVentas ${gVen}${localLine}`;
-  const byF: Record<string, any[]> = {};
-  perWs.forEach((w: any) => { const k = w.ws.fuente_id || "_"; (byF[k] = byF[k] || []).push(w); });
-  const multi = Object.keys(byF).length > 1;
-  for (const [fid, list] of Object.entries(byF)) {
-    if (multi) { let fp = 0; list.forEach((w) => fp += w.profit / w.rate); msg += `\n\n━━━━━━━━\n🤖 *${fuenteName[fid] || "Sin fuente"}* — Profit ${fUsd(fp)}`; }
-    else msg += `\n\n━━━━━━━━`;
-    for (const w of list) {
-      const code = w.ws.currency_code || "PEN";
-      const loc = code === "USD" ? "" : ` (${fMoney(w.profit, code)})`;
-      msg += `\n\n📦 *${w.ws.emoji || "📦"} ${w.ws.nombre}* (${code})\nInv ${fUsd(w.inv / w.rate)} · Ing ${fUsd(w.ing / w.rate)}\nProfit ${fUsd(w.profit / w.rate)}${loc}\nROAS ${fRoas(w.roas)} · ROI ${w.roi.toFixed(1)}% · Ventas ${w.ventas} (P1:${w.v1} P2:${w.v2} P3:${w.v3} P4:${w.v4})`;
-      if (w.totalV > 0) msg += `\n✅ Validado: ${Math.round(w.okV / w.totalV * 100)}% (${w.okV}/${w.totalV})`;
-    }
+
+  // ── Encabezado ──
+  let msg = `${titulo}\n_${periodoTxt}_`;
+
+  // ── 🌍 Resumen global (Proyectado vs Confirmado) ──
+  msg += `${SEP}\n🌍 *RESUMEN GLOBAL* _(USD)_`;
+  msg += `\n🟡 *Proyectado* · Ing ${fUsd(gProy)} · Profit *${fUsd(profProy)}* · ROAS ${fRoas(roasProy)}`;
+  msg += `\n🟢 *Confirmado* · Ing ${fUsd(gConf)} · Profit *${fUsd(profConf)}* · ROAS ${fRoas(roasConf)}`;
+  msg += `\n💸 Inversión ${fUsd(gInv)}  ·  🧾 *${gVen}* ventas`;
+  if (dc) msg += `\n🇵🇪 _En ${dc.code}:_ Proy ${fMoney(gProy * dc.rate, dc.code)} · *Conf ${fMoney(gConf * dc.rate, dc.code)}*`;
+
+  // ── 🏆 Productos (ordenados por profit confirmado) ──
+  msg += `${SEP}\n🏆 *PRODUCTOS*`;
+  const sorted = [...perWs].sort((a: any, b: any) => ((b.ingConf - b.inv) / b.rate) - ((a.ingConf - a.inv) / a.rate));
+  for (const w of sorted) {
+    const profConfL = (w.ingConf - w.inv) / w.rate;
+    const roas = w.inv > 0 ? w.ingProy / w.inv : 0;
+    msg += `\n\n📦 *${w.ws.emoji || "📦"} ${w.ws.nombre}*`;
+    msg += `\n   ${sign(profConfL)} Profit conf. *${fUsd(profConfL)}* · ROAS ${fRoas(roas)}`;
+    msg += `\n   🧾 ${w.ventas} ventas · P1:${w.v1} P2:${w.v2} P3:${w.v3} P4:${w.v4}`;
   }
-  if (prov > 0) msg += `\n\n⏳ _${prov} día(s) provisional(es) — el gasto puede ajustarse._`;
+
+  // ── 📊 Auditoría ──
+  const pend = gNTotal - gNConf;
+  const pctA = gNTotal > 0 ? Math.round(gNConf / gNTotal * 100) : 0;
+  msg += `${SEP}\n📊 *AUDITORÍA*`;
+  msg += `\n🟢 Confirmadas *${gNConf}/${gNTotal}* (${pctA}%)`;
+  if (pend > 0) msg += `\n🟡 Por auditar *${pend}*`;
+  if (prov > 0) msg += `\n⏳ ${prov} día(s) provisional(es) — el gasto puede ajustarse`;
   return msg;
 }
 
