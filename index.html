@@ -3658,14 +3658,23 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
 
     // ── 1. Leer Sheet vía API pública (CSV) ──
     const apiUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
-    const res = await fetch(apiUrl);
-    if (!res.ok) throw new Error(`No se pudo leer el Sheet de ${job.nombre} (${res.status}). ¿Es público con enlace?`);
-    const csvText = await res.text();
+    let res, csvText = '';
+    try { res = await fetch(apiUrl); csvText = await res.text(); } catch(e){ csvText=''; }
 
-    // ── 2. Parsear CSV ──
-    const allRows = _parseSheetCSV(csvText);
-    // Hoja vacía/ilegible: NO abortar todo el sync — saltar esta fuente y seguir con las demás.
-    if (!allRows.length) { console.warn(`Sheet vacío o ilegible: ${job.nombre}`); return { ventas: 0, registros: 0, crm: 0, wsIds: [], vacio: true }; }
+    // ── 2. Parsear CSV (con diagnóstico si viene vacío) ──
+    const allRows = csvText ? _parseSheetCSV(csvText) : [];
+    if (!allRows.length) {
+      const muestra = (csvText||'').slice(0,160).replace(/\s+/g,' ').trim();
+      const motivo = (res && !res.ok) ? `HTTP ${res.status} (¿no es público?)`
+        : /<html|<!doctype|accounts\.google/i.test(csvText) ? 'el Sheet NO es público — devolvió una página de Google, no CSV'
+        : (csvText.trim().length < 5) ? 'el Sheet/pestaña activa está VACÍO'
+        : 'no se hallaron las columnas "Ad ID" y "Fecha" en la 1ª fila (¿cambió el encabezado o la pestaña activa?)';
+      window._syncDebug = window._syncDebug || [];
+      window._syncDebug.push({ fuente: job.nombre, sheetId, motivo, http: res?.status, largoCSV: (csvText||'').length, muestra });
+      console.warn(`Sync "${job.nombre}": ${motivo}`, { sheetId, muestra });
+      showError(`"${job.nombre}": ${motivo}`);
+      return { ventas: 0, registros: 0, crm: 0, wsIds: [], vacio: true, motivo };
+    }
 
     // ── Filtro de fecha según el rango elegido por el usuario ──
     const fechaMinima = syncDesde || nDaysAgo(90);
