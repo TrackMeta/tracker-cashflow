@@ -3832,17 +3832,24 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
       }
 
       status.textContent = `Escribiendo ${nuevos.length} nuevas · ${modificados.length} modificadas (${crmUniq.length - nuevos.length - modificados.length} sin cambios)...`;
-      // Insertar nuevas → entran a la cola como pendiente
+      // Insertar nuevas → entran a la cola como pendiente. Si la BD rechaza, mostramos el error real.
+      let _crmErr = '', _crmOk = 0;
       for (let i = 0; i < nuevos.length; i += 100) {
         const lote = nuevos.slice(i, i + 100).map(r => ({
           ...r, ciclo: 'pendiente', estado_verif: 'pendiente',
           origen: 'sheets', sincronizado_at: nowISO
         }));
-        await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas`, {
-          method: 'POST', headers: { ...api._h(), 'Prefer': 'resolution=ignore-duplicates,return=minimal' },
-          body: JSON.stringify(lote)
-        }).catch(()=>{});   // red de seguridad: un choque no debe abortar el sync
+        try {
+          const res = await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas`, {
+            method: 'POST', headers: { ...api._h(), 'Prefer': 'return=minimal' },
+            body: JSON.stringify(lote)
+          });
+          if (res.ok) { _crmOk += lote.length; }
+          else if (!_crmErr) { _crmErr = `HTTP ${res.status}: ${(await res.text()).slice(0,300)}`; }
+        } catch(e) { if(!_crmErr) _crmErr = String(e.message||e); }
       }
+      if (_crmErr) { console.error('crm_ventas insert error:', _crmErr); showError('crm_ventas: '+_crmErr); }
+      window._crmDebug = { nuevos: nuevos.length, insertadas: _crmOk, error: _crmErr };
       // Modificadas → actualizar dato, REABRIR a pendiente y dejar aviso en el historial
       for (const { ex, r } of modificados) {
         const hist = Array.isArray(ex.historial) ? ex.historial : [];
