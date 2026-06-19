@@ -3818,21 +3818,22 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
       const exMap = new Map();
       for (const wsId of wsIds) {
         const ex = await api.getAll('crm_ventas',
-          `workspace_id=eq.${wsId}&fecha=gte.${fechaMinima}&select=id,ad_id,hora,precio,ciclo,historial`).catch(()=>[]);
+          `workspace_id=eq.${wsId}&fecha=gte.${fechaMinima}&select=id,ad_id,hora,precio,ciclo,historial,producto,cliente,telefono`).catch(()=>[]);
         ex.forEach(e => exMap.set(idKey(wsId, e.ad_id, e.hora), e));
       }
 
       const nowISO = new Date().toISOString();
-      const nuevos = [], modificados = [];
+      const nuevos = [], modificados = [], enriquecer = [];
       for (const r of crmUniq) {
         const ex = exMap.get(idKey(r.workspace_id, r.ad_id, r.hora));
         if (!ex) { nuevos.push(r); continue; }                       // venta nueva
-        if (Math.abs((+ex.precio) - (+r.precio)) > 0.001) modificados.push({ ex, r }); // cambió en el Sheet
-        // idéntica → no se reescribe (evita duplicados y respeta su auditoría)
+        if (Math.abs((+ex.precio) - (+r.precio)) > 0.001) { modificados.push({ ex, r }); continue; } // cambió en el Sheet
+        // misma venta: si le faltan datos (producto/cliente/telefono) y el Sheet los tiene → rellenar
+        if ((!ex.producto && r.producto) || (!ex.cliente && r.cliente) || (!ex.telefono && r.telefono)) enriquecer.push({ ex, r });
       }
 
-      status.textContent = `Escribiendo ${nuevos.length} nuevas · ${modificados.length} modificadas (${crmUniq.length - nuevos.length - modificados.length} sin cambios)...`;
-      // Insertar nuevas → entran a la cola como pendiente. Si la BD rechaza, mostramos el error real.
+      status.textContent = `Escribiendo ${nuevos.length} nuevas · ${modificados.length} modificadas · ${enriquecer.length} a completar...`;
+      // Insertar nuevas (ignore-duplicates evita el 409 de la constraint única). Surface de errores reales.
       let _crmErr = '', _crmOk = 0;
       for (let i = 0; i < nuevos.length; i += 100) {
         const lote = nuevos.slice(i, i + 100).map(r => ({
@@ -3841,7 +3842,7 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
         }));
         try {
           const res = await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas`, {
-            method: 'POST', headers: { ...api._h(), 'Prefer': 'return=minimal' },
+            method: 'POST', headers: { ...api._h(), 'Prefer': 'resolution=ignore-duplicates,return=minimal' },
             body: JSON.stringify(lote)
           });
           if (res.ok) { _crmOk += lote.length; }
@@ -3858,6 +3859,13 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
           precio: r.precio, telefono: r.telefono || null, producto: r.producto || null, cliente: r.cliente || null,
           ciclo: 'pendiente', estado_verif: 'pendiente', sincronizado_at: nowISO, historial: hist
         }).catch(()=>{});
+      }
+      // Completar datos faltantes en ventas viejas (sin tocar ciclo/estado). En paralelo por lotes.
+      for (let i = 0; i < enriquecer.length; i += 25) {
+        if (i % 250 === 0) status.textContent = `Completando datos de ventas viejas... ${i}/${enriquecer.length}`;
+        await Promise.all(enriquecer.slice(i, i + 25).map(({ ex, r }) =>
+          api.patch('crm_ventas', ex.id, { producto: r.producto || null, cliente: r.cliente || null, telefono: r.telefono || null }).catch(()=>{})
+        ));
       }
     }
 
