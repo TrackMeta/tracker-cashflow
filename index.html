@@ -3694,17 +3694,10 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
 
     if (!rows.length) return { ventas: 0, registros: 0, crm: 0, wsIds: [] };
 
-    // ── 5. Quitar SOLO filas byte-idénticas (mismo ad_id+telefono+hora exacta+valor).
-    // Los casi-duplicados (segundos/minutos de diferencia) SÍ suben: el usuario los
-    // audita en Conciliación (la app los marca como "posible duplicado"). ──
-    const seenKeys = new Set();
-    const ventasUnicas = [];
-    for (const r of rows) {
-      const key = `${r.adId}|${r.telefono}|${r.hora}|${r.valor}`;   // exacto, sin ventana
-      if (seenKeys.has(key)) continue;
-      seenKeys.add(key);
-      ventasUnicas.push(r);
-    }
+    // ── 5. SIN deduplicar: suben TODAS las ventas, incluidas las idénticas exactas.
+    // El "merge por conteo" (paso 8) inserta solo las copias que falten en la BD,
+    // así que es idempotente. El usuario audita/borra duplicados desde Conciliación. ──
+    const ventasUnicas = rows;
 
     // ── 6. Agrupar por fecha + adId + producto, using per-workspace prices ──
     // Un mismo Ad ID puede aparecer en múltiples productos si fue reutilizado.
@@ -3795,73 +3788,63 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
         ));
     }
 
-    // ── 8. Merge crm_ventas — per workspace (NO destructivo) ──
-    // Sincronizar = crear ventas. Las ventas ya existentes conservan su ciclo de
-    // vida y resultado de auditoría: NUNCA se borran ni se pisan. Solo se insertan
-    // las genuinamente nuevas, en estado `pendiente` (entran a la cola de conciliación).
+    // ── 8. Merge crm_ventas por CONTEO (NO destructivo, idempotente) ──
+    // Identidad = workspace+ad_id+hora. Para cada identidad, contamos cuántas copias
+    // hay en el Sheet vs en la BD e insertamos solo las que FALTAN. Así suben hasta
+    // los duplicados idénticos exactos, pero re-sincronizar no los multiplica.
+    // Las existentes conservan su ciclo/auditoría (solo se completan datos faltantes).
     if (crmRows.length) {
-      // Dedup dentro de este lote por clave natural (ad_id|hora|precio)
-      const crmSeen = new Set();
-      const crmUniq = crmRows.filter(r => {
-        const k = `${r.ad_id}|${r.hora}|${r.precio}`;
-        if (crmSeen.has(k)) return false;
-        crmSeen.add(k); return true;
-      });
+      const hkey = (wsId, adId, hora) => `${wsId}|${adId}|${new Date(hora).getTime()}`;
+      const push = (m, k, v) => { let a = m.get(k); if (!a) { a = []; m.set(k, a); } a.push(v); };
 
-      // Identidad de una venta = workspace + ad_id + hora (epoch, robusto a timezone).
-      // El precio NO entra en la identidad: si cambia, es la MISMA venta modificada.
-      const idKey = (wsId, adId, hora) => `${wsId}|${adId}|${new Date(hora).getTime()}`;
+      // Agrupar ventas del Sheet por identidad (incluye copias idénticas)
+      const sheetByKey = new Map();
+      for (const r of crmRows) push(sheetByKey, hkey(r.workspace_id, r.ad_id, r.hora), r);
 
-      // Traer TODAS las que YA existen (paginado: api.get topa en 1000 y dejaba
-      // existentes fuera → se reinsertaban → choque de clave única → el sync abortaba
-      // y crm_ventas dejaba de actualizarse. Por eso se quedó en 09/06).
-      const wsIds = [...new Set(crmUniq.map(r => r.workspace_id))];
-      const exMap = new Map();
+      // Agrupar las existentes (paginado: api.get topa en 1000)
+      const wsIds = [...new Set(crmRows.map(r => r.workspace_id))];
+      const crmByKey = new Map();
       for (const wsId of wsIds) {
         const ex = await api.getAll('crm_ventas',
           `workspace_id=eq.${wsId}&fecha=gte.${fechaMinima}&select=id,ad_id,hora,precio,ciclo,historial,producto,cliente,telefono`).catch(()=>[]);
-        ex.forEach(e => exMap.set(idKey(wsId, e.ad_id, e.hora), e));
+        ex.forEach(e => push(crmByKey, hkey(wsId, e.ad_id, e.hora), e));
       }
 
       const nowISO = new Date().toISOString();
       const nuevos = [], modificados = [], enriquecer = [];
-      for (const r of crmUniq) {
-        const ex = exMap.get(idKey(r.workspace_id, r.ad_id, r.hora));
-        if (!ex) { nuevos.push(r); continue; }                       // venta nueva
-        if (Math.abs((+ex.precio) - (+r.precio)) > 0.001) { modificados.push({ ex, r }); continue; } // cambió en el Sheet
-        // misma venta: si le faltan datos (producto/cliente/telefono) y el Sheet los tiene → rellenar
-        if ((!ex.producto && r.producto) || (!ex.cliente && r.cliente) || (!ex.telefono && r.telefono)) enriquecer.push({ ex, r });
+      const faltaDato = (e, s) => (!e.producto && s.producto) || (!e.cliente && s.cliente) || (!e.telefono && s.telefono);
+      for (const [k, sRows] of sheetByKey) {
+        const eRows = crmByKey.get(k) || [];
+        if (sRows.length === 1 && eRows.length === 1) {
+          const s = sRows[0], e = eRows[0];
+          if (Math.abs((+e.precio) - (+s.precio)) > 0.001) modificados.push({ ex: e, r: s }); // cambió el monto
+          else if (faltaDato(e, s)) enriquecer.push({ ex: e, r: s });                          // completar datos
+        } else {
+          // múltiples copias (o nuevas): insertar solo las que falten respecto a la BD
+          const faltan = sRows.length - eRows.length;
+          for (let i = 0; i < faltan; i++) nuevos.push(sRows[i] || sRows[0]);
+          for (const e of eRows) if (faltaDato(e, sRows[0])) enriquecer.push({ ex: e, r: sRows[0] });
+        }
       }
 
       status.textContent = `Escribiendo ${nuevos.length} nuevas · ${modificados.length} modificadas · ${enriquecer.length} a completar...`;
-      // Insertar nuevas. La constraint única idx_crm_ventas_unique no la cubre el
-      // ignore-duplicates (no es la PK), así que un lote con una repetida da 409 y
-      // tumba todo el lote. Estrategia: insertar el lote; si da 409, reintentar fila
-      // por fila — las nuevas entran y las repetidas (409) se saltan sin ruido.
-      let _crmErr = '', _crmOk = 0, _crmDup = 0;
-      const postCrm = async (arr) => fetch(`${SUPABASE_URL}/rest/v1/crm_ventas`, {
-        method: 'POST', headers: { ...api._h(), 'Prefer': 'return=minimal' }, body: JSON.stringify(arr)
-      });
+      // Insertar nuevas (ya sin constraint única → insert por lotes normal)
+      let _crmErr = '', _crmOk = 0;
       for (let i = 0; i < nuevos.length; i += 100) {
         const lote = nuevos.slice(i, i + 100).map(r => ({
           ...r, ciclo: 'pendiente', estado_verif: 'pendiente', origen: 'sheets', sincronizado_at: nowISO
         }));
         try {
-          const res = await postCrm(lote);
-          if (res.ok) { _crmOk += lote.length; continue; }
-          if (res.status !== 409) { if(!_crmErr) _crmErr = `HTTP ${res.status}: ${(await res.text()).slice(0,300)}`; continue; }
-          // 409: lote con repetidas → fila por fila
-          for (const row of lote) {
-            const r1 = await postCrm([row]).catch(()=>null);
-            if (r1 && r1.ok) _crmOk++;
-            else if (r1 && r1.status === 409) _crmDup++;          // ya existía → se salta
-            else if (r1 && !_crmErr) _crmErr = `HTTP ${r1.status}: ${(await r1.text()).slice(0,200)}`;
-          }
-        } catch(e) { if(!_crmErr) _crmErr = String(e.message||e); }
+          const res = await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas`, {
+            method: 'POST', headers: { ...api._h(), 'Prefer': 'return=minimal' }, body: JSON.stringify(lote)
+          });
+          if (res.ok) _crmOk += lote.length;
+          else if (!_crmErr) _crmErr = `HTTP ${res.status}: ${(await res.text()).slice(0,300)}`;
+        } catch(e) { if (!_crmErr) _crmErr = String(e.message||e); }
       }
       if (_crmErr) { console.error('crm_ventas insert error:', _crmErr); showError('crm_ventas: '+_crmErr); }
-      window._crmDebug = { nuevos: nuevos.length, insertadas: _crmOk, yaExistian: _crmDup, error: _crmErr };
-      // Modificadas → actualizar dato, REABRIR a pendiente y dejar aviso en el historial
+      window._crmDebug = { nuevos: nuevos.length, insertadas: _crmOk, error: _crmErr };
+      // Modificadas → actualizar monto, reabrir a pendiente, aviso en historial
       for (const { ex, r } of modificados) {
         const hist = Array.isArray(ex.historial) ? ex.historial : [];
         hist.push({ t: nowISO, accion: 'Modificada en Sheets', detalle: `monto ${ex.precio} → ${r.precio}` });
@@ -3870,7 +3853,7 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
           ciclo: 'pendiente', estado_verif: 'pendiente', sincronizado_at: nowISO, historial: hist
         }).catch(()=>{});
       }
-      // Completar datos faltantes en ventas viejas (sin tocar ciclo/estado). En paralelo por lotes.
+      // Completar datos faltantes en ventas viejas (sin tocar ciclo/estado). En paralelo.
       for (let i = 0; i < enriquecer.length; i += 25) {
         if (i % 250 === 0) status.textContent = `Completando datos de ventas viejas... ${i}/${enriquecer.length}`;
         await Promise.all(enriquecer.slice(i, i + 25).map(({ ex, r }) =>

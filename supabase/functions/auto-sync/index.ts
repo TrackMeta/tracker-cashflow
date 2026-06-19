@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("ADMIN_SERVICE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // Marcador de versión: aparece en cada respuesta JSON. Si no aparece, el deploy es viejo.
-const FN_VERSION = "2026-06-19-sin-dedup";
+const FN_VERSION = "2026-06-19-merge-conteo";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -200,35 +200,41 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
     }
   }
 
-  // crm_ventas: merge NO destructivo con detección de cambios.
-  // Identidad = workspace + ad_id + hora (el precio NO entra: si cambia, es la MISMA
-  // venta modificada en el Sheet → se reabre a pendiente con aviso). Las idénticas no
-  // se reescriben (evita duplicados y conserva su auditoría).
+  // crm_ventas: merge por CONTEO (idempotente). Por identidad (ws+ad_id+hora)
+  // contamos copias en el Sheet vs BD e insertamos solo las que falten → suben
+  // hasta los duplicados idénticos sin multiplicarse al re-sincronizar.
   if (crmRows.length) {
-    const cseen = new Set<string>();
-    const uniq = crmRows.filter((r) => { const k = `${r.ad_id}|${r.hora}|${r.precio}`; if (cseen.has(k)) return false; cseen.add(k); return true; });
-
-    const idKey = (wsId: string, adId: string, hora: string) => `${wsId}|${adId}|${new Date(hora).getTime()}`;
-    const wsIds = [...new Set(uniq.map((r) => r.workspace_id))];
-    const exMap = new Map<string, any>();
+    const hkey = (wsId: string, adId: string, hora: string) => `${wsId}|${adId}|${new Date(hora).getTime()}`;
+    const push = (m: Map<string, any[]>, k: string, v: any) => { let a = m.get(k); if (!a) { a = []; m.set(k, a); } a.push(v); };
+    const sheetByKey = new Map<string, any[]>();
+    for (const r of crmRows) push(sheetByKey, hkey(r.workspace_id, r.ad_id, r.hora), r);
+    const wsIds = [...new Set(crmRows.map((r) => r.workspace_id))];
+    const crmByKey = new Map<string, any[]>();
     for (const wsId of wsIds) {
-      // Paginado: sb GET topa en 1000 → existentes fuera se reinsertaban y abortaba el sync.
-      const ex = await sbAll(`crm_ventas?workspace_id=eq.${wsId}&fecha=gte.${fechaMin}&select=id,ad_id,hora,precio,ciclo,historial`);
-      (ex || []).forEach((e: any) => exMap.set(idKey(wsId, e.ad_id, e.hora), e));
+      const ex = await sbAll(`crm_ventas?workspace_id=eq.${wsId}&fecha=gte.${fechaMin}&select=id,ad_id,hora,precio,ciclo,historial,producto,cliente,telefono`);
+      (ex || []).forEach((e: any) => push(crmByKey, hkey(wsId, e.ad_id, e.hora), e));
     }
 
     const nowISO = new Date().toISOString();
-    const nuevos: any[] = [], modificados: any[] = [];
-    for (const r of uniq) {
-      const ex = exMap.get(idKey(r.workspace_id, r.ad_id, r.hora));
-      if (!ex) { nuevos.push(r); continue; }
-      if (Math.abs((+ex.precio) - (+r.precio)) > 0.001) modificados.push({ ex, r });
+    const nuevos: any[] = [], modificados: any[] = [], enriquecer: any[] = [];
+    const faltaDato = (e: any, s: any) => (!e.producto && s.producto) || (!e.cliente && s.cliente) || (!e.telefono && s.telefono);
+    for (const [k, sRows] of sheetByKey) {
+      const eRows = crmByKey.get(k) || [];
+      if (sRows.length === 1 && eRows.length === 1) {
+        const s = sRows[0], e = eRows[0];
+        if (Math.abs((+e.precio) - (+s.precio)) > 0.001) modificados.push({ ex: e, r: s });
+        else if (faltaDato(e, s)) enriquecer.push({ ex: e, r: s });
+      } else {
+        const faltan = sRows.length - eRows.length;
+        for (let i = 0; i < faltan; i++) nuevos.push(sRows[i] || sRows[0]);
+        for (const e of eRows) if (faltaDato(e, sRows[0])) enriquecer.push({ ex: e, r: sRows[0] });
+      }
     }
     for (let i = 0; i < nuevos.length; i += 100) {
       const lote = nuevos.slice(i, i + 100).map((r) => ({
         ...r, ciclo: "pendiente", estado_verif: "pendiente", origen: "auto", sincronizado_at: nowISO,
       }));
-      await sb("POST", "crm_ventas", lote, "resolution=ignore-duplicates,return=minimal").catch(() => {});
+      await sb("POST", "crm_ventas", lote, "return=minimal").catch(() => {});
     }
     for (const { ex, r } of modificados) {
       const hist = Array.isArray(ex.historial) ? ex.historial : [];
@@ -236,6 +242,11 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
       await sb("PATCH", `crm_ventas?id=eq.${ex.id}`, {
         precio: r.precio, telefono: r.telefono || null, producto: r.producto || null, cliente: r.cliente || null,
         ciclo: "pendiente", estado_verif: "pendiente", sincronizado_at: nowISO, historial: hist,
+      }, "return=minimal").catch(() => {});
+    }
+    for (const { ex, r } of enriquecer) {
+      await sb("PATCH", `crm_ventas?id=eq.${ex.id}`, {
+        producto: r.producto || null, cliente: r.cliente || null, telefono: r.telefono || null,
       }, "return=minimal").catch(() => {});
     }
   }
