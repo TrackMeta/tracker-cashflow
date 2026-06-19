@@ -12975,10 +12975,17 @@ init();
   window.concCargarCola = async function(){
     const empty=document.getElementById('conc-empty'), res=document.getElementById('conc-resultado');
     try{
-      let q = `ciclo=in.(pendiente,en_proceso)&select=id,fecha,ad_id,hora,precio,workspace_id,telefono,producto,cliente,origen,estado_verif,ciclo,sincronizado_at,conciliado_at,historial&order=fecha.desc&limit=2000`;
-      if(CONC.desde) q += `&fecha=gte.${CONC.desde}`;
-      if(CONC.hasta) q += `&fecha=lte.${CONC.hasta}`;
-      const rows = await api.get('crm_ventas', q).catch(()=>[]);
+      // Paginar: PostgREST corta en ~1000 filas. Traemos toda la cola en páginas.
+      const fechaQ = (CONC.desde?`&fecha=gte.${CONC.desde}`:'') + (CONC.hasta?`&fecha=lte.${CONC.hasta}`:'');
+      const sel = 'select=id,fecha,ad_id,hora,precio,workspace_id,telefono,producto,cliente,origen,estado_verif,ciclo,sincronizado_at,conciliado_at,historial';
+      let rows = [], offset = 0;
+      while (true) {
+        const page = await api.get('crm_ventas', `ciclo=in.(pendiente,en_proceso)&${sel}&order=fecha.desc&limit=1000&offset=${offset}${fechaQ}`).catch(()=>[]);
+        rows.push(...page);
+        if (page.length < 1000) break;
+        offset += 1000;
+        if (offset > 50000) break; // tope de seguridad
+      }
       CONC.ventas = rows.map(r=>({ ...r, _dt:new Date(r.hora), estado:_evToEstado(r.estado_verif), pago:null, candidatos:[],
         manual: r.estado_verif==='manual', modificado:_esModificada(r),
         historial: Array.isArray(r.historial)?r.historial:[] })).sort((a,b)=>a._dt-b._dt);
