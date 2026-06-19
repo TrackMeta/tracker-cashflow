@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("ADMIN_SERVICE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // Marcador de versión: aparece en cada respuesta JSON. Si no aparece, el deploy es viejo.
-const FN_VERSION = "2026-06-15-resync-cambios";
+const FN_VERSION = "2026-06-18-import-por-producto";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -126,7 +126,11 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
     wsCfg[ws.id] = (cfg && cfg[0]) || { p1: 10, p2: 7, p3: 5, p4: 3 };
   }
   const allAdIds = new Set(Object.keys(adIdToWs));
-  const rows = allAdIds.size ? recientes.filter((r) => allAdIds.has(r.adId)) : recientes;
+  // Acepta por Ad ID registrado O por nombre de producto que coincida con un workspace
+  // (recupera ventas de creativos viejos no registrados).
+  const rows = allAdIds.size
+    ? recientes.filter((r) => allAdIds.has(r.adId) || !!wsNombreToId[normalizarProducto(r.producto || "", wsNames)])
+    : recientes;
   if (!rows.length) return { ventas: 0, registros: 0, wsIds: [] };
 
   // Dedup ventana 10s

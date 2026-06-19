@@ -3672,9 +3672,10 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
     }
     const allAdIds = new Set(Object.keys(adIdToWs));
 
-    // ── 4. Filter rows by ANY workspace's Ad IDs ──
+    // ── 4. Filtrar filas: por Ad ID registrado O por nombre de producto que
+    // coincida con un workspace (recupera ventas de creativos viejos no registrados). ──
     const rows = allAdIds.size > 0
-      ? allRowsRecientes.filter(r => allAdIds.has(r.adId))
+      ? allRowsRecientes.filter(r => allAdIds.has(r.adId) || !!wsNombreToId[_normalizarProducto(r.producto || '', wsNames)])
       : allRowsRecientes;
 
     if (!rows.length) return { ventas: 0, registros: 0, crm: 0, wsIds: [] };
