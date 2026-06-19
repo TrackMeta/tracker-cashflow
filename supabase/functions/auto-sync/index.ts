@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("ADMIN_SERVICE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // Marcador de versión: aparece en cada respuesta JSON. Si no aparece, el deploy es viejo.
-const FN_VERSION = "2026-06-19-merge-paginado";
+const FN_VERSION = "2026-06-19-sin-dedup";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -147,9 +147,9 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
     : recientes;
   if (!rows.length) return { ventas: 0, registros: 0, wsIds: [] };
 
-  // Dedup ventana 10s
+  // Quitar SOLO filas byte-idénticas; los casi-duplicados suben para auditar en Conciliación.
   const seen = new Set<string>(); const unicas = [];
-  for (const r of rows) { const k = `${r.adId}|${r.telefono}|${r.hora.substring(0, 18)}`; if (seen.has(k)) continue; seen.add(k); unicas.push(r); }
+  for (const r of rows) { const k = `${r.adId}|${r.telefono}|${r.hora}|${r.valor}`; if (seen.has(k)) continue; seen.add(k); unicas.push(r); }
 
   const grupos: Record<string, any> = {}; const crmRows = [];
   for (const r of unicas) {

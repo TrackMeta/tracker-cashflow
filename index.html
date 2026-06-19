@@ -3694,12 +3694,13 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
 
     if (!rows.length) return { ventas: 0, registros: 0, crm: 0, wsIds: [] };
 
-    // ── 5. Deduplicar (misma persona, ventana de 10 seg) ──
+    // ── 5. Quitar SOLO filas byte-idénticas (mismo ad_id+telefono+hora exacta+valor).
+    // Los casi-duplicados (segundos/minutos de diferencia) SÍ suben: el usuario los
+    // audita en Conciliación (la app los marca como "posible duplicado"). ──
     const seenKeys = new Set();
     const ventasUnicas = [];
     for (const r of rows) {
-      const horaRound = r.hora.substring(0, 18);
-      const key = `${r.adId}|${r.telefono}|${horaRound}`;
+      const key = `${r.adId}|${r.telefono}|${r.hora}|${r.valor}`;   // exacto, sin ventana
       if (seenKeys.has(key)) continue;
       seenKeys.add(key);
       ventasUnicas.push(r);
@@ -13184,7 +13185,7 @@ init();
   function concAuditar(){
     const vts = CONC.ventas;
     // limpiar flags previos
-    vts.forEach(v=>{ v.dup=null; v.incompleta=(!_normTel(v.telefono) && !_normNom(v.cliente)); });
+    vts.forEach(v=>{ v.dup=null; v.incompleta=(!_normTel(v.telefono) && !_normNom(v.cliente)); v.sinAdId=(!v.ad_id || v.ad_id==='SIN_ID'); });
     // Ventas duplicadas (Sheet↔Sheet): score ponderado por par
     for(let i=0;i<vts.length;i++){
       for(let j=i+1;j<vts.length;j++){
@@ -13277,8 +13278,10 @@ init();
 
   function concRenderFiltros(){
     const nDup=CONC.ventas.filter(v=>v.dup).length;
+    const nInc=CONC.ventas.filter(v=>v.incompleta||v.sinAdId).length;
     const chips=[['todos','Todas',CONC.ventas.length],['pendiente','⚪',concCount('pendiente')],['verificada','🟢',concCount('verificada')],['manual','🟣',concCount('manual')],['parcial','🟡',concCount('parcial')],['revision','🔵',concCount('revision')],['sin_match','🔴',concCount('sin_match')]];
     if(nDup) chips.push(['dup','🟡 Dup',nDup]);
+    if(nInc) chips.push(['incompleta','📋 Incompletas',nInc]);
     const fHtml = chips.map(c=>`<button class="btn btn-sm ${CONC.filtro===c[0]?'btn-primary':'btn-ghost'}" onclick="concFiltro('${c[0]}')">${c[1]} ${c[2]}</button>`).join('');
     const acc = `<div style="display:flex;gap:6px;flex-wrap:wrap;margin-left:auto">
       <button class="btn btn-ghost btn-sm" onclick="concBulk('validar-sel')">✓ Validar seleccionadas</button>
@@ -13296,7 +13299,7 @@ init();
     const cont = document.getElementById('conc-lista-cards');
     const lista = CONC.filtro==='todos' ? CONC.ventas
       : CONC.filtro==='dup' ? CONC.ventas.filter(v=>v.dup)
-      : CONC.filtro==='incompleta' ? CONC.ventas.filter(v=>v.incompleta)
+      : CONC.filtro==='incompleta' ? CONC.ventas.filter(v=>v.incompleta||v.sinAdId)
       : CONC.ventas.filter(v=>v.estado===CONC.filtro);
     document.getElementById('conc-lista-count').textContent = `${lista.length} de ${CONC.ventas.length}`;
     if(!lista.length){ cont.innerHTML='<div style="text-align:center;color:var(--text3);padding:20px">Sin ventas en este filtro</div>'; return; }
