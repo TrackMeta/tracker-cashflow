@@ -3293,6 +3293,13 @@ function doPost(e) {
       var headers = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0].map(function(h){return h.toString().toLowerCase().trim();});
       var iAdId=findCol(headers,['ad id','ad_id']), iFecha=findCol(headers,['fecha y hora','fecha']), iValor=findCol(headers,['valor','value']);
       var data = sheet.getRange(2,1,lastRow-1,sheet.getLastColumn()).getValues();
+      // Cuántas borrar por clave (adId|fecha|hora|valor). Así si pides 1 de 3 idénticos, borra 1.
+      var want = {};
+      for (var k=0;k<body.rows.length;k++){
+        var t = body.rows[k];
+        var kk = t.adId+'|'+t.fecha+'|'+(t.hora||'')+'|'+(Math.round((parseFloat(t.valor)||0)*100)/100);
+        want[kk] = (want[kk]||0) + 1;
+      }
       var toDelete = [];
       for (var r=0; r<data.length; r++){
         var row = data[r];
@@ -3300,11 +3307,9 @@ function doPost(e) {
         var fr = row[iFecha], f='', h='';
         if (fr instanceof Date){ f = Utilities.formatDate(fr,'America/Lima','yyyy-MM-dd'); h = Utilities.formatDate(fr,'America/Lima','HH:mm:ss'); }
         else { var s = (fr||'').toString().trim(); if (s.indexOf('T')>=0){ f = s.split('T')[0]; h = s.split('T')[1].substring(0,8); } else { var sp = s.split(' '); f = sp[0]||''; h = (sp[1]||'').substring(0,8); } }
-        var val = parseFloat((row[iValor]||'0').toString().replace(/[^0-9.]/g,''))||0;
-        for (var k=0;k<body.rows.length;k++){
-          var t = body.rows[k];
-          if (t.adId===adId && t.fecha===f && (!t.hora || t.hora===h) && Math.abs(val-(parseFloat(t.valor)||0))<0.001){ toDelete.push(r+2); break; }
-        }
+        var val = Math.round((parseFloat((row[iValor]||'0').toString().replace(/[^0-9.]/g,''))||0)*100)/100;
+        var key = adId+'|'+f+'|'+h+'|'+val;
+        if (want[key] > 0){ toDelete.push(r+2); want[key]--; }   // borra solo la cantidad pedida
       }
       toDelete.sort(function(a,b){return b-a;});
       for (var d=0; d<toDelete.length; d++){ sheet.deleteRow(toDelete[d]); }
@@ -3658,7 +3663,8 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
 
     // ── 2. Parsear CSV ──
     const allRows = _parseSheetCSV(csvText);
-    if (!allRows.length) throw new Error('Sheet vacío o sin datos válidos');
+    // Hoja vacía/ilegible: NO abortar todo el sync — saltar esta fuente y seguir con las demás.
+    if (!allRows.length) { console.warn(`Sheet vacío o ilegible: ${job.nombre}`); return { ventas: 0, registros: 0, crm: 0, wsIds: [], vacio: true }; }
 
     // ── Filtro de fecha según el rango elegido por el usuario ──
     const fechaMinima = syncDesde || nDaysAgo(90);
@@ -13511,9 +13517,15 @@ init();
     }
     if(totalDeleted) showSuccess(`✅ ${totalDeleted} registro(s) eliminado(s) del Sheet`);
     if(errores) showError(`${errores} script(s) no respondieron bien. ¿Re-desplegaste el código actualizado y la URL es la correcta?`);
+    // También borrarlas de crm_ventas (por id) para que SALGAN de la conciliación.
+    const idsBorrar = Object.values(grupos).flat().map(v=>v.id).filter(id => id && !String(id).startsWith('sheet|'));
+    for (let i=0;i<idsBorrar.length;i+=100){
+      await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas?id=in.(${idsBorrar.slice(i,i+100).join(',')})`, { method:'DELETE', headers:{...api._h()} }).catch(()=>{});
+    }
     CONC.papelera = sinScript;
     CONC._sheetAll=null;
-    await concConciliar();
+    await concCargarCola();                 // recarga la cola desde la BD (ya sin las borradas)
+    if (CONC.pagos.length) await concConciliar();
     concRenderPapelera();
   };
 
