@@ -8802,7 +8802,7 @@ async function validacionConteo(params) {
 }
 
 // Franja de confianza: cuántos días del período están consolidados vs provisionales
-function renderConfianza(desde, hasta) {
+async function renderConfianza(desde, hasta) {
   const box = document.getElementById('dash-confianza');
   if (!box) return;
   const wsId = CURRENT_WORKSPACE?.id;
@@ -8812,8 +8812,8 @@ function renderConfianza(desde, hasta) {
   let consolidados = 0; const provis = [];
   dias.forEach(f => { if (diaConsolidado(wsId, f)) consolidados++; else provis.push(f); });
 
-  // Ventas validadas en el período (Fase 4) — desde el cache ligero, por ciclo de vida
-  const verifTxt = validacionTxt((DB.crmVerif || []).filter(v => v.fecha >= desde && v.fecha <= hasta));
+  // Ventas validadas en el período por consultas COUNT (inmune al tope de ~1000)
+  const verifTxt = _validacionTxtFromRes(await validacionConteo(`workspace_id=eq.${wsId}&fecha=gte.${desde}&fecha=lte.${hasta}`));
 
   if (!provis.length) {
     box.innerHTML = `<span style="color:var(--green);font-weight:600">✅ ${consolidados} día${consolidados===1?'':'s'} consolidado${consolidados===1?'':'s'}</span> <span style="color:var(--text3)">— cifras finales</span>${verifTxt}`;
@@ -9370,7 +9370,7 @@ function bitaAbrirDiaGlobal(fecha){
   }
 }
 
-function bitaConfianza(regs){
+async function bitaConfianza(regs){
   const box = document.getElementById('bita-confianza');
   if (!box) return;
   const wsId = CURRENT_WORKSPACE?.id;
@@ -9379,7 +9379,7 @@ function bitaConfianza(regs){
   let cons = 0; const prov = [];
   dias.forEach(f => { if (diaConsolidado(wsId, f)) cons++; else prov.push(f); });
   const desde = dias.sort()[0], hasta = dias.sort()[dias.length-1];
-  const verifTxt = validacionTxt((DB.crmVerif || []).filter(v => v.fecha >= desde && v.fecha <= hasta));
+  const verifTxt = _validacionTxtFromRes(await validacionConteo(`workspace_id=eq.${wsId}&fecha=gte.${desde}&fecha=lte.${hasta}`));
   box.innerHTML = (prov.length
     ? `<span style="color:var(--green);font-weight:600">✅ ${cons} consolidados</span> · <span style="color:var(--orange);font-weight:600">⏳ ${prov.length} provisionales</span> <span style="color:var(--text3)">(pueden ajustarse)</span>`
     : `<span style="color:var(--green);font-weight:600">✅ ${cons} días consolidados — cifras finales</span>`) + verifTxt;
