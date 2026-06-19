@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("ADMIN_SERVICE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // Marcador de versión: aparece en cada respuesta JSON. Si no aparece, el deploy es viejo.
-const FN_VERSION = "2026-06-19-merge-conteo";
+const FN_VERSION = "2026-06-19-header-scan";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -64,8 +64,20 @@ function parseSheetCSV(text: string) {
     cols.push(cur.trim());
     return cols;
   };
-  const headers = parseLine(lines[0]).map((h) => h.replace(/"/g, "").toLowerCase().trim());
-  const findH = (opts: string[]) => { for (const o of opts) { const i = headers.indexOf(o); if (i >= 0) return i; } return -1; };
+  // Buscar la FILA de encabezado en las primeras filas (gviz puede devolver "Column 1".. o
+  // haber una fila en blanco/título arriba → el encabezado real no siempre es la fila 0).
+  const findHIn = (hdrs: string[], opts: string[]) => {
+    for (const o of opts) { const i = hdrs.indexOf(o); if (i >= 0) return i; }
+    for (const o of opts) { for (let k=0;k<hdrs.length;k++){ if (hdrs[k] && hdrs[k].indexOf(o)>=0) return k; } }
+    return -1;
+  };
+  let headerIdx = -1; let headers: string[] | null = null;
+  for (let li = 0; li < Math.min(lines.length, 8); li++) {
+    const cand = parseLine(lines[li]).map((h) => h.replace(/"/g, "").toLowerCase().trim());
+    if (findHIn(cand, ["ad id","ad_id","adid"]) >= 0 && findHIn(cand, ["fecha y hora","fecha","timestamp"]) >= 0) { headerIdx = li; headers = cand; break; }
+  }
+  if (!headers) return [];
+  const findH = (opts: string[]) => findHIn(headers as string[], opts);
   const iAdId = findH(["ad id", "ad_id", "adid"]);
   const iFecha = findH(["fecha y hora", "fecha", "timestamp"]);
   const iValor = findH(["valor", "value", "precio", "monto"]);
@@ -73,10 +85,9 @@ function parseSheetCSV(text: string) {
   const iProd = findH(["producto", "product"]);
   const iCli = findH(["nombre del cliente", "nombre cliente", "id cliente", "cliente", "nombre", "customer name", "customer", "id"]);
   const iUp = [findH(["upsell 1", "upsell1"]), findH(["upsell 2", "upsell2"]), findH(["upsell 3", "upsell3"]), findH(["upsell 4", "upsell4"])];
-  if (iAdId < 0 || iFecha < 0) return [];
   const parseVal = (raw: string) => parseFloat((raw || "").toString().replace(/S\/\s*/i, "").replace(/[^0-9.]/g, "")) || 0;
   const rows = [];
-  for (let i = 1; i < lines.length; i++) {
+  for (let i = headerIdx + 1; i < lines.length; i++) {
     const cols = parseLine(lines[i]);
     let adId = (cols[iAdId] || "").replace(/"/g, "").trim().replace(/\.0$/, "");
     if (!adId) adId = "SIN_ID";   // sin Ad ID: igual cuenta como venta (se asigna por producto)

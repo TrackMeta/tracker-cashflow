@@ -3914,8 +3914,20 @@ function _parseSheetCSV(text) {
     cols.push(cur.trim());
     return cols;
   }
-  const headers = parseLine(lines[0]).map(h => h.replace(/"/g,'').toLowerCase().trim());
-  const findH = opts => { for (const o of opts) { const i = headers.indexOf(o); if (i >= 0) return i; } return -1; };
+  // Buscar la FILA de encabezado en las primeras filas (gviz a veces devuelve
+  // "Column 1".. o hay una fila en blanco/título arriba → el encabezado real no es la fila 0).
+  const findHIn = (hdrs, opts) => {
+    for (const o of opts) { const i = hdrs.indexOf(o); if (i >= 0) return i; }
+    for (const o of opts) { for (let k=0;k<hdrs.length;k++){ if (hdrs[k] && hdrs[k].indexOf(o)>=0) return k; } }
+    return -1;
+  };
+  let headerIdx = -1, headers = null;
+  for (let li = 0; li < Math.min(lines.length, 8); li++) {
+    const cand = parseLine(lines[li]).map(h => h.replace(/"/g,'').toLowerCase().trim());
+    if (findHIn(cand,['ad id','ad_id','adid']) >= 0 && findHIn(cand,['fecha y hora','fecha','timestamp']) >= 0) { headerIdx = li; headers = cand; break; }
+  }
+  if (!headers) { console.warn('Sync: no se hallaron columnas Ad ID/Fecha en las primeras 8 filas. Fila 0:', parseLine(lines[0])); return []; }
+  const findH = opts => findHIn(headers, opts);
   const iAdId  = findH(['ad id','ad_id','adid']);
   const iFecha = findH(['fecha y hora','fecha','timestamp']);
   const iValor = findH(['valor','value','precio','monto']);
@@ -3926,10 +3938,9 @@ function _parseSheetCSV(text) {
   const iUp2   = findH(['upsell 2','upsell2']);
   const iUp3   = findH(['upsell 3','upsell3']);
   const iUp4   = findH(['upsell 4','upsell4']);
-  if (iAdId < 0 || iFecha < 0) { console.warn('Sync: no se encontraron columnas Ad ID o Fecha. Headers:', headers); return []; }
   const parseVal = raw => parseFloat((raw||'').toString().replace(/S\/\s*/i,'').replace(/[^0-9.]/g,'')) || 0;
   const rows = [];
-  for (let i = 1; i < lines.length; i++) {
+  for (let i = headerIdx + 1; i < lines.length; i++) {
     const cols = parseLine(lines[i]);
     let adId = (cols[iAdId]||'').replace(/"/g,'').trim().replace(/\.0$/,'');
     if (!adId) adId = 'SIN_ID';   // sin Ad ID: igual cuenta como venta (se asigna por producto)
