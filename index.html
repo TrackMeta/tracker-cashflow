@@ -13005,8 +13005,10 @@ init();
         return out;
       };
       const rows = [...(await traer('pendiente')), ...(await traer('en_proceso'))];
+      // Mapa workspace → fuente, para resolver el script de borrado del Sheet por venta.
+      const wsFuente = {}; (DB.workspaces||[]).forEach(w => { wsFuente[w.id] = w.fuente_id; });
       CONC.ventas = rows.map(r=>({ ...r, _dt:new Date(r.hora), estado:_evToEstado(r.estado_verif), pago:null, candidatos:[],
-        manual: r.estado_verif==='manual', modificado:_esModificada(r),
+        manual: r.estado_verif==='manual', modificado:_esModificada(r), fuente_id: wsFuente[r.workspace_id],
         historial: Array.isArray(r.historial)?r.historial:[] })).sort((a,b)=>a._dt-b._dt);
       CONC.huerfanos = CONC.huerfanos||[]; CONC.papelera = CONC.papelera||[]; CONC.descartadas = [];
       CONC.filtro='todos';
@@ -13492,7 +13494,14 @@ init();
     if(!confirm(`¿Eliminar DEFINITIVAMENTE ${pap.length-sinScript.length} registro(s) de tu(s) Google Sheet(s)?\n\nEsta acción no se puede deshacer.${sinScript.length?`\n\n(${sinScript.length} quedarán en la papelera por no tener script conectado.)`:''}`)) return;
     let totalDeleted=0, errores=0;
     for(const [url,items] of Object.entries(grupos)){
-      const rows = items.map(v=>({ adId:String(v.ad_id||''), fecha:v.fecha, hora:(v.hora&&v.hora.includes('T'))?v.hora.split('T')[1].slice(0,8):'', valor:+v.precio }));
+      const rows = items.map(v=>({
+        adId:String(v.ad_id||''),
+        // fecha/hora en horario LOCAL (Lima) — así coincide con lo que muestra el Sheet,
+        // aunque crm_ventas devuelva la hora en UTC.
+        fecha: v.hora ? new Date(v.hora).toLocaleDateString('en-CA',{timeZone:'America/Lima'}) : v.fecha,
+        hora:  v.hora ? new Date(v.hora).toLocaleTimeString('en-GB',{timeZone:'America/Lima',hour12:false}) : '',
+        valor:+v.precio
+      }));
       try{
         const res = await fetch(url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({action:'delete', rows}) });
         const data = await res.json().catch(()=>({}));
