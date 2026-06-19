@@ -3833,24 +3833,33 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
       }
 
       status.textContent = `Escribiendo ${nuevos.length} nuevas · ${modificados.length} modificadas · ${enriquecer.length} a completar...`;
-      // Insertar nuevas (ignore-duplicates evita el 409 de la constraint única). Surface de errores reales.
-      let _crmErr = '', _crmOk = 0;
+      // Insertar nuevas. La constraint única idx_crm_ventas_unique no la cubre el
+      // ignore-duplicates (no es la PK), así que un lote con una repetida da 409 y
+      // tumba todo el lote. Estrategia: insertar el lote; si da 409, reintentar fila
+      // por fila — las nuevas entran y las repetidas (409) se saltan sin ruido.
+      let _crmErr = '', _crmOk = 0, _crmDup = 0;
+      const postCrm = async (arr) => fetch(`${SUPABASE_URL}/rest/v1/crm_ventas`, {
+        method: 'POST', headers: { ...api._h(), 'Prefer': 'return=minimal' }, body: JSON.stringify(arr)
+      });
       for (let i = 0; i < nuevos.length; i += 100) {
         const lote = nuevos.slice(i, i + 100).map(r => ({
-          ...r, ciclo: 'pendiente', estado_verif: 'pendiente',
-          origen: 'sheets', sincronizado_at: nowISO
+          ...r, ciclo: 'pendiente', estado_verif: 'pendiente', origen: 'sheets', sincronizado_at: nowISO
         }));
         try {
-          const res = await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas`, {
-            method: 'POST', headers: { ...api._h(), 'Prefer': 'resolution=ignore-duplicates,return=minimal' },
-            body: JSON.stringify(lote)
-          });
-          if (res.ok) { _crmOk += lote.length; }
-          else if (!_crmErr) { _crmErr = `HTTP ${res.status}: ${(await res.text()).slice(0,300)}`; }
+          const res = await postCrm(lote);
+          if (res.ok) { _crmOk += lote.length; continue; }
+          if (res.status !== 409) { if(!_crmErr) _crmErr = `HTTP ${res.status}: ${(await res.text()).slice(0,300)}`; continue; }
+          // 409: lote con repetidas → fila por fila
+          for (const row of lote) {
+            const r1 = await postCrm([row]).catch(()=>null);
+            if (r1 && r1.ok) _crmOk++;
+            else if (r1 && r1.status === 409) _crmDup++;          // ya existía → se salta
+            else if (r1 && !_crmErr) _crmErr = `HTTP ${r1.status}: ${(await r1.text()).slice(0,200)}`;
+          }
         } catch(e) { if(!_crmErr) _crmErr = String(e.message||e); }
       }
       if (_crmErr) { console.error('crm_ventas insert error:', _crmErr); showError('crm_ventas: '+_crmErr); }
-      window._crmDebug = { nuevos: nuevos.length, insertadas: _crmOk, error: _crmErr };
+      window._crmDebug = { nuevos: nuevos.length, insertadas: _crmOk, yaExistian: _crmDup, error: _crmErr };
       // Modificadas → actualizar dato, REABRIR a pendiente y dejar aviso en el historial
       for (const { ex, r } of modificados) {
         const hist = Array.isArray(ex.historial) ? ex.historial : [];
