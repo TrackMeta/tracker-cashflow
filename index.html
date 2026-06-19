@@ -4063,6 +4063,19 @@ const api = {
     const cr = r.headers.get('content-range') || '*/0';
     return parseInt(cr.split('/')[1] || '0') || 0;
   },
+  // Trae TODAS las filas paginando (PostgREST corta en ~1000 por request).
+  async getAll(table, params='') {
+    let out = [], offset = 0;
+    while (true) {
+      const sep = params ? '&' : '';
+      const page = await this.get(table, `${params}${sep}limit=1000&offset=${offset}`);
+      out.push(...page);
+      if (page.length < 1000) break;
+      offset += 1000;
+      if (offset > 100000) break; // tope de seguridad
+    }
+    return out;
+  },
   async post(table, data) {
     const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
       method: 'POST', headers: { ...this._h(), 'Prefer': 'return=representation' },
@@ -8242,7 +8255,7 @@ async function loadAll() {
     api.get('config', `limit=1${userFilter}${wsFilter}`),
     api.get('campanas', `order=created_at.asc${baseFilter}`),
     api.get('anuncios', `order=created_at.asc${baseFilter}`),
-    api.get('registros', `order=fecha.asc&limit=5000${baseFilter}`),
+    api.getAll('registros', `order=fecha.asc${baseFilter}`),
     api.get('notas', `order=hora.desc&limit=2000${baseFilter}`),
     api.get('notas_campanas', `order=hora.desc&limit=1000${baseFilter}`).catch(()=>[]),
     api.get('business_managers', `order=created_at.asc${baseFilter}`).catch(()=>[]),
@@ -12980,7 +12993,9 @@ init();
       const sel = 'select=id,fecha,ad_id,hora,precio,workspace_id,telefono,producto,cliente,origen,estado_verif,ciclo,sincronizado_at,conciliado_at,historial';
       let rows = [], offset = 0;
       while (true) {
-        const page = await api.get('crm_ventas', `ciclo=in.(pendiente,en_proceso)&${sel}&order=fecha.desc&limit=1000&offset=${offset}${fechaQ}`).catch(()=>[]);
+        // pendiente + en_proceso = todo lo que no está finalizado ni descartado.
+        // (in.() de PostgREST fallaba devolviendo 0; neq encadenado sí funciona.)
+        const page = await api.get('crm_ventas', `ciclo=neq.finalizado&ciclo=neq.descartado&${sel}&order=fecha.desc&limit=1000&offset=${offset}${fechaQ}`).catch(()=>[]);
         rows.push(...page);
         if (page.length < 1000) break;
         offset += 1000;
