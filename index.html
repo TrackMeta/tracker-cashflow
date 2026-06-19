@@ -4744,33 +4744,28 @@ async function renderGlobal() {
       return;
     }
 
-    // Ingresos por ciclo (toggle 🟡 proyectado / 🟢 confirmado) desde la RPC; gasto siempre real.
-    let _ingMap = {};
-    try {
-      const rpc = await api.post('rpc/ingresos_ciclo', { p_desde: desde, p_hasta: hasta });
-      (rpc||[]).forEach(r => { _ingMap[r.workspace_id] = r; });
-    } catch(e) { /* RPC no disponible → ingresos de registros */ }
+    // Toggle: PROYECTADO = registros (todo lo capturado); CONFIRMADO = validadas (RPC).
     _syncModoBtns();
     const _gh = document.getElementById('global-modo-hint');
-    if (_gh) _gh.textContent = DASH_MODE==='confirmado' ? '· solo validadas' : '· incluye pendientes';
+    if (_gh) _gh.textContent = DASH_MODE==='confirmado' ? '· solo validadas' : '· incluye pendientes (todo lo capturado)';
+    let _ingMap = {};
+    if (DASH_MODE === 'confirmado') {
+      try {
+        const rpc = await api.post('rpc/ingresos_ciclo', { p_desde: desde, p_hasta: hasta });
+        (rpc||[]).forEach(r => { _ingMap[r.workspace_id] = r; });
+      } catch(e) { /* RPC no disponible → confirmadas en 0 */ }
+    }
 
     // Totales globales — consolidados en USD (cada producto con su propia tasa)
-    const _rpcOkG = Object.keys(_ingMap).length > 0;
     wsData.forEach(d => {
       const rate = wsUsdRate(d.ws);
-      const row = _ingMap[d.ws.id];
       let ingLocal;
-      if (row) {
-        ingLocal = DASH_MODE==='confirmado' ? +row.ing_confirmado : +row.ing_proyectado;
-        d.m.ventas = DASH_MODE==='confirmado' ? +row.n_confirmado : +row.n_total;
-      } else if (_rpcOkG) {
-        // RPC respondió pero este ws no tiene ventas en el periodo → 0.
-        ingLocal = 0; d.m.ventas = 0;
-      } else if (DASH_MODE==='confirmado') {
-        // RPC caída + Confirmado: no inventamos confirmadas.
-        ingLocal = 0; d.m.ventas = 0;
+      if (DASH_MODE === 'confirmado') {
+        const row = _ingMap[d.ws.id];
+        ingLocal = row ? +row.ing_confirmado : 0;
+        d.m.ventas = row ? +row.n_confirmado : 0;
       } else {
-        ingLocal = d.m.ingresos; // RPC caída + Proyectado → fallback registros
+        ingLocal = d.m.ingresos; // proyectado = registros (completo)
       }
       d.usd = {
         inversion: d.m.inversion / rate,
@@ -8741,37 +8736,32 @@ async function renderDashboard() {
   const ant = rangoAnterior(desde, hasta);
   const Mant = calcMetrics(DB.registros.filter(r=>r.fecha>=ant.desde&&r.fecha<=ant.hasta));
 
-  // Ingresos por ciclo (🟡 proyectado / 🟢 confirmado) desde la RPC, según el toggle.
+  // Toggle de ingresos. PROYECTADO = registros (todo lo capturado, completo).
+  // CONFIRMADO = solo validadas (suma crm_ventas finalizado vía RPC).
   // El gasto/inversión siempre es real (Meta).
   const _wsId = CURRENT_WORKSPACE?.id;
   const _hint = document.getElementById('dash-modo-hint');
-  if (_hint) _hint.textContent = DASH_MODE==='confirmado' ? '· solo ventas validadas (dinero auditado)' : '· incluye pendientes por validar';
-  if (_wsId) {
-    const pick = (row) => DASH_MODE==='confirmado' ? +row.ing_confirmado : +row.ing_proyectado;
+  if (_hint) _hint.textContent = DASH_MODE==='confirmado' ? '· solo ventas validadas (dinero auditado)' : '· incluye pendientes (todo lo capturado)';
+  if (_wsId && DASH_MODE === 'confirmado') {
     const aplicar = (m, row) => {
-      // Sin fila para este ws/periodo: en Confirmado = 0 (nada validado); en Proyectado = 0 también (no hay ventas).
-      const ing = row ? pick(row) : 0;
+      const ing = row ? +row.ing_confirmado : 0;
       m.ingresos = ing; m.profit = ing - m.inversion; m.roas = m.inversion>0 ? ing/m.inversion : 0;
-      m.ventas = row ? (DASH_MODE==='confirmado' ? +row.n_confirmado : +row.n_total) : 0;
+      m.ventas = row ? +row.n_confirmado : 0;
       m.cpv = m.ventas>0 ? m.inversion/m.ventas : 0;
     };
-    let rpcOk = true, rpc = [], rpcA = [];
     try {
-      [rpc, rpcA] = await Promise.all([
+      const [rpc, rpcA] = await Promise.all([
         api.post('rpc/ingresos_ciclo', { p_desde: desde, p_hasta: hasta }),
         api.post('rpc/ingresos_ciclo', { p_desde: ant.desde, p_hasta: ant.hasta }).catch(()=>[]),
       ]);
-    } catch(e) { rpcOk = false; }
-    if (rpcOk) {
       aplicar(M,    (rpc ||[]).find(r => r.workspace_id === _wsId));
       aplicar(Mant, (rpcA||[]).find(r => r.workspace_id === _wsId));
-    } else if (DASH_MODE === 'confirmado') {
-      // RPC no desplegada: NO mostramos registros como si fueran confirmadas (sería falso).
+    } catch(e) {
       aplicar(M, null); aplicar(Mant, null);
       if (_hint) _hint.textContent = '· ⚠️ corre la RPC ingresos_ciclo en Supabase para ver confirmadas';
     }
-    // RPC caída + modo Proyectado → quedan los ingresos de registros (fallback útil).
   }
+  // PROYECTADO: M queda con los ingresos de registros (completo) — sin tocar.
 
   // Profit neto: descuenta gastos extra (comisiones, impuestos) del período.
   // Gastos puntuales se cuentan si su fecha cae en el rango; los mensuales recurrentes siempre.
@@ -12991,16 +12981,20 @@ init();
       // Paginar: PostgREST corta en ~1000 filas. Traemos toda la cola en páginas.
       const fechaQ = (CONC.desde?`&fecha=gte.${CONC.desde}`:'') + (CONC.hasta?`&fecha=lte.${CONC.hasta}`:'');
       const sel = 'select=id,fecha,ad_id,hora,precio,workspace_id,telefono,producto,cliente,origen,estado_verif,ciclo,sincronizado_at,conciliado_at,historial';
-      let rows = [], offset = 0;
-      while (true) {
-        // pendiente + en_proceso = todo lo que no está finalizado ni descartado.
-        // (in.() de PostgREST fallaba devolviendo 0; neq encadenado sí funciona.)
-        const page = await api.get('crm_ventas', `ciclo=neq.finalizado&ciclo=neq.descartado&${sel}&order=fecha.desc&limit=1000&offset=${offset}${fechaQ}`).catch(()=>[]);
-        rows.push(...page);
-        if (page.length < 1000) break;
-        offset += 1000;
-        if (offset > 50000) break; // tope de seguridad
-      }
+      // Traemos pendiente + en_proceso por separado con eq.* (comprobado que funciona;
+      // in.() y a veces neq encadenado devolvían 0). Cada uno paginado.
+      const traer = async (cic) => {
+        let out = [], offset = 0;
+        while (true) {
+          const page = await api.get('crm_ventas', `ciclo=eq.${cic}&${sel}&order=fecha.desc&limit=1000&offset=${offset}${fechaQ}`).catch(()=>[]);
+          out.push(...page);
+          if (page.length < 1000) break;
+          offset += 1000;
+          if (offset > 50000) break;
+        }
+        return out;
+      };
+      const rows = [...(await traer('pendiente')), ...(await traer('en_proceso'))];
       CONC.ventas = rows.map(r=>({ ...r, _dt:new Date(r.hora), estado:_evToEstado(r.estado_verif), pago:null, candidatos:[],
         manual: r.estado_verif==='manual', modificado:_esModificada(r),
         historial: Array.isArray(r.historial)?r.historial:[] })).sort((a,b)=>a._dt-b._dt);
