@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("ADMIN_SERVICE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // Marcador de versión: aparece en cada respuesta JSON. Si no aparece, el deploy es viejo.
-const FN_VERSION = "2026-06-18-telegram-proy-conf";
+const FN_VERSION = "2026-06-18-sin-adid-y-conf";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -64,8 +64,8 @@ function parseSheetCSV(text: string) {
   const rows = [];
   for (let i = 1; i < lines.length; i++) {
     const cols = parseLine(lines[i]);
-    const adId = (cols[iAdId] || "").replace(/"/g, "").trim().replace(/\.0$/, "");
-    if (!adId) continue;
+    let adId = (cols[iAdId] || "").replace(/"/g, "").trim().replace(/\.0$/, "");
+    if (!adId) adId = "SIN_ID";   // sin Ad ID: igual cuenta como venta (se asigna por producto)
     const horaRaw = (cols[iFecha] || "").replace(/"/g, "").trim();
     if (!horaRaw || !horaRaw.includes("T")) continue;
     const fecha = horaRaw.split("T")[0];

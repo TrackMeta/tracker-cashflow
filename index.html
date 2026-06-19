@@ -3905,8 +3905,8 @@ function _parseSheetCSV(text) {
   const rows = [];
   for (let i = 1; i < lines.length; i++) {
     const cols = parseLine(lines[i]);
-    const adId = (cols[iAdId]||'').replace(/"/g,'').trim().replace(/\.0$/,'');
-    if (!adId) continue;
+    let adId = (cols[iAdId]||'').replace(/"/g,'').trim().replace(/\.0$/,'');
+    if (!adId) adId = 'SIN_ID';   // sin Ad ID: igual cuenta como venta (se asigna por producto)
     const horaRaw = (cols[iFecha]||'').replace(/"/g,'').trim();
     if (!horaRaw || !horaRaw.includes('T')) continue;
     const fecha = horaRaw.split('T')[0];
@@ -4742,11 +4742,23 @@ async function renderGlobal() {
     if (_gh) _gh.textContent = DASH_MODE==='confirmado' ? '· solo validadas' : '· incluye pendientes';
 
     // Totales globales — consolidados en USD (cada producto con su propia tasa)
+    const _rpcOkG = Object.keys(_ingMap).length > 0;
     wsData.forEach(d => {
       const rate = wsUsdRate(d.ws);
       const row = _ingMap[d.ws.id];
-      let ingLocal = d.m.ingresos;
-      if (row) { ingLocal = DASH_MODE==='confirmado' ? +row.ing_confirmado : +row.ing_proyectado; d.m.ventas = DASH_MODE==='confirmado' ? +row.n_confirmado : +row.n_total; }
+      let ingLocal;
+      if (row) {
+        ingLocal = DASH_MODE==='confirmado' ? +row.ing_confirmado : +row.ing_proyectado;
+        d.m.ventas = DASH_MODE==='confirmado' ? +row.n_confirmado : +row.n_total;
+      } else if (_rpcOkG) {
+        // RPC respondió pero este ws no tiene ventas en el periodo → 0.
+        ingLocal = 0; d.m.ventas = 0;
+      } else if (DASH_MODE==='confirmado') {
+        // RPC caída + Confirmado: no inventamos confirmadas.
+        ingLocal = 0; d.m.ventas = 0;
+      } else {
+        ingLocal = d.m.ingresos; // RPC caída + Proyectado → fallback registros
+      }
       d.usd = {
         inversion: d.m.inversion / rate,
         ingresos:  ingLocal / rate,
@@ -8717,27 +8729,35 @@ async function renderDashboard() {
   const Mant = calcMetrics(DB.registros.filter(r=>r.fecha>=ant.desde&&r.fecha<=ant.hasta));
 
   // Ingresos por ciclo (🟡 proyectado / 🟢 confirmado) desde la RPC, según el toggle.
-  // El gasto/inversión siempre es real (Meta). Si la RPC no existe, cae a registros.
+  // El gasto/inversión siempre es real (Meta).
   const _wsId = CURRENT_WORKSPACE?.id;
   const _hint = document.getElementById('dash-modo-hint');
   if (_hint) _hint.textContent = DASH_MODE==='confirmado' ? '· solo ventas validadas (dinero auditado)' : '· incluye pendientes por validar';
   if (_wsId) {
+    const pick = (row) => DASH_MODE==='confirmado' ? +row.ing_confirmado : +row.ing_proyectado;
+    const aplicar = (m, row) => {
+      // Sin fila para este ws/periodo: en Confirmado = 0 (nada validado); en Proyectado = 0 también (no hay ventas).
+      const ing = row ? pick(row) : 0;
+      m.ingresos = ing; m.profit = ing - m.inversion; m.roas = m.inversion>0 ? ing/m.inversion : 0;
+      m.ventas = row ? (DASH_MODE==='confirmado' ? +row.n_confirmado : +row.n_total) : 0;
+      m.cpv = m.ventas>0 ? m.inversion/m.ventas : 0;
+    };
+    let rpcOk = true, rpc = [], rpcA = [];
     try {
-      const pick = (row) => DASH_MODE==='confirmado' ? +row.ing_confirmado : +row.ing_proyectado;
-      const [rpc, rpcA] = await Promise.all([
+      [rpc, rpcA] = await Promise.all([
         api.post('rpc/ingresos_ciclo', { p_desde: desde, p_hasta: hasta }),
         api.post('rpc/ingresos_ciclo', { p_desde: ant.desde, p_hasta: ant.hasta }).catch(()=>[]),
       ]);
-      const row = (rpc||[]).find(r => r.workspace_id === _wsId);
-      if (row) {
-        const ing = pick(row);
-        M.ingresos = ing; M.profit = ing - M.inversion; M.roas = M.inversion>0 ? ing/M.inversion : 0;
-        M.ventas = DASH_MODE==='confirmado' ? +row.n_confirmado : +row.n_total;
-        M.cpv = M.ventas>0 ? M.inversion/M.ventas : 0;
-      }
-      const rowA = (rpcA||[]).find(r => r.workspace_id === _wsId);
-      if (rowA) { const ia = pick(rowA); Mant.ingresos = ia; Mant.profit = ia - Mant.inversion; Mant.roas = Mant.inversion>0 ? ia/Mant.inversion : 0; }
-    } catch(e) { /* RPC no disponible → quedan los ingresos de registros */ }
+    } catch(e) { rpcOk = false; }
+    if (rpcOk) {
+      aplicar(M,    (rpc ||[]).find(r => r.workspace_id === _wsId));
+      aplicar(Mant, (rpcA||[]).find(r => r.workspace_id === _wsId));
+    } else if (DASH_MODE === 'confirmado') {
+      // RPC no desplegada: NO mostramos registros como si fueran confirmadas (sería falso).
+      aplicar(M, null); aplicar(Mant, null);
+      if (_hint) _hint.textContent = '· ⚠️ corre la RPC ingresos_ciclo en Supabase para ver confirmadas';
+    }
+    // RPC caída + modo Proyectado → quedan los ingresos de registros (fallback útil).
   }
 
   // Profit neto: descuenta gastos extra (comisiones, impuestos) del período.
