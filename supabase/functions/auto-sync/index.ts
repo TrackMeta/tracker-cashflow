@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("ADMIN_SERVICE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // Marcador de versión: aparece en cada respuesta JSON. Si no aparece, el deploy es viejo.
-const FN_VERSION = "2026-06-18-sin-adid-y-conf";
+const FN_VERSION = "2026-06-19-merge-paginado";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -33,6 +33,20 @@ async function sb(method: string, path: string, body?: unknown, prefer?: string)
   if (!res.ok) throw new Error(`${method} ${path}: ${res.status} ${await res.text()}`);
   const txt = await res.text();
   return txt ? JSON.parse(txt) : null;
+}
+
+// GET paginado (PostgREST corta en ~1000 filas por request).
+async function sbAll(pathBase: string): Promise<any[]> {
+  let out: any[] = [], offset = 0;
+  while (true) {
+    const sep = pathBase.includes("?") ? "&" : "?";
+    const page = await sb("GET", `${pathBase}${sep}limit=1000&offset=${offset}`).catch(() => []);
+    out.push(...(page || []));
+    if (!page || page.length < 1000) break;
+    offset += 1000;
+    if (offset > 100000) break;
+  }
+  return out;
 }
 
 // ── Parser CSV (portado del cliente) ──
@@ -198,7 +212,8 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
     const wsIds = [...new Set(uniq.map((r) => r.workspace_id))];
     const exMap = new Map<string, any>();
     for (const wsId of wsIds) {
-      const ex = await sb("GET", `crm_ventas?workspace_id=eq.${wsId}&fecha=gte.${fechaMin}&select=id,ad_id,hora,precio,ciclo,historial`).catch(() => []);
+      // Paginado: sb GET topa en 1000 → existentes fuera se reinsertaban y abortaba el sync.
+      const ex = await sbAll(`crm_ventas?workspace_id=eq.${wsId}&fecha=gte.${fechaMin}&select=id,ad_id,hora,precio,ciclo,historial`);
       (ex || []).forEach((e: any) => exMap.set(idKey(wsId, e.ad_id, e.hora), e));
     }
 
@@ -213,7 +228,7 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
       const lote = nuevos.slice(i, i + 100).map((r) => ({
         ...r, ciclo: "pendiente", estado_verif: "pendiente", origen: "auto", sincronizado_at: nowISO,
       }));
-      await sb("POST", "crm_ventas", lote, "return=minimal").catch(() => {});
+      await sb("POST", "crm_ventas", lote, "resolution=ignore-duplicates,return=minimal").catch(() => {});
     }
     for (const { ex, r } of modificados) {
       const hist = Array.isArray(ex.historial) ? ex.historial : [];

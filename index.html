@@ -3811,11 +3811,13 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
       // El precio NO entra en la identidad: si cambia, es la MISMA venta modificada.
       const idKey = (wsId, adId, hora) => `${wsId}|${adId}|${new Date(hora).getTime()}`;
 
-      // Traer las que YA existen en el rango (con su precio/ciclo) para comparar.
+      // Traer TODAS las que YA existen (paginado: api.get topa en 1000 y dejaba
+      // existentes fuera → se reinsertaban → choque de clave única → el sync abortaba
+      // y crm_ventas dejaba de actualizarse. Por eso se quedó en 09/06).
       const wsIds = [...new Set(crmUniq.map(r => r.workspace_id))];
       const exMap = new Map();
       for (const wsId of wsIds) {
-        const ex = await api.get('crm_ventas',
+        const ex = await api.getAll('crm_ventas',
           `workspace_id=eq.${wsId}&fecha=gte.${fechaMinima}&select=id,ad_id,hora,precio,ciclo,historial`).catch(()=>[]);
         ex.forEach(e => exMap.set(idKey(wsId, e.ad_id, e.hora), e));
       }
@@ -3837,9 +3839,9 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
           origen: 'sheets', sincronizado_at: nowISO
         }));
         await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas`, {
-          method: 'POST', headers: { ...api._h(), 'Prefer': 'return=minimal' },
+          method: 'POST', headers: { ...api._h(), 'Prefer': 'resolution=ignore-duplicates,return=minimal' },
           body: JSON.stringify(lote)
-        });
+        }).catch(()=>{});   // red de seguridad: un choque no debe abortar el sync
       }
       // Modificadas → actualizar dato, REABRIR a pendiente y dejar aviso en el historial
       for (const { ex, r } of modificados) {
