@@ -526,6 +526,13 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   </div>
   <!-- ACCIÓN DEL DÍA: mejor anuncio / el que más sangra -->
   <div id="dash-accion-dia" style="margin-bottom:14px"></div>
+  <!-- TOGGLE Proyectado / Confirmado -->
+  <div style="display:flex;gap:6px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+    <span style="font-size:11px;color:var(--text3);font-weight:600">Ingresos:</span>
+    <button id="dash-modo-proy" class="btn btn-sm btn-primary" onclick="dashSetModo('proyectado')">🟡 Proyectado</button>
+    <button id="dash-modo-conf" class="btn btn-sm btn-ghost" onclick="dashSetModo('confirmado')">🟢 Confirmado</button>
+    <span id="dash-modo-hint" style="font-size:10px;color:var(--text3)"></span>
+  </div>
   <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;" id="dash-moneda-local-label">💵 Moneda local</div>
   <div class="cards-row cards-5" id="dash-kpis-soles"></div>
   <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;">🇺🇸 En Dólares (USD)</div>
@@ -698,6 +705,13 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div id="global-ws-checks" style="display:flex;flex-wrap:wrap;gap:8px;padding:12px 16px"></div>
   </div>
 
+  <!-- TOGGLE Proyectado / Confirmado -->
+  <div style="display:flex;gap:6px;align-items:center;margin-bottom:12px;flex-wrap:wrap">
+    <span style="font-size:11px;color:var(--text3);font-weight:600">Ingresos:</span>
+    <button id="global-modo-proy" class="btn btn-sm btn-primary" onclick="globalSetModo('proyectado')">🟡 Proyectado</button>
+    <button id="global-modo-conf" class="btn btn-sm btn-ghost" onclick="globalSetModo('confirmado')">🟢 Confirmado</button>
+    <span id="global-modo-hint" style="font-size:10px;color:var(--text3)"></span>
+  </div>
   <!-- KPIs globales -->
   <div class="cards-row cards-4" id="global-kpis"></div>
   <div id="global-confianza" style="margin:4px 0 14px;font-size:11.5px"></div>
@@ -4717,13 +4731,26 @@ async function renderGlobal() {
       return;
     }
 
+    // Ingresos por ciclo (toggle 🟡 proyectado / 🟢 confirmado) desde la RPC; gasto siempre real.
+    let _ingMap = {};
+    try {
+      const rpc = await api.post('rpc/ingresos_ciclo', { p_desde: desde, p_hasta: hasta });
+      (rpc||[]).forEach(r => { _ingMap[r.workspace_id] = r; });
+    } catch(e) { /* RPC no disponible → ingresos de registros */ }
+    _syncModoBtns();
+    const _gh = document.getElementById('global-modo-hint');
+    if (_gh) _gh.textContent = DASH_MODE==='confirmado' ? '· solo validadas' : '· incluye pendientes';
+
     // Totales globales — consolidados en USD (cada producto con su propia tasa)
     wsData.forEach(d => {
       const rate = wsUsdRate(d.ws);
+      const row = _ingMap[d.ws.id];
+      let ingLocal = d.m.ingresos;
+      if (row) { ingLocal = DASH_MODE==='confirmado' ? +row.ing_confirmado : +row.ing_proyectado; d.m.ventas = DASH_MODE==='confirmado' ? +row.n_confirmado : +row.n_total; }
       d.usd = {
         inversion: d.m.inversion / rate,
-        ingresos:  d.m.ingresos  / rate,
-        profit:    d.m.profit    / rate,
+        ingresos:  ingLocal / rate,
+        profit:    (ingLocal - d.m.inversion) / rate,
         upsells:   (d.m.upsells || 0) / rate,
       };
     });
@@ -8658,8 +8685,20 @@ function onDashPeriodo() {
   renderDashboard();
 }
 
-function renderDashboard() {
+// Modo de ingresos (compartido Dashboard ↔ Global): 🟡 proyectado / 🟢 confirmado
+let DASH_MODE = 'proyectado';
+function _syncModoBtns(){
+  [['dash-modo-proy','dash-modo-conf'],['global-modo-proy','global-modo-conf']].forEach(([pid,cid])=>{
+    const p=document.getElementById(pid), c=document.getElementById(cid);
+    if(p&&c){ p.className='btn btn-sm '+(DASH_MODE==='proyectado'?'btn-primary':'btn-ghost'); c.className='btn btn-sm '+(DASH_MODE==='confirmado'?'btn-primary':'btn-ghost'); }
+  });
+}
+function dashSetModo(m){ DASH_MODE=m; _syncModoBtns(); renderDashboard(); }
+function globalSetModo(m){ DASH_MODE=m; _syncModoBtns(); if(typeof renderGlobal==='function') renderGlobal(); }
+
+async function renderDashboard() {
   unificarPeriodoSelect('dash-periodo');
+  _syncModoBtns();
   const periodo=document.getElementById('dash-periodo').value;
   const {desde,hasta}=rangoDe(periodo,'dash-dia-especifico','dash-desde','dash-hasta');
   const regs=DB.registros.filter(r=>r.fecha>=desde&&r.fecha<=hasta);
@@ -8676,6 +8715,30 @@ function renderDashboard() {
   // Período anterior (misma duración) para comparación de KPIs
   const ant = rangoAnterior(desde, hasta);
   const Mant = calcMetrics(DB.registros.filter(r=>r.fecha>=ant.desde&&r.fecha<=ant.hasta));
+
+  // Ingresos por ciclo (🟡 proyectado / 🟢 confirmado) desde la RPC, según el toggle.
+  // El gasto/inversión siempre es real (Meta). Si la RPC no existe, cae a registros.
+  const _wsId = CURRENT_WORKSPACE?.id;
+  const _hint = document.getElementById('dash-modo-hint');
+  if (_hint) _hint.textContent = DASH_MODE==='confirmado' ? '· solo ventas validadas (dinero auditado)' : '· incluye pendientes por validar';
+  if (_wsId) {
+    try {
+      const pick = (row) => DASH_MODE==='confirmado' ? +row.ing_confirmado : +row.ing_proyectado;
+      const [rpc, rpcA] = await Promise.all([
+        api.post('rpc/ingresos_ciclo', { p_desde: desde, p_hasta: hasta }),
+        api.post('rpc/ingresos_ciclo', { p_desde: ant.desde, p_hasta: ant.hasta }).catch(()=>[]),
+      ]);
+      const row = (rpc||[]).find(r => r.workspace_id === _wsId);
+      if (row) {
+        const ing = pick(row);
+        M.ingresos = ing; M.profit = ing - M.inversion; M.roas = M.inversion>0 ? ing/M.inversion : 0;
+        M.ventas = DASH_MODE==='confirmado' ? +row.n_confirmado : +row.n_total;
+        M.cpv = M.ventas>0 ? M.inversion/M.ventas : 0;
+      }
+      const rowA = (rpcA||[]).find(r => r.workspace_id === _wsId);
+      if (rowA) { const ia = pick(rowA); Mant.ingresos = ia; Mant.profit = ia - Mant.inversion; Mant.roas = Mant.inversion>0 ? ia/Mant.inversion : 0; }
+    } catch(e) { /* RPC no disponible → quedan los ingresos de registros */ }
+  }
 
   // Profit neto: descuenta gastos extra (comisiones, impuestos) del período.
   // Gastos puntuales se cuentan si su fecha cae en el rango; los mensuales recurrentes siempre.
