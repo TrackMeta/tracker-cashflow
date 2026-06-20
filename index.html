@@ -560,6 +560,9 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <div class="panel-body"><div class="chart-wrap"><canvas id="chart-donut"></canvas></div></div>
     </div>
   </div>
+  <!-- VENTAS SIN IDENTIFICADOR (cuentan al total del producto, fuera de las métricas por anuncio) -->
+  <div id="dash-sinid-card" style="display:none;margin-bottom:18px"></div>
+
   <div class="panel">
     <div class="panel-header"><span class="panel-title">Top anuncios</span><span style="font-size:11px;color:var(--text2)">Por ROAS acumulado</span></div>
     <div class="tbl-wrap">
@@ -2183,6 +2186,49 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 </div><!-- /app -->
 
 <!-- MODALS -->
+<!-- MODAL VENTAS SIN IDENTIFICADOR -->
+<div class="modal-overlay" id="modal-sinid">
+  <div class="modal" style="max-width:560px">
+    <div class="modal-header">
+      <span class="modal-title">📍 Ventas sin identificador</span>
+      <button class="modal-close" onclick="closeModal('modal-sinid')">×</button>
+    </div>
+    <div class="alert alert-info" style="margin-bottom:12px">Estas ventas no tienen <b>Ad ID</b>, por eso cuentan al total del producto pero no a ningún anuncio. Asígnales un Ad ID y pasarán al anuncio correcto. Los cambios se escriben también en tu Google Sheet.</div>
+    <div id="sinid-list" style="max-height:52vh;overflow:auto;border:1px solid var(--border);border-radius:var(--radius-sm)"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
+      <button class="btn btn-ghost" onclick="closeModal('modal-sinid')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL EDITAR VENTA (escribe al Sheet por _uid) -->
+<div class="modal-overlay" id="modal-edit-venta">
+  <div class="modal" style="max-width:440px">
+    <div class="modal-header">
+      <span class="modal-title">✏️ Editar venta</span>
+      <button class="modal-close" onclick="closeModal('modal-edit-venta')">×</button>
+    </div>
+    <input type="hidden" id="edit-venta-id">
+    <input type="hidden" id="edit-venta-uid">
+    <input type="hidden" id="edit-venta-ws">
+    <div class="field" style="margin-bottom:10px">
+      <label>Ad ID <span style="color:var(--text3);font-weight:400">(asígnalo para mover la venta a su anuncio)</span></label>
+      <input type="text" id="edit-venta-adid" placeholder="Ej. 120210000000123456">
+    </div>
+    <div style="display:flex;gap:10px;margin-bottom:10px">
+      <div class="field" style="flex:1"><label>Teléfono</label><input type="text" id="edit-venta-tel"></div>
+      <div class="field" style="flex:1"><label>Monto</label><input type="number" step="0.01" id="edit-venta-precio"></div>
+    </div>
+    <div class="field" style="margin-bottom:10px"><label>Nombre del cliente</label><input type="text" id="edit-venta-cli"></div>
+    <div class="field" style="margin-bottom:8px"><label>Producto</label><input type="text" id="edit-venta-prod"></div>
+    <div id="edit-venta-msg" style="font-size:11px;min-height:16px;margin-bottom:8px"></div>
+    <div style="display:flex;justify-content:flex-end;gap:8px">
+      <button class="btn btn-ghost" onclick="closeModal('modal-edit-venta')">Cancelar</button>
+      <button class="btn btn-primary" id="edit-venta-save" onclick="guardarEditarVenta()">💾 Guardar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL DUPLICAR REGISTRO -->
 <div class="modal-overlay" id="modal-duplicar">
   <div class="modal">
@@ -6395,8 +6441,8 @@ function initVuAnuncioSel() {
   if (!sel) return;
   const current = sel.value;
   sel.innerHTML = '<option value="">— Ver todos (tabla resumen) —</option>';
-  // Anuncios con al menos 1 registro
-  const adIds = [...new Set(DB.registros.map(r => r.ad_id))];
+  // Anuncios con al menos 1 registro (excluye las ventas sin identificador)
+  const adIds = [...new Set(DB.registros.map(r => r.ad_id))].filter(adId => !esSinId(adId));
   adIds.forEach(adId => {
     const a = DB.anuncios.find(x => x.ad_id === adId) || {};
     const opt = document.createElement('option');
@@ -8968,7 +9014,7 @@ function renderAccionDia(regs, ant) {
   if (!box) return;
   if (!regs.length) { box.innerHTML = ''; return; }
   const adMap = {};
-  regs.forEach(r => { (adMap[r.ad_id] = adMap[r.ad_id] || []).push(r); });
+  regs.forEach(r => { if (esSinId(r.ad_id)) return; (adMap[r.ad_id] = adMap[r.ad_id] || []).push(r); });
   const arr = Object.entries(adMap).map(([adId, rs]) => {
     const a = DB.anuncios.find(x => x.ad_id === adId) || {};
     return { adId, nombre: a.nombre || adId, m: calcMetrics(rs) };
@@ -9675,9 +9721,16 @@ function renderDonut(M) {
   charts.donut=new Chart(document.getElementById('chart-donut').getContext('2d'),{type:'doughnut',data:{labels:[`S/${P.p1}`,`S/${P.p2}`,`S/${P.p3}`,`S/${P.p4}`],datasets:[{data:[M.v1,M.v2,M.v3,M.v4],backgroundColor:['#34D399','#4F8EF7','#FB923C','#F87171'],borderColor:'#ffffff',borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#5A6A7E',font:{size:10},padding:10}}},cutout:'65%'}});
 }
 
+// Una venta es "sin identificador" si no tiene Ad ID real (no se puede atribuir a un anuncio).
+function esSinId(adId){ return !adId || adId === 'SIN_ID'; }
+
 function renderDashTable(desde,hasta=today()) {
+  const enRango = DB.registros.filter(r=>r.fecha>=desde&&r.fecha<=hasta);
+  // Las ventas sin identificador suman al total del producto pero NO entran en la
+  // tabla por anuncio (no ensucian el análisis de rendimiento de creativos).
+  renderSinIdCard(enRango.filter(r=>esSinId(r.ad_id)), desde, hasta);
   const adMap={};
-  DB.registros.filter(r=>r.fecha>=desde&&r.fecha<=hasta).forEach(r=>{if(!adMap[r.ad_id])adMap[r.ad_id]=[];adMap[r.ad_id].push(r);});
+  enRango.filter(r=>!esSinId(r.ad_id)).forEach(r=>{if(!adMap[r.ad_id])adMap[r.ad_id]=[];adMap[r.ad_id].push(r);});
   const rows=Object.entries(adMap).map(([adId,rs])=>{
     const a=DB.anuncios.find(x=>x.ad_id===adId)||{};
     const M=calcMetrics(rs);
@@ -9713,6 +9766,139 @@ function renderDashTable(desde,hasta=today()) {
   }).join('');
 }
 
+// ════════════════════════════════════════════════
+// VENTAS SIN IDENTIFICADOR (bucket por producto + edición con escritura al Sheet)
+// ════════════════════════════════════════════════
+let SINID_RANGO = { desde:null, hasta:null };
+
+// Tarjeta resumen en el Dashboard: nº y S/ de las ventas sin Ad ID del período.
+function renderSinIdCard(regsSinId, desde, hasta){
+  const card = document.getElementById('dash-sinid-card');
+  if(!card) return;
+  SINID_RANGO = { desde, hasta };
+  const M = calcMetrics(regsSinId);
+  const nVentas = regsSinId.reduce((s,r)=>s+(+r.v1||0)+(+r.v2||0)+(+r.v3||0)+(+r.v4||0),0);
+  if(!nVentas){ card.style.display='none'; card.innerHTML=''; return; }
+  card.style.display='block';
+  card.innerHTML = `
+    <div class="panel" style="border-left:3px solid var(--yellow)">
+      <div class="panel-header" style="gap:10px;flex-wrap:wrap">
+        <span class="panel-title">📍 Ventas sin identificador</span>
+        <span style="font-size:11px;color:var(--text2)">Cuentan al total del producto · fuera de las métricas por anuncio</span>
+        <button class="btn btn-ghost btn-sm" style="margin-left:auto" onclick="abrirSinId()">Gestionar / asignar Ad ID →</button>
+      </div>
+      <div class="panel-body" style="display:flex;gap:24px;flex-wrap:wrap">
+        <div><div style="font-size:10px;color:var(--text3);text-transform:uppercase">Ventas</div><div style="font-size:20px;font-weight:700;color:var(--yellow)">${fmt.num(nVentas)}</div></div>
+        <div><div style="font-size:10px;color:var(--text3);text-transform:uppercase">Ingresos</div><div style="font-size:20px;font-weight:700;color:var(--green)">${fmt.s(M.ingresos)}</div></div>
+        <div style="align-self:center;font-size:11px;color:var(--text2);max-width:340px">Son ventas que llegaron sin <b>Ad ID</b>. Asígnales uno (desde aquí o en el Sheet) y pasarán al anuncio correcto en la próxima sincronización.</div>
+      </div>
+    </div>`;
+}
+
+// script_url de la fuente a la que pertenece el workspace (para escribir de vuelta al Sheet).
+function _scriptUrlDeWorkspace(wsId){
+  const ws = (DB.workspaces||[]).find(w=>w.id===wsId);
+  const f  = ws && (DB.fuentes||[]).find(x=>x.id===ws.fuente_id);
+  return (f && f.script_url) || DB.config?.script_url || '';
+}
+
+// Escribe campos de vuelta a la fila del Sheet por su _uid (Apps Script action:'update').
+async function actualizarVentaEnSheet(scriptUrl, uid, fields){
+  if(!scriptUrl || !uid) return { ok:false, error:'sin script o sin uid' };
+  try{
+    const res = await fetch(scriptUrl, {
+      method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'update', uid, fields })
+    });
+    return await res.json().catch(()=>({ ok:false, error:'respuesta no JSON' }));
+  }catch(e){ return { ok:false, error:String(e.message||e) }; }
+}
+
+// Abre el modal con la lista de ventas sin identificador del producto activo.
+async function abrirSinId(){
+  if(!CURRENT_WORKSPACE){ showError('Selecciona un producto primero'); return; }
+  openModal('modal-sinid');
+  await renderSinIdList();
+}
+
+async function renderSinIdList(){
+  const cont = document.getElementById('sinid-list');
+  if(!cont) return;
+  cont.innerHTML = '<div class="loading-spinner" style="margin:30px auto"></div>';
+  const wsId = CURRENT_WORKSPACE.id;
+  let ventas = [];
+  try{
+    ventas = await api.get('crm_ventas',
+      `workspace_id=eq.${wsId}&or=(ad_id.eq.SIN_ID,ad_id.is.null)&select=id,fecha,ad_id,hora,precio,telefono,cliente,producto,fuente_uid&order=hora.desc&limit=500`);
+  }catch(e){ cont.innerHTML = `<div class="alert alert-error">Error: ${e.message}</div>`; return; }
+  if(!ventas.length){ cont.innerHTML = '<div class="empty" style="padding:24px"><div class="empty-icon">✅</div><div class="empty-title">No hay ventas sin identificador</div></div>'; return; }
+  cont.innerHTML = ventas.map(v=>{
+    const sinUid = !v.fuente_uid;
+    return `<div style="display:flex;align-items:center;gap:10px;padding:10px;border-bottom:1px solid var(--border)">
+      <div style="flex:1;min-width:0">
+        <div style="font-weight:600;font-size:12px">${fmt.s(+v.precio)} · ${v.fecha}</div>
+        <div style="font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">
+          ${v.cliente?('👤 '+v.cliente+' · '):''}${v.telefono?('📱 '+v.telefono+' · '):''}${v.producto?('📦 '+v.producto):''}
+        </div>
+        ${sinUid?'<div style="font-size:10px;color:var(--orange)">⚠️ Sin _uid aún (sincroniza el Sheet para poder editarla aquí)</div>':''}
+      </div>
+      <button class="btn btn-primary btn-sm" ${sinUid?'disabled style="opacity:.5"':''} onclick='abrirEditarVenta(${JSON.stringify(v)})'>✏️ Asignar / editar</button>
+    </div>`;
+  }).join('');
+}
+
+// Abre el modal de edición precargado con la venta.
+function abrirEditarVenta(v){
+  document.getElementById('edit-venta-id').value   = v.id;
+  document.getElementById('edit-venta-uid').value  = v.fuente_uid || '';
+  document.getElementById('edit-venta-ws').value   = CURRENT_WORKSPACE?.id || '';
+  document.getElementById('edit-venta-adid').value = (v.ad_id && v.ad_id!=='SIN_ID') ? v.ad_id : '';
+  document.getElementById('edit-venta-tel').value  = v.telefono || '';
+  document.getElementById('edit-venta-cli').value  = v.cliente || '';
+  document.getElementById('edit-venta-prod').value = v.producto || '';
+  document.getElementById('edit-venta-precio').value = v.precio ?? '';
+  document.getElementById('edit-venta-msg').textContent = '';
+  openModal('modal-edit-venta');
+}
+
+async function guardarEditarVenta(){
+  const id    = document.getElementById('edit-venta-id').value;
+  const uid   = document.getElementById('edit-venta-uid').value;
+  const wsId  = document.getElementById('edit-venta-ws').value;
+  const adId  = document.getElementById('edit-venta-adid').value.trim();
+  const tel   = document.getElementById('edit-venta-tel').value.trim();
+  const cli   = document.getElementById('edit-venta-cli').value.trim();
+  const prod  = document.getElementById('edit-venta-prod').value.trim();
+  const precio= parseFloat(document.getElementById('edit-venta-precio').value);
+  const msg   = document.getElementById('edit-venta-msg');
+  if(!uid){ msg.textContent='Esta venta aún no tiene _uid. Sincroniza el Sheet primero.'; return; }
+  const btn = document.getElementById('edit-venta-save');
+  btn.disabled = true; msg.style.color='var(--text2)'; msg.textContent='Guardando en el Sheet y en la app...';
+
+  // 1) Escribir de vuelta al Sheet (fuente de verdad) por uid.
+  const scriptUrl = _scriptUrlDeWorkspace(wsId);
+  const fields = { adId: adId, telefono: tel, cliente: cli, producto: prod };
+  if(!isNaN(precio)) fields.valor = precio;
+  const r = await actualizarVentaEnSheet(scriptUrl, uid, fields);
+  if(!r.ok){
+    btn.disabled=false; msg.style.color='var(--red)';
+    msg.textContent = scriptUrl ? ('No se pudo escribir en el Sheet: '+(r.error||'')+'. ¿Re-desplegaste el Apps Script v4?')
+                                : 'No hay script de Sheet conectado para este producto (Ajustes → Fuentes).';
+    return;
+  }
+
+  // 2) Reflejar en crm_ventas de inmediato (para que salga de "sin identificador").
+  const patch = { telefono: tel||null, cliente: cli||null, producto: prod||null };
+  if(!isNaN(precio)) patch.precio = precio;
+  if(adId){ patch.ad_id = adId; patch.ciclo='pendiente'; patch.estado_verif='pendiente'; }
+  try { await api.patch('crm_ventas', id, patch); } catch(e){}
+
+  btn.disabled=false; msg.style.color='var(--green)'; msg.textContent='✅ Guardado';
+  closeModal('modal-edit-venta');
+  showSuccess('✅ Venta actualizada en el Sheet y en la app. Las métricas por anuncio se ajustan en la próxima sincronización.');
+  await renderSinIdList();
+}
+
 function switchChart(type,btn) {
   currentChartType=type;
   document.querySelectorAll('.tab-btn').forEach(b=>b.classList.remove('active'));
@@ -9746,7 +9932,7 @@ function renderKPIs() {
     kpiCard('CPA',M.ventas>0?fmt.s(M.cpv):'—',M.ventas>0&&M.cpv<(DB.config.p1??10)?'green':'orange','Costo por venta real'),
   ].join('');
   const adMap={};
-  regs.forEach(r=>{if(!adMap[r.ad_id])adMap[r.ad_id]=[];adMap[r.ad_id].push(r);});
+  regs.forEach(r=>{if(esSinId(r.ad_id))return;if(!adMap[r.ad_id])adMap[r.ad_id]=[];adMap[r.ad_id].push(r);});
   const tbody=document.getElementById('kpi-tbody');
   const rows=Object.entries(adMap).map(([adId,rs])=>{
     const a=DB.anuncios.find(x=>x.ad_id===adId)||{};
