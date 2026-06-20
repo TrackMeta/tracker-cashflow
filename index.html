@@ -531,6 +531,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <button id="dash-modo-proy" class="btn btn-sm btn-primary" onclick="dashSetModo('proyectado')">🟡 Proyectado</button>
     <button id="dash-modo-conf" class="btn btn-sm btn-ghost" onclick="dashSetModo('confirmado')">🟢 Confirmado</button>
     <span id="dash-modo-hint" style="font-size:10px;color:var(--text3)"></span>
+    <button class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="abrirVentasPeriodo('producto')">📋 Ver ventas del período</button>
   </div>
   <div style="font-size:10px;font-weight:600;color:var(--text3);text-transform:uppercase;letter-spacing:0.08em;margin-bottom:8px;" id="dash-moneda-local-label">💵 Moneda local</div>
   <div class="cards-row cards-5" id="dash-kpis-soles"></div>
@@ -713,6 +714,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <button id="global-modo-proy" class="btn btn-sm btn-primary" onclick="globalSetModo('proyectado')">🟡 Proyectado</button>
     <button id="global-modo-conf" class="btn btn-sm btn-ghost" onclick="globalSetModo('confirmado')">🟢 Confirmado</button>
     <span id="global-modo-hint" style="font-size:10px;color:var(--text3)"></span>
+    <button class="btn btn-sm btn-ghost" style="margin-left:auto" onclick="abrirVentasPeriodo('global')">📋 Ver ventas del período</button>
   </div>
   <!-- KPIs globales -->
   <div class="cards-row cards-4" id="global-kpis"></div>
@@ -2186,6 +2188,23 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 </div><!-- /app -->
 
 <!-- MODALS -->
+<!-- MODAL VENTAS DEL PERÍODO (detalle de ventas con desglose) -->
+<div class="modal-overlay" id="modal-ventas-periodo">
+  <div class="modal" style="max-width:820px">
+    <div class="modal-header">
+      <span class="modal-title">📋 Ventas del período</span>
+      <button class="modal-close" onclick="closeModal('modal-ventas-periodo')">×</button>
+    </div>
+    <div id="vp-rango" style="font-size:12px;color:var(--text2);margin-bottom:10px"></div>
+    <div id="vp-resumen" class="cards-row cards-4" style="margin-bottom:12px"></div>
+    <div id="vp-body" style="max-height:50vh;overflow:auto"></div>
+    <div style="display:flex;justify-content:space-between;gap:8px;margin-top:14px;flex-wrap:wrap">
+      <button class="btn btn-sm" style="background:var(--bg3);color:var(--orange);border:1px solid var(--orange)" id="vp-reabrir-btn" onclick="reabrirValidadasPeriodo()">🔄 Reabrir validadas del período</button>
+      <button class="btn btn-ghost" onclick="closeModal('modal-ventas-periodo')">Cerrar</button>
+    </div>
+  </div>
+</div>
+
 <!-- MODAL VENTAS SIN IDENTIFICADOR -->
 <div class="modal-overlay" id="modal-sinid">
   <div class="modal" style="max-width:560px">
@@ -9897,6 +9916,133 @@ async function guardarEditarVenta(){
   closeModal('modal-edit-venta');
   showSuccess('✅ Venta actualizada en el Sheet y en la app. Las métricas por anuncio se ajustan en la próxima sincronización.');
   await renderSinIdList();
+}
+
+// ════════════════════════════════════════════════
+// VENTAS DEL PERÍODO (detalle reutilizable: producto / global) + reabrir validadas
+// ════════════════════════════════════════════════
+let VP_STATE = { scope:'producto', desde:null, hasta:null, wsIds:[] };
+
+function _cicloBadge(ciclo){
+  const m = {
+    finalizado: ['🟢 Validada','var(--green)'],
+    en_proceso: ['🔵 En proceso','var(--accent)'],
+    descartado: ['⚫ Descartada','var(--text3)'],
+    pendiente:  ['🟡 Pendiente','var(--yellow)'],
+  };
+  const [txt,col] = m[ciclo] || m.pendiente;
+  return `<span style="font-size:10px;font-weight:700;color:${col}">${txt}</span>`;
+}
+function _horaCorta(hora, fecha){
+  try{ return new Date(hora).toLocaleTimeString('es-PE',{timeZone:'America/Lima',hour:'2-digit',minute:'2-digit',hour12:false}); }
+  catch(e){ return ''; }
+}
+
+async function abrirVentasPeriodo(scope){
+  let desde, hasta, wsIds, ok=true;
+  if(scope === 'global'){
+    const periodoVal = document.getElementById('global-periodo')?.value || '30';
+    ({ desde, hasta } = rangoDe(periodoVal, 'global-dia', 'global-desde', 'global-hasta'));
+    wsIds = (typeof SELECTED_WS_IDS!=='undefined' && SELECTED_WS_IDS.size)
+      ? [...SELECTED_WS_IDS] : DB.workspaces.map(w=>w.id);
+  } else {
+    const periodoVal = document.getElementById('dash-periodo')?.value || '30';
+    ({ desde, hasta } = rangoDe(periodoVal, 'dash-dia-especifico', 'dash-desde', 'dash-hasta'));
+    if(!CURRENT_WORKSPACE){ showError('Selecciona un producto primero'); return; }
+    wsIds = [CURRENT_WORKSPACE.id];
+  }
+  VP_STATE = { scope, desde, hasta, wsIds };
+  openModal('modal-ventas-periodo');
+  document.getElementById('vp-rango').textContent =
+    `${scope==='global'?'🌐 Todos los productos seleccionados':'📦 '+(CURRENT_WORKSPACE?.nombre||'')} · ${fmt.date(desde)} → ${fmt.date(hasta)}`;
+  await renderVentasPeriodo();
+}
+
+async function renderVentasPeriodo(){
+  const body = document.getElementById('vp-body');
+  const resumen = document.getElementById('vp-resumen');
+  body.innerHTML = '<div class="loading-spinner" style="margin:30px auto"></div>';
+  resumen.innerHTML = '';
+  const { desde, hasta, wsIds } = VP_STATE;
+  if(!wsIds.length){ body.innerHTML='<div class="empty" style="padding:24px"><div class="empty-title">No hay productos seleccionados</div></div>'; return; }
+
+  let ventas = [];
+  try{
+    ventas = await api.getAll('crm_ventas',
+      `workspace_id=in.(${wsIds.join(',')})&fecha=gte.${desde}&fecha=lte.${hasta}&select=id,fecha,ad_id,hora,precio,telefono,cliente,producto,ciclo,estado_verif,workspace_id&order=hora.desc`);
+  }catch(e){ body.innerHTML = `<div class="alert alert-error">Error: ${e.message}</div>`; return; }
+
+  const nTot = ventas.length;
+  const ing  = ventas.reduce((s,v)=>s+(+v.precio||0),0);
+  const nVal = ventas.filter(v=>v.ciclo==='finalizado').length;
+  const nSin = ventas.filter(v=>esSinId(v.ad_id)).length;
+  resumen.innerHTML = [
+    kpiCard('Ventas', fmt.num(nTot), 'teal'),
+    kpiCard('Ingresos', fmt.s(ing), 'green'),
+    kpiCard('Validadas', fmt.num(nVal), 'accent'),
+    kpiCard('Sin identificador', fmt.num(nSin), 'orange'),
+  ].join('');
+
+  if(!nTot){ body.innerHTML='<div class="empty" style="padding:24px"><div class="empty-icon">📭</div><div class="empty-title">Sin ventas en el período</div></div>'; return; }
+
+  const adName = {}; (DB.anuncios||[]).forEach(a=>{ adName[a.ad_id]=a.nombre; });
+  const wsName = {}; (DB.workspaces||[]).forEach(w=>{ wsName[w.id]=`${w.emoji||'📦'} ${w.nombre}`; });
+  const fila = v => `<tr>
+      <td class="muted" style="white-space:nowrap">${v.fecha} ${_horaCorta(v.hora)}</td>
+      <td class="left">${esSinId(v.ad_id) ? '<span style="color:var(--orange)">— sin Ad ID —</span>' : (adName[v.ad_id]||v.ad_id)}</td>
+      <td class="left" style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${v.cliente||''}${v.telefono?` · ${v.telefono}`:''}</td>
+      <td style="text-align:right;font-weight:600">${fmt.s(+v.precio)}</td>
+      <td style="text-align:center">${_cicloBadge(v.ciclo)}</td>
+    </tr>`;
+
+  const tabla = (rows, titulo, color) => {
+    if(!rows.length) return '';
+    const sub = rows.reduce((s,v)=>s+(+v.precio||0),0);
+    return `<div style="margin-bottom:14px">
+      <div style="display:flex;justify-content:space-between;font-size:11px;font-weight:700;color:${color||'var(--text2)'};padding:6px 4px;border-bottom:1px solid var(--border)">
+        <span>${titulo}</span><span>${rows.length} ventas · ${fmt.s(sub)}</span>
+      </div>
+      <table style="width:100%;font-size:11.5px"><tbody>${rows.map(fila).join('')}</tbody></table>
+    </div>`;
+  };
+
+  // Agrupar por producto (en global). Dentro de cada uno: con anuncio + sin identificador aparte.
+  const grupos = {};
+  ventas.forEach(v=>{ (grupos[v.workspace_id]=grupos[v.workspace_id]||[]).push(v); });
+  let html = '';
+  for(const wsId of Object.keys(grupos)){
+    const vs = grupos[wsId];
+    const conAd = vs.filter(v=>!esSinId(v.ad_id));
+    const sinAd = vs.filter(v=>esSinId(v.ad_id));
+    if(VP_STATE.scope==='global'){
+      const sub = vs.reduce((s,v)=>s+(+v.precio||0),0);
+      html += `<div style="font-size:13px;font-weight:700;margin:10px 0 4px;color:var(--text)">${wsName[wsId]||wsId} <span style="font-weight:400;color:var(--text3)">· ${vs.length} ventas · ${fmt.s(sub)}</span></div>`;
+    }
+    html += tabla(conAd, '📢 Con anuncio', 'var(--text2)');
+    html += tabla(sinAd, '📍 Sin identificador', 'var(--orange)');
+  }
+  body.innerHTML = html;
+}
+
+async function reabrirValidadasPeriodo(){
+  const { desde, hasta, wsIds, scope } = VP_STATE;
+  if(!wsIds.length) return;
+  const ambito = scope==='global' ? 'de los productos seleccionados' : `de "${CURRENT_WORKSPACE?.nombre||''}"`;
+  if(!confirm(`¿Reabrir a PENDIENTE todas las ventas VALIDADAS ${ambito} entre ${fmt.date(desde)} y ${fmt.date(hasta)}?\n\nNo se borra ninguna venta: solo se reinicia su estado para volver a hacer el flujo proyectado → conciliado → validado.`)) return;
+  const btn = document.getElementById('vp-reabrir-btn');
+  btn.disabled = true; const _txt = btn.textContent; btn.textContent = 'Reabriendo...';
+  try{
+    const res = await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas?workspace_id=in.(${wsIds.join(',')})&fecha=gte.${desde}&fecha=lte.${hasta}&ciclo=eq.finalizado`, {
+      method:'PATCH',
+      headers:{ ...api._h(), 'Prefer':'return=minimal' },
+      body: JSON.stringify({ ciclo:'pendiente', estado_verif:'pendiente', conciliado_at:null })
+    });
+    if(!res.ok){ throw new Error(`HTTP ${res.status}: ${(await res.text()).slice(0,200)}`); }
+    showSuccess('✅ Ventas reabiertas a pendiente. Ya puedes volver a conciliarlas.');
+    await renderVentasPeriodo();
+    try { renderDashboard(); } catch(e){}
+  }catch(e){ showError('No se pudo reabrir: '+e.message); }
+  finally{ btn.disabled = false; btn.textContent = _txt; }
 }
 
 function switchChart(type,btn) {
