@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("ADMIN_SERVICE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // Marcador de versión: aparece en cada respuesta JSON. Si no aparece, el deploy es viejo.
-const FN_VERSION = "2026-06-20-telegram-vertical";
+const FN_VERSION = "2026-06-20-telegram-hdr-centrado";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -572,9 +572,11 @@ const FLAG: Record<string, string> = {
   PEN: "🇵🇪", COP: "🇨🇴", MXN: "🇲🇽", CLP: "🇨🇱", ARS: "🇦🇷", BOB: "🇧🇴",
   BRL: "🇧🇷", GTQ: "🇬🇹", DOP: "🇩🇴", EUR: "🇪🇺", USD: "🇺🇸",
 };
-// Barra divisora + encabezado de sección enmarcado: ━━━ 🌍 *TÍTULO* ━━━
+// Barra divisora (entre productos / alrededor de CONFIRMADOS).
 const BAR = "━━━━━━━━";
-const secHdr = (emoji: string, t: string) => `\n\n${BAR} ${emoji} *${t}* ${BAR}\n`;
+// Encabezado de sección: barras CORTAS e iguales a cada lado para que el título
+// quepa en una sola línea y se vea centrado (Telegram no permite centrar de verdad).
+const secHdr = (emoji: string, t: string) => `\n\n━━━ ${emoji} *${t}* ━━━\n`;
 const diaPeru = (off = 0) => { const d = new Date(Date.now() - 5 * 3600 * 1000); d.setUTCDate(d.getUTCDate() + off); return d.toISOString().slice(0, 10); };
 const lunesDe = (fechaStr: string) => { const d = new Date(fechaStr + "T12:00:00Z"); const dow = (d.getUTCDay() + 6) % 7; d.setUTCDate(d.getUTCDate() - dow); return d.toISOString().slice(0, 10); };
 // Fecha de pago del bot (mensual recurrente): rueda la fecha base mes a mes hasta
