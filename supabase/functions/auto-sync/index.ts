@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("ADMIN_SERVICE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // Marcador de versión: aparece en cada respuesta JSON. Si no aparece, el deploy es viejo.
-const FN_VERSION = "2026-06-19-header-scan";
+const FN_VERSION = "2026-06-20-uid-espejo";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -85,6 +85,7 @@ function parseSheetCSV(text: string) {
   const iProd = findH(["producto", "product"]);
   const iCli = findH(["nombre del cliente", "nombre cliente", "id cliente", "cliente", "nombre", "customer name", "customer", "id"]);
   const iUp = [findH(["upsell 1", "upsell1"]), findH(["upsell 2", "upsell2"]), findH(["upsell 3", "upsell3"]), findH(["upsell 4", "upsell4"])];
+  const iUid = findH(["_uid", "uid"]);   // ID estable que escribe el Apps Script (puede no existir aún)
   const parseVal = (raw: string) => parseFloat((raw || "").toString().replace(/S\/\s*/i, "").replace(/[^0-9.]/g, "")) || 0;
   const rows = [];
   for (let i = headerIdx + 1; i < lines.length; i++) {
@@ -99,6 +100,7 @@ function parseSheetCSV(text: string) {
     if (valor <= 0) continue;
     rows.push({
       adId, fecha, hora: horaRaw, valor,
+      uid: iUid >= 0 ? (cols[iUid] || "").replace(/"/g, "").trim() : "",
       telefono: iTel >= 0 ? (cols[iTel] || "").replace(/"/g, "").trim() : "",
       producto: iProd >= 0 ? (cols[iProd] || "").replace(/"/g, "").trim() : "",
       cliente: iCli >= 0 ? (cols[iCli] || "").replace(/"/g, "").trim() : "",
@@ -176,7 +178,7 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
     const idx = exacto ? exacto[1] : activos.reduce((bi, [p, i]) => Math.abs(r.valor - p) < Math.abs(r.valor - activos[bi][0]) ? i : bi, 0);
     if (idx === 0) g.v1++; else if (idx === 1) g.v2++; else if (idx === 2) g.v3++; else g.v4++;
     g.upsell += r.up1 + r.up2 + r.up3 + r.up4;
-    if (r.hora && r.valor > 0) crmRows.push({ fecha: r.fecha, ad_id: r.adId, hora: r.hora, precio: r.valor, telefono: r.telefono || null, producto: r.producto || null, cliente: r.cliente || null, workspace_id: wsId, user_id: job.userId });
+    if (r.hora && r.valor > 0) crmRows.push({ fecha: r.fecha, ad_id: r.adId, hora: r.hora, precio: r.valor, telefono: r.telefono || null, producto: r.producto || null, cliente: r.cliente || null, workspace_id: wsId, user_id: job.userId, fuente_uid: r.uid || null });
   }
 
   // Consolidar por wsId+adId+fecha
@@ -211,54 +213,134 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
     }
   }
 
-  // crm_ventas: merge por CONTEO (idempotente). Por identidad (ws+ad_id+hora)
-  // contamos copias en el Sheet vs BD e insertamos solo las que falten → suben
-  // hasta los duplicados idénticos sin multiplicarse al re-sincronizar.
-  if (crmRows.length) {
-    const hkey = (wsId: string, adId: string, hora: string) => `${wsId}|${adId}|${new Date(hora).getTime()}`;
-    const push = (m: Map<string, any[]>, k: string, v: any) => { let a = m.get(k); if (!a) { a = []; m.set(k, a); } a.push(v); };
-    const sheetByKey = new Map<string, any[]>();
-    for (const r of crmRows) push(sheetByKey, hkey(r.workspace_id, r.ad_id, r.hora), r);
-    const wsIds = [...new Set(crmRows.map((r) => r.workspace_id))];
-    const crmByKey = new Map<string, any[]>();
-    for (const wsId of wsIds) {
-      const ex = await sbAll(`crm_ventas?workspace_id=eq.${wsId}&fecha=gte.${fechaMin}&select=id,ad_id,hora,precio,ciclo,historial,producto,cliente,telefono`);
-      (ex || []).forEach((e: any) => push(crmByKey, hkey(wsId, e.ad_id, e.hora), e));
+  // Espejo de métricas: si un (ws,ad,fecha) tenía ventas en el rango pero ya NO
+  // aparece en el Sheet (venta borrada o movida a otro Ad ID), poner v1..v4 y
+  // upsell en 0. NO se toca el gasto (viene de Meta), solo las ventas del Sheet.
+  const regMapKeys = new Set(registros.map((r) => `${r.wsId}||${r.adId}||${r.fecha}`));
+  for (const ws of job.wsList) {
+    const conVentas = await sb("GET", `registros?workspace_id=eq.${ws.id}&fecha=gte.${fechaMin}&or=(v1.gt.0,v2.gt.0,v3.gt.0,v4.gt.0,upsell_total.gt.0)&select=ad_id,fecha`);
+    for (const reg of (conVentas || [])) {
+      const k = `${ws.id}||${reg.ad_id}||${reg.fecha}`;
+      if (regMapKeys.has(k) || protegidos.has(k)) continue;
+      await sb("PATCH", `registros?workspace_id=eq.${ws.id}&ad_id=eq.${enc(reg.ad_id)}&fecha=eq.${reg.fecha}`,
+        { v1: 0, v2: 0, v3: 0, v4: 0, upsell_total: 0 }, "return=minimal").catch(() => {});
     }
+  }
 
+  // crm_ventas: sync por _uid (identidad estable). Las filas del Sheet con uid se
+  // emparejan por fuente_uid → permiten editar/mover/borrar sin residuos. Las filas
+  // sin uid todavía (recién llegadas, antes del trigger) usan el merge por conteo
+  // legacy y NO participan del borrado en espejo.
+  if (crmRows.length) {
+    const wsIds = [...new Set(crmRows.map((r) => r.workspace_id))];
     const nowISO = new Date().toISOString();
-    const nuevos: any[] = [], modificados: any[] = [], enriquecer: any[] = [];
-    const faltaDato = (e: any, s: any) => (!e.producto && s.producto) || (!e.cliente && s.cliente) || (!e.telefono && s.telefono);
-    for (const [k, sRows] of sheetByKey) {
-      const eRows = crmByKey.get(k) || [];
-      if (sRows.length === 1 && eRows.length === 1) {
-        const s = sRows[0], e = eRows[0];
-        if (Math.abs((+e.precio) - (+s.precio)) > 0.001) modificados.push({ ex: e, r: s });
-        else if (faltaDato(e, s)) enriquecer.push({ ex: e, r: s });
-      } else {
-        const faltan = sRows.length - eRows.length;
-        for (let i = 0; i < faltan; i++) nuevos.push(sRows[i] || sRows[0]);
-        for (const e of eRows) if (faltaDato(e, sRows[0])) enriquecer.push({ ex: e, r: sRows[0] });
+    const hkey = (wsId: string, adId: string, hora: string, precio: number) =>
+      `${wsId}|${adId}|${new Date(hora).getTime()}|${Math.round((+precio) * 100)}`;
+    const push = (m: Map<string, any[]>, k: string, v: any) => { let a = m.get(k); if (!a) { a = []; m.set(k, a); } a.push(v); };
+
+    // Estado actual en BD del rango
+    const exByUid = new Map<string, any>();       // fuente_uid -> fila
+    const exNoUid = new Map<string, any[]>();     // clave natural -> filas sin uid
+    let totUidEnBD = 0;
+    for (const wsId of wsIds) {
+      const ex = await sbAll(`crm_ventas?workspace_id=eq.${wsId}&fecha=gte.${fechaMin}&select=id,ad_id,hora,precio,ciclo,historial,producto,cliente,telefono,fuente_uid,workspace_id`);
+      for (const e of (ex || [])) {
+        if (e.fuente_uid) { exByUid.set(e.fuente_uid, e); totUidEnBD++; }
+        else push(exNoUid, hkey(wsId, e.ad_id, e.hora, +e.precio), e);
       }
     }
-    for (let i = 0; i < nuevos.length; i += 100) {
-      const lote = nuevos.slice(i, i + 100).map((r) => ({
-        ...r, ciclo: "pendiente", estado_verif: "pendiente", origen: "auto", sincronizado_at: nowISO,
-      }));
-      await sb("POST", "crm_ventas", lote, "return=minimal").catch(() => {});
+
+    const conUid = crmRows.filter((r) => r.fuente_uid);
+    const sinUid = crmRows.filter((r) => !r.fuente_uid);
+    const seenUids = new Set<string>();
+    const faltaDato = (e: any, s: any) => (!e.producto && s.producto) || (!e.cliente && s.cliente) || (!e.telefono && s.telefono);
+
+    // (1) Filas CON uid → emparejar/adoptar/insertar y actualizar cambios
+    for (const r of conUid) {
+      seenUids.add(r.fuente_uid);
+      const e = exByUid.get(r.fuente_uid);
+      if (e) {
+        const cambios: any = {};
+        if (e.ad_id !== r.ad_id) cambios.ad_id = r.ad_id;
+        if (Math.abs((+e.precio) - (+r.precio)) > 0.001) cambios.precio = r.precio;
+        if ((e.telefono || null) !== (r.telefono || null)) cambios.telefono = r.telefono || null;
+        if ((e.cliente || null) !== (r.cliente || null)) cambios.cliente = r.cliente || null;
+        if ((e.producto || null) !== (r.producto || null)) cambios.producto = r.producto || null;
+        if (Object.keys(cambios).length) {
+          const hist = Array.isArray(e.historial) ? e.historial : [];
+          hist.push({ t: nowISO, accion: "Editada en Sheets", detalle: Object.keys(cambios).join(", ") });
+          if (cambios.ad_id !== undefined || cambios.precio !== undefined) { cambios.ciclo = "pendiente"; cambios.estado_verif = "pendiente"; }
+          cambios.sincronizado_at = nowISO; cambios.historial = hist;
+          await sb("PATCH", `crm_ventas?id=eq.${e.id}`, cambios, "return=minimal").catch(() => {});
+        }
+      } else {
+        // adoptar una fila legacy (sin uid) por clave natural, o insertar nueva
+        const cand = exNoUid.get(hkey(r.workspace_id, r.ad_id, r.hora, +r.precio));
+        const adopt = cand && cand.length ? cand.shift() : null;
+        if (adopt) {
+          await sb("PATCH", `crm_ventas?id=eq.${adopt.id}`, { fuente_uid: r.fuente_uid, sincronizado_at: nowISO }, "return=minimal").catch(() => {});
+        } else {
+          await sb("POST", "crm_ventas", [{
+            fecha: r.fecha, ad_id: r.ad_id, hora: r.hora, precio: r.precio,
+            telefono: r.telefono, producto: r.producto, cliente: r.cliente,
+            workspace_id: r.workspace_id, user_id: job.userId, fuente_uid: r.fuente_uid,
+            ciclo: "pendiente", estado_verif: "pendiente", origen: "auto", sincronizado_at: nowISO,
+          }], "return=minimal").catch(() => {});
+        }
+      }
     }
-    for (const { ex, r } of modificados) {
-      const hist = Array.isArray(ex.historial) ? ex.historial : [];
-      hist.push({ t: nowISO, accion: "Modificada en Sheets", detalle: `monto ${ex.precio} → ${r.precio}` });
-      await sb("PATCH", `crm_ventas?id=eq.${ex.id}`, {
-        precio: r.precio, telefono: r.telefono || null, producto: r.producto || null, cliente: r.cliente || null,
-        ciclo: "pendiente", estado_verif: "pendiente", sincronizado_at: nowISO, historial: hist,
-      }, "return=minimal").catch(() => {});
+
+    // (2) Filas SIN uid → merge por conteo legacy (insertar solo las copias que falten)
+    if (sinUid.length) {
+      const sheetByKey = new Map<string, any[]>();
+      for (const r of sinUid) push(sheetByKey, hkey(r.workspace_id, r.ad_id, r.hora, +r.precio), r);
+      const nuevos: any[] = [], modificados: any[] = [], enriquecer: any[] = [];
+      for (const [k, sRows] of sheetByKey) {
+        const eRows = exNoUid.get(k) || [];
+        if (sRows.length === 1 && eRows.length === 1) {
+          const s = sRows[0], e = eRows[0];
+          if (Math.abs((+e.precio) - (+s.precio)) > 0.001) modificados.push({ ex: e, r: s });
+          else if (faltaDato(e, s)) enriquecer.push({ ex: e, r: s });
+        } else {
+          const faltan = sRows.length - eRows.length;
+          for (let i = 0; i < faltan; i++) nuevos.push(sRows[i] || sRows[0]);
+          for (const e of eRows) if (faltaDato(e, sRows[0])) enriquecer.push({ ex: e, r: sRows[0] });
+        }
+      }
+      for (let i = 0; i < nuevos.length; i += 100) {
+        const lote = nuevos.slice(i, i + 100).map((r) => ({
+          fecha: r.fecha, ad_id: r.ad_id, hora: r.hora, precio: r.precio,
+          telefono: r.telefono, producto: r.producto, cliente: r.cliente,
+          workspace_id: r.workspace_id, user_id: job.userId,
+          ciclo: "pendiente", estado_verif: "pendiente", origen: "auto", sincronizado_at: nowISO,
+        }));
+        await sb("POST", "crm_ventas", lote, "return=minimal").catch(() => {});
+      }
+      for (const { ex, r } of modificados) {
+        const hist = Array.isArray(ex.historial) ? ex.historial : [];
+        hist.push({ t: nowISO, accion: "Modificada en Sheets", detalle: `monto ${ex.precio} → ${r.precio}` });
+        await sb("PATCH", `crm_ventas?id=eq.${ex.id}`, {
+          precio: r.precio, telefono: r.telefono || null, producto: r.producto || null, cliente: r.cliente || null,
+          ciclo: "pendiente", estado_verif: "pendiente", sincronizado_at: nowISO, historial: hist,
+        }, "return=minimal").catch(() => {});
+      }
+      for (const { ex, r } of enriquecer) {
+        await sb("PATCH", `crm_ventas?id=eq.${ex.id}`, {
+          producto: r.producto || null, cliente: r.cliente || null, telefono: r.telefono || null,
+        }, "return=minimal").catch(() => {});
+      }
     }
-    for (const { ex, r } of enriquecer) {
-      await sb("PATCH", `crm_ventas?id=eq.${ex.id}`, {
-        producto: r.producto || null, cliente: r.cliente || null, telefono: r.telefono || null,
-      }, "return=minimal").catch(() => {});
+
+    // (3) Borrado en espejo: filas con uid en BD que ya NO están en el Sheet del rango.
+    // Guardas de seguridad: solo si la lectura trajo uids y no es una anomalía masiva
+    // (>60% de los uid del rango) que delataría un Sheet mal leído.
+    if (seenUids.size > 0) {
+      const aBorrar = [...exByUid.values()].filter((e: any) => !seenUids.has(e.fuente_uid));
+      if (totUidEnBD > 0 && aBorrar.length / totUidEnBD <= 0.60) {
+        for (const e of aBorrar) await sb("DELETE", `crm_ventas?id=eq.${e.id}`).catch(() => {});
+      } else if (aBorrar.length) {
+        console.warn(`Borrado en espejo OMITIDO (anomalía): borraría ${aBorrar.length}/${totUidEnBD} ventas con uid`);
+      }
     }
   }
 
