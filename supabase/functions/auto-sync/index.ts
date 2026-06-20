@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("ADMIN_SERVICE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // Marcador de versión: aparece en cada respuesta JSON. Si no aparece, el deploy es viejo.
-const FN_VERSION = "2026-06-20-telegram-pdf2";
+const FN_VERSION = "2026-06-20-telegram-vertical";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -675,18 +675,27 @@ function formatReport(titulo: string, periodoTxt: string, data: any) {
   // ── RESUMEN GLOBAL ──
   msg += secHdr("🌍", "RESUMEN GLOBAL");
   msg += `\n🟡 *KPIs PROYECTADOS*`;
-  msg += `\n💰 *Ingresos* ${fUsd(gProy)}  📢 *Inversión* ${fUsd(gInv)}  🟢 *Profit* ${fUsd(profProy)}`;
-  msg += `\n📈 *ROAS* ${fRoas(roasProy)}  🚀 *ROI* ${fRoi(profProy, gInv)}  🛒 *Ventas* ${gVen}`;
+  msg += `\n💰 *Ingresos* ${fUsd(gProy)}`;
+  msg += `\n📢 *Inversión* ${fUsd(gInv)}`;
+  msg += `\n🟢 *Profit* ${fUsd(profProy)}`;
+  msg += `\n📈 *ROAS* ${fRoas(roasProy)}`;
+  msg += `\n🚀 *ROI* ${fRoi(profProy, gInv)}`;
+  msg += `\n🛒 *Ventas* ${gVen}`;
   if (dc) {
     msg += `\n${FLAG[dc.code] || "🏳️"} *${PAIS[dc.code] || dc.code} (${dc.code})*`;
-    msg += `\n💰 *Ingresos* ${fMoney(gProy * dc.rate, dc.code)}  📢 *Inversión* ${fMoney(gInv * dc.rate, dc.code)}  🟢 *Profit* ${fMoney(profProy * dc.rate, dc.code)}`;
+    msg += `\n💰 *Ingresos* ${fMoney(gProy * dc.rate, dc.code)}`;
+    msg += `\n📢 *Inversión* ${fMoney(gInv * dc.rate, dc.code)}`;
+    msg += `\n🟢 *Profit* ${fMoney(profProy * dc.rate, dc.code)}`;
   }
-  msg += `\n🟡 Incluye ventas pendientes de conciliación.  🟡 *${pend} pendientes*`;
+  msg += `\n🟡 Incluye ventas pendientes de conciliación.`;
+  msg += `\n🟡 *${pend} pendientes*`;
 
   // KPIs CONFIRMADOS
   msg += `\n${BAR}\n🟢 *KPIs CONFIRMADOS*\n${BAR}`;
-  msg += `\n💰 *Ingresos* ${dShow(gConf)}  🟢 *Profit* ${dShow(profConf)}`;
-  msg += `\n📈 *ROAS* ${fRoas(roasConf)}  🚀 *ROI* ${fRoi(profConf, gInv)}`;
+  msg += `\n💰 *Ingresos* ${dShow(gConf)}`;
+  msg += `\n🟢 *Profit* ${dShow(profConf)}`;
+  msg += `\n📈 *ROAS* ${fRoas(roasConf)}`;
+  msg += `\n🚀 *ROI* ${fRoi(profConf, gInv)}`;
   msg += `\n🟢 Solo incluye pagos verificados.`;
   msg += `\n✅ *${gNConf} verificadas*`;
 
@@ -698,13 +707,16 @@ function formatReport(titulo: string, periodoTxt: string, data: any) {
     const code = w.ws.currency_code || "PEN";
     const medal = medals[i] || "📦";
     if (i > 0) msg += `\n${BAR}`;
-    msg += `\n${medal} *${w.ws.nombre}*`;
+    msg += `\n${medal} ${w.ws.emoji || "📦"} *${w.ws.nombre}*`;
     if (w.ventas === 0 && w.inv === 0) { msg += `\n⚪ *Sin actividad.*`; return; }
     const profL = w.ingProy - w.inv;
     const roas = w.inv > 0 ? w.ingProy / w.inv : 0;
     const ps = profL >= 0 ? "🟢" : "🔴";
-    msg += `\n${ps} *Profit:* ${fMoney(profL, code)}  📈 *ROAS:* ${fRoas(roas)}  🛒 *Ventas:* ${w.ventas}`;
-    msg += `\nP1 *${w.v1}* | P2 *${w.v2}*    P3 *${w.v3}* | P4 *${w.v4}*`;
+    msg += `\n${ps} *Profit:* ${fMoney(profL, code)}`;
+    msg += `\n📈 *ROAS:* ${fRoas(roas)}`;
+    msg += `\n🛒 *Ventas:* ${w.ventas}`;
+    msg += `\nP1 *${w.v1}* | P2 *${w.v2}*`;
+    msg += `\nP3 *${w.v3}* | P4 *${w.v4}*`;
   });
 
   // ── ALERTAS ──
@@ -742,7 +754,7 @@ async function tokenStatusLine(userId: string): Promise<string> {
     const pago = nextDueDate(f.pago_vence);
     if (pago) {
       const icon = pago.dias <= 2 ? "🔴" : pago.dias <= 5 ? "🟡" : pago.dias <= 7 ? "🟠" : "🟢";
-      lines.push(`${icon} *Bot ${f.nombre}* ${pago.dias} días restantes\n📅 *Vence: ${fFechaCorta(pago.date)}*`);
+      lines.push(`${icon} *${f.emoji || "🤖"} ${f.nombre}* ${pago.dias} días restantes\n📅 *Vence: ${fFechaCorta(pago.date)}*`);
     }
   }
   if (!lines.length) return "";
