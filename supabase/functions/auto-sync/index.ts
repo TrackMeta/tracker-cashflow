@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("ADMIN_SERVICE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // Marcador de versión: aparece en cada respuesta JSON. Si no aparece, el deploy es viejo.
-const FN_VERSION = "2026-06-20-uid-espejo";
+const FN_VERSION = "2026-06-20-telegram-pdf";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -559,6 +559,14 @@ const CUR: Record<string, { s: string; d: number }> = {
 const fMoney = (n: number, code: string) => { const c = CUR[code] || CUR.PEN; return `${c.s} ${(+n || 0).toFixed(c.d).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`; };
 const fUsd = (n: number) => `$ ${(+n || 0).toFixed(2).replace(/\B(?=(\d{3})+(?!\d))/g, ",")}`;
 const fRoas = (n: number) => isFinite(n) && n > 0 ? `${n.toFixed(2)}x` : "—";
+const fRoi = (profit: number, inv: number) => inv > 0 ? `${(profit / inv * 100).toFixed(1)}%` : "—";
+// Nombre de país por moneda (para el bloque local del resumen: "PERÚ (PEN)").
+const PAIS: Record<string, string> = {
+  PEN: "PERÚ", COP: "COLOMBIA", MXN: "MÉXICO", CLP: "CHILE", ARS: "ARGENTINA",
+  BOB: "BOLIVIA", BRL: "BRASIL", GTQ: "GUATEMALA", DOP: "REP. DOMINICANA", EUR: "EUROPA", USD: "USD",
+};
+const MESES_COR = ["Ene", "Feb", "Mar", "Abr", "May", "Jun", "Jul", "Ago", "Sep", "Oct", "Nov", "Dic"];
+const fFechaCorta = (iso: string) => { const m = iso.match(/^(\d{4})-(\d{2})-(\d{2})$/); return m ? `${m[3]} ${MESES_COR[+m[2] - 1]} ${m[1]}` : iso; };
 const diaPeru = (off = 0) => { const d = new Date(Date.now() - 5 * 3600 * 1000); d.setUTCDate(d.getUTCDate() + off); return d.toISOString().slice(0, 10); };
 const lunesDe = (fechaStr: string) => { const d = new Date(fechaStr + "T12:00:00Z"); const dow = (d.getUTCDay() + 6) % 7; d.setUTCDate(d.getUTCDate() - dow); return d.toISOString().slice(0, 10); };
 // Fecha de pago del bot (mensual recurrente): rueda la fecha base mes a mes hasta
@@ -636,10 +644,13 @@ function dispCurrency(perWs: any[]): { code: string; rate: number } | null {
   return cands.length ? { code: cands[0].ws.currency_code, rate: cands[0].rate } : null;
 }
 
+// Formato unificado de TODOS los reportes/comandos de Telegram (estructura del PDF):
+//   RESUMEN GLOBAL (KPIs Proyectados + Confirmados, USD + moneda local) →
+//   PRODUCTOS (Profit/ROAS/Ventas + desglose P1–P4) → ALERTAS.
+// El bloque ESTADO DEL SISTEMA se añade aparte (estadoSistemaBlock) donde aplica.
 function formatReport(titulo: string, periodoTxt: string, data: any) {
   const { perWs } = data;
-  const SEP = "\n━━━━━━━━━━━━━━━";
-  const sign = (n: number) => (n >= 0 ? "🟢" : "🔴");
+  const SEP = "\n━━━━━━━━━━━━━━━\n";
   let gInv = 0, gProy = 0, gConf = 0, gVen = 0, gNTotal = 0, gNConf = 0, prov = 0;
   perWs.forEach((w: any) => {
     gInv += w.inv / w.rate; gProy += w.ingProy / w.rate; gConf += w.ingConf / w.rate;
@@ -647,36 +658,75 @@ function formatReport(titulo: string, periodoTxt: string, data: any) {
   });
   const profProy = gProy - gInv, profConf = gConf - gInv;
   const roasProy = gInv > 0 ? gProy / gInv : 0, roasConf = gInv > 0 ? gConf / gInv : 0;
+  const pend = Math.max(gNTotal - gNConf, 0);
   const dc = dispCurrency(perWs);
+  const paisLbl = dc ? `${PAIS[dc.code] || dc.code} (${dc.code})` : "";
 
   // ── Encabezado ──
   let msg = `${titulo}\n_${periodoTxt}_`;
 
-  // ── 🌍 Resumen global (Proyectado vs Confirmado) ──
-  msg += `${SEP}\n🌍 *RESUMEN GLOBAL* _(USD)_`;
-  msg += `\n🟡 *Proyectado* · Ing ${fUsd(gProy)} · Profit *${fUsd(profProy)}* · ROAS ${fRoas(roasProy)}`;
-  msg += `\n🟢 *Confirmado* · Ing ${fUsd(gConf)} · Profit *${fUsd(profConf)}* · ROAS ${fRoas(roasConf)}`;
-  msg += `\n💸 Inversión ${fUsd(gInv)}  ·  🧾 *${gVen}* ventas`;
-  if (dc) msg += `\n🇵🇪 _En ${dc.code}:_ Proy ${fMoney(gProy * dc.rate, dc.code)} · *Conf ${fMoney(gConf * dc.rate, dc.code)}*`;
+  // ── RESUMEN GLOBAL ──
+  msg += `${SEP}📊 *RESUMEN GLOBAL*\n`;
 
-  // ── 🏆 Productos (ordenados por profit confirmado) ──
-  msg += `${SEP}\n🏆 *PRODUCTOS*`;
-  const sorted = [...perWs].sort((a: any, b: any) => ((b.ingConf - b.inv) / b.rate) - ((a.ingConf - a.inv) / a.rate));
+  // KPIs PROYECTADOS
+  msg += `\n🟡 *KPIs PROYECTADOS*`;
+  msg += `\nIngresos   *${fUsd(gProy)}*`;
+  msg += `\nInversión  ${fUsd(gInv)}`;
+  msg += `\nProfit     *${fUsd(profProy)}*`;
+  msg += `\nROAS       ${fRoas(roasProy)}`;
+  msg += `\nROI        ${fRoi(profProy, gInv)}`;
+  msg += `\nVentas     ${gVen}`;
+  if (dc) {
+    msg += `\n_${paisLbl}_`;
+    msg += `\nIngresos   *${fMoney(gProy * dc.rate, dc.code)}*`;
+    msg += `\nInversión  ${fMoney(gInv * dc.rate, dc.code)}`;
+    msg += `\nProfit     *${fMoney(profProy * dc.rate, dc.code)}*`;
+  }
+  msg += `\n_Incluye ventas pendientes de conciliación._`;
+  msg += `\nVentas pendientes: *${pend}*`;
+
+  // KPIs CONFIRMADOS
+  msg += `\n\n🟢 *KPIs CONFIRMADOS*`;
+  msg += `\nIngresos   *${fUsd(gConf)}*`;
+  msg += `\nInversión  ${fUsd(gInv)}`;
+  msg += `\nProfit     *${fUsd(profConf)}*`;
+  msg += `\nROAS       ${fRoas(roasConf)}`;
+  msg += `\nROI        ${fRoi(profConf, gInv)}`;
+  msg += `\nVentas     ${gNConf}`;
+  if (dc) {
+    msg += `\n_${paisLbl}_`;
+    msg += `\nIngresos   *${fMoney(gConf * dc.rate, dc.code)}*`;
+    msg += `\nProfit     *${fMoney(profConf * dc.rate, dc.code)}*`;
+    msg += `\nROAS       ${fRoas(roasConf)}`;
+    msg += `\nROI        ${fRoi(profConf, gInv)}`;
+  }
+  msg += `\n_Solo incluye pagos verificados._`;
+  msg += `\nVentas verificadas: *${gNConf}*`;
+
+  // ── PRODUCTOS (ordenados por profit proyectado local) ──
+  msg += `${SEP}📦 *PRODUCTOS*`;
+  const sorted = [...perWs].sort((a: any, b: any) => ((b.ingProy - b.inv) / b.rate) - ((a.ingProy - a.inv) / a.rate));
   for (const w of sorted) {
-    const profConfL = (w.ingConf - w.inv) / w.rate;
+    const code = w.ws.currency_code || "PEN";
+    msg += `\n\n*${w.ws.emoji || "📦"} ${w.ws.nombre}*`;
+    if (w.ventas === 0 && w.inv === 0) { msg += `\n_Sin actividad._`; continue; }
+    const profL = w.ingProy - w.inv;
     const roas = w.inv > 0 ? w.ingProy / w.inv : 0;
-    msg += `\n\n📦 *${w.ws.emoji || "📦"} ${w.ws.nombre}*`;
-    msg += `\n   ${sign(profConfL)} Profit conf. *${fUsd(profConfL)}* · ROAS ${fRoas(roas)}`;
-    msg += `\n   🧾 ${w.ventas} ventas · P1:${w.v1} P2:${w.v2} P3:${w.v3} P4:${w.v4}`;
+    msg += `\nProfit: *${fMoney(profL, code)}*`;
+    msg += `\nROAS: ${fRoas(roas)}`;
+    msg += `\nVentas: ${w.ventas}`;
+    msg += `\nP1 ${w.v1} | P2 ${w.v2}`;
+    msg += `\nP3 ${w.v3} | P4 ${w.v4}`;
   }
 
-  // ── 📊 Auditoría ──
-  const pend = gNTotal - gNConf;
-  const pctA = gNTotal > 0 ? Math.round(gNConf / gNTotal * 100) : 0;
-  msg += `${SEP}\n📊 *AUDITORÍA*`;
-  msg += `\n🟢 Confirmadas *${gNConf}/${gNTotal}* (${pctA}%)`;
-  if (pend > 0) msg += `\n🟡 Por auditar *${pend}*`;
-  if (prov > 0) msg += `\n⏳ ${prov} día(s) provisional(es) — el gasto puede ajustarse`;
+  // ── ALERTAS ──
+  msg += `${SEP}🔔 *ALERTAS*\n`;
+  if (prov > 0) {
+    msg += `\n⏳ ${prov} día(s) provisional(es).`;
+    msg += `\nEl gasto de Meta aún puede ajustarse.`;
+  } else {
+    msg += `\n✅ Sin alertas. Todo consolidado.`;
+  }
   return msg;
 }
 
@@ -698,19 +748,20 @@ async function tokenStatusLine(userId: string): Promise<string> {
         } else {
           const dias = Math.ceil((exp * 1000 - Date.now()) / 86400000);
           const icon = dias <= 3 ? "🔴" : dias <= 7 ? "🟡" : dias <= 30 ? "🟠" : "🟢";
-          tokLines.push(`${icon} ${nom}: *${dias}d*`);
+          tokLines.push(`${icon} ${nom}: *${dias} días restantes* (${new Date(exp * 1000).toISOString().slice(0, 10)})`);
         }
       } catch (_) { tokLines.push(`⚠️ ${nom}: no verificado`); }
     }
     const pago = nextDueDate(f.pago_vence);
     if (pago) {
       const icon = pago.dias <= 2 ? "🔴" : pago.dias <= 5 ? "🟡" : pago.dias <= 7 ? "🟠" : "🟢";
-      pagoLines.push(`${icon} ${nom}: *${pago.dias}d* (${pago.date})`);
+      pagoLines.push(`${icon} ${nom}: *${pago.dias} días restantes*\nVence: ${fFechaCorta(pago.date)}`);
     }
   }
-  let out = "";
-  if (tokLines.length)  out += `\n\n🔑 *Token Meta:* ${tokLines.join(" · ")}`;
-  if (pagoLines.length) out += `\n💳 *Pago del bot:* ${pagoLines.join(" · ")}`;
+  if (!tokLines.length && !pagoLines.length) return "";
+  let out = `\n━━━━━━━━━━━━━━━\n🖥️ *ESTADO DEL SISTEMA*`;
+  if (tokLines.length)  out += `\n\n🔑 *Meta Token*\n${tokLines.join("\n")}`;
+  if (pagoLines.length) out += `\n\n💳 *Pago del bot*\n${pagoLines.join("\n")}`;
   return out;
 }
 
@@ -719,13 +770,13 @@ async function enviarReporteSlot(cfg: any, slot: "noche" | "manana") {
   if (slot === "noche") {
     const hoy = diaPeru(0);
     const data = await reportData(cfg.user_id, hoy, hoy);
-    await tgSend(cfg.tg_token, cfg.tg_chat_id, formatReport("🌙 *CIERRE DEL DÍA*", `Hoy ${hoy}`, data), reportKb());
+    await tgSend(cfg.tg_token, cfg.tg_chat_id, formatReport("🌙 *CIERRE DEL DÍA*", `Hoy · ${fFechaCorta(hoy)}`, data), reportKb());
   } else {
     const ayer = diaPeru(-1);
     const data = await reportData(cfg.user_id, ayer, ayer);
     // El reporte de mañana siempre incluye el estado del token de Meta
     const tokLine = await tokenStatusLine(cfg.user_id).catch(() => "");
-    const msg = formatReport("☀️ *BUENOS DÍAS*", `Ayer ${ayer}`, data) + tokLine;
+    const msg = formatReport("☀️ *BUENOS DÍAS*", `Ayer · ${fFechaCorta(ayer)}`, data) + tokLine;
     await tgSend(cfg.tg_token, cfg.tg_chat_id, msg, reportKb());
   }
 }
@@ -736,16 +787,16 @@ const AYUDA = `🤖 *Comandos de Tracker Pro*\n\n🔄 /sync — sincronizar ahor
 async function cmdPendientes(userId: string) {
   const desde = diaPeru(-30);
   const workspaces = await sb("GET", `workspaces?user_id=eq.${userId}&select=id,nombre,emoji`);
-  let msg = "⏳ *PENDIENTES (últimos 30 días)*";
+  let msg = `⏳ *PENDIENTES*\n_Últimos 30 días_\n━━━━━━━━━━━━━━━\n📦 *PRODUCTOS*`;
   let nada = true;
   for (const ws of (workspaces || [])) {
     const prov = await sb("GET", `dia_estado?workspace_id=eq.${ws.id}&fecha=gte.${desde}&consolidado=eq.false&select=fecha&order=fecha.desc`);
     const sinVerif = await sbCount(`crm_ventas?workspace_id=eq.${ws.id}&fecha=gte.${desde}&ciclo=neq.finalizado&ciclo=neq.descartado`);
     if ((prov || []).length || sinVerif) {
       nada = false;
-      msg += `\n\n📦 *${ws.emoji || "📦"} ${ws.nombre}*`;
-      if ((prov || []).length) msg += `\n⏳ ${prov.length} día(s) provisional(es): ${prov.slice(0, 6).map((d: any) => d.fecha).join(", ")}`;
-      if (sinVerif) msg += `\n🔎 ${sinVerif} venta(s) sin verificar contra pagos`;
+      msg += `\n\n*${ws.emoji || "📦"} ${ws.nombre}*`;
+      if ((prov || []).length) msg += `\n⏳ ${prov.length} día(s) provisional(es): ${prov.slice(0, 6).map((d: any) => fFechaCorta(d.fecha)).join(", ")}`;
+      if (sinVerif) msg += `\n🔎 ${sinVerif} venta(s) sin verificar`;
     }
   }
   if (nada) msg += "\n\n✅ Todo consolidado y verificado.";
@@ -772,12 +823,13 @@ async function cmdMejores(userId: string, desde: string, hasta: string) {
       all.push({ nombre: nm[adId] || adId, emoji: ws.emoji || "📦", roas: a.g > 0 ? a.ing / a.g : 0, code: ws.currency_code || "PEN" });
     }
   }
-  if (!all.length) return "🏆 *MEJORES*\n\nSin datos con gasto en el período.";
+  if (!all.length) return `🏆 *MEJORES Y PEORES*\n_${fFechaCorta(desde)} → ${fFechaCorta(hasta)}_\n━━━━━━━━━━━━━━━\nSin datos con gasto en el período.`;
   all.sort((x, y) => y.roas - x.roas);
   const top = all.slice(0, 3), peor = all.slice(-3).reverse();
-  let msg = `🏆 *MEJORES Y PEORES* (${desde} → ${hasta})\n\n✅ *Top ROAS:*`;
-  top.forEach((a, i) => { msg += `\n${i + 1}. ${a.emoji} ${a.nombre} — ${fRoas(a.roas)}`; });
-  msg += `\n\n🔻 *Peores ROAS:*`;
+  let msg = `🏆 *MEJORES Y PEORES*\n_${fFechaCorta(desde)} → ${fFechaCorta(hasta)}_`;
+  msg += `\n━━━━━━━━━━━━━━━\n✅ *TOP ROAS*`;
+  top.forEach((a, i) => { msg += `\n${i + 1}. ${a.emoji} ${a.nombre} — *${fRoas(a.roas)}*`; });
+  msg += `\n━━━━━━━━━━━━━━━\n🔻 *PEORES ROAS*`;
   peor.forEach((a) => { msg += `\n• ${a.emoji} ${a.nombre} — ${fRoas(a.roas)}`; });
   return msg;
 }
@@ -841,8 +893,8 @@ async function tgRunCommand(userId: string, cfg: any, chatId: string, cmd: strin
   }
 
   let titulo = "", desde = "", hasta = "", per = "";
-  if (cmd === "/hoy") { desde = hasta = diaPeru(0); titulo = "📊 *HOY*"; per = `Hoy ${desde}`; }
-  else if (cmd === "/ayer") { desde = hasta = diaPeru(-1); titulo = "📊 *AYER*"; per = `Ayer ${desde}`; }
+  if (cmd === "/hoy") { desde = hasta = diaPeru(0); titulo = "📊 *HOY*"; per = `Hoy · ${fFechaCorta(desde)}`; }
+  else if (cmd === "/ayer") { desde = hasta = diaPeru(-1); titulo = "📊 *AYER*"; per = `Ayer · ${fFechaCorta(desde)}`; }
   else if (cmd === "/semana") {
     let ref = diaPeru(0);
     const mm = arg.match(/(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?/);
@@ -850,7 +902,7 @@ async function tgRunCommand(userId: string, cfg: any, chatId: string, cmd: strin
     desde = lunesDe(ref);
     const dom = new Date(desde + "T12:00:00Z"); dom.setUTCDate(dom.getUTCDate() + 6);
     hasta = dom.toISOString().slice(0, 10); if (hasta > diaPeru(0)) hasta = diaPeru(0);
-    titulo = "📊 *SEMANA*"; per = `${desde} → ${hasta}`;
+    titulo = "📊 *SEMANA*"; per = `${fFechaCorta(desde)} → ${fFechaCorta(hasta)}`;
   }
   else if (cmd === "/mes") {
     let y = +diaPeru(0).slice(0, 4), mo = +diaPeru(0).slice(5, 7);
@@ -866,15 +918,15 @@ async function tgRunCommand(userId: string, cfg: any, chatId: string, cmd: strin
     const lastDay = new Date(Date.UTC(y, mo, 0)).getUTCDate();
     desde = `${y}-${m2}-01`; hasta = `${y}-${m2}-${String(lastDay).padStart(2, "0")}`;
     if (hasta > diaPeru(0)) hasta = diaPeru(0);
-    titulo = "📊 *MES*"; per = `${desde} → ${hasta}`;
+    titulo = "📊 *MES*"; per = `${fFechaCorta(desde)} → ${fFechaCorta(hasta)}`;
   }
-  else if (cmd === "/año" || cmd === "/anio") { desde = diaPeru(0).slice(0, 4) + "-01-01"; hasta = diaPeru(0); titulo = "📊 *AÑO*"; per = `${desde} → ${hasta}`; }
+  else if (cmd === "/año" || cmd === "/anio") { desde = diaPeru(0).slice(0, 4) + "-01-01"; hasta = diaPeru(0); titulo = "📊 *AÑO*"; per = `${fFechaCorta(desde)} → ${fFechaCorta(hasta)}`; }
   else if (cmd === "/dia") {
     const mm = arg.match(/(\d{1,2})[\/-](\d{1,2})(?:[\/-](\d{2,4}))?/);
     if (!mm) { await tgSend(cfg.tg_token, chatId, "Formato: /dia DD/MM (año actual) o /dia DD/MM/AAAA\nEj: /dia 03/06 · /dia 03/06/2025"); return; }
     const yy = mm[3] ? (mm[3].length === 2 ? "20" + mm[3] : mm[3]) : diaPeru(0).slice(0, 4);
     desde = hasta = `${yy}-${mm[2].padStart(2, "0")}-${mm[1].padStart(2, "0")}`;
-    titulo = "📊 *DÍA*"; per = desde;
+    titulo = "📊 *DÍA*"; per = fFechaCorta(desde);
   } else if (cmd === "/pendientes") { await tgSend(cfg.tg_token, chatId, await cmdPendientes(userId), reportKb()); return; }
   else if (cmd === "/mejores") { await tgSend(cfg.tg_token, chatId, await cmdMejores(userId, diaPeru(-7), diaPeru(0)), reportKb()); return; }
   else if (cmd === "/producto" || cmd === "/bot") {
@@ -886,7 +938,7 @@ async function tgRunCommand(userId: string, cfg: any, chatId: string, cmd: strin
       ? data.perWs.filter((w: any) => (w.ws.nombre || "").toLowerCase().includes(q))
       : data.perWs.filter((w: any) => (data.fuenteName[w.ws.fuente_id] || "").toLowerCase().includes(q));
     if (!filtrado.length) { await tgSend(cfg.tg_token, chatId, `No encontré "${arg}".`); return; }
-    await tgSend(cfg.tg_token, chatId, formatReport(`📊 *${cmd === "/producto" ? "PRODUCTO" : "BOT"}: ${arg}*`, `${desde} → ${hasta}`, { perWs: filtrado, fuenteName: data.fuenteName }), reportKb());
+    await tgSend(cfg.tg_token, chatId, formatReport(`📊 *${cmd === "/producto" ? "PRODUCTO" : "BOT"}: ${arg}*`, `${fFechaCorta(desde)} → ${fFechaCorta(hasta)}`, { perWs: filtrado, fuenteName: data.fuenteName }), reportKb());
     return;
   } else { await tgSend(cfg.tg_token, chatId, AYUDA); return; }
 
