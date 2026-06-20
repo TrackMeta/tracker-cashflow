@@ -408,14 +408,13 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 <!-- ADMIN BAR (solo visible para admins) -->
 <div class="admin-bar hidden" id="admin-bar" style="width:100%">
   <div style="display:flex;align-items:center;gap:8px">
-    <span>👑 Panel Admin</span>
-    <select id="admin-user-select" onchange="onAdminUserChange()" style="background:rgba(255,255,255,0.15);border:1px solid rgba(255,255,255,0.3);border-radius:6px;padding:3px 8px;color:#fff;font-size:11px;font-family:var(--font)">
-      <option value="">Ver todos los usuarios</option>
-    </select>
+    <span>👁️ Modo inspección</span>
+    <span id="admin-viewing-label" style="font-size:11px;opacity:0.95;font-weight:600"></span>
+    <!-- Selector interno usado por el Panel Admin (oculto: la barra global ya no es el control principal) -->
+    <select id="admin-user-select" onchange="onAdminUserChange()" style="display:none"></select>
   </div>
   <div style="display:flex;align-items:center;gap:8px">
-    <span id="admin-viewing-label" style="font-size:10px;opacity:0.8"></span>
-    <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3)" onclick="navTo('admin',null)">📊 Dashboard Global</button>
+    <button class="btn btn-sm" style="background:rgba(255,255,255,0.15);color:#fff;border:1px solid rgba(255,255,255,0.3)" onclick="adminVolverAMisDatos()">← Volver a mis datos</button>
   </div>
 </div>
 <div style="display:flex;flex:1;overflow:hidden;">
@@ -4015,6 +4014,7 @@ const auth = {
     return data;
   },
   async signOut() {
+    if (this._refreshTimer) { clearTimeout(this._refreshTimer); this._refreshTimer = null; }
     if (!ACCESS_TOKEN) return;
     await fetch(`${SUPABASE_URL}/auth/v1/logout`, {
       method: 'POST',
@@ -4031,34 +4031,57 @@ const auth = {
       expires_at:    Date.now() + (session.expires_in * 1000)
     }));
     ACCESS_TOKEN = session.access_token;
+    this.scheduleRefresh(); // re-programa el refresco proactivo cada vez que cambia el token
   },
   loadSession() {
     try {
       const s = JSON.parse(localStorage.getItem('tracker_session') || 'null');
       if (!s) return null;
-      // Si expiró pero hay refresh_token, intentar renovar en background
-      if (Date.now() > s.expires_at) {
-        if (s.refresh_token) {
-          auth.refreshSession(s.refresh_token); // async, no bloqueante
-        } else {
-          localStorage.removeItem('tracker_session'); return null;
-        }
-      }
       ACCESS_TOKEN = s.access_token;
+      // Si ya expiró (o casi) e intentamos renovar en background; si no, programa el refresco.
+      if (Date.now() > s.expires_at - 60000) {
+        if (s.refresh_token) this.refreshNow(); // async, no bloqueante
+        else { localStorage.removeItem('tracker_session'); return null; }
+      } else {
+        this.scheduleRefresh();
+      }
       return s;
     } catch { return null; }
   },
-  async refreshSession(refreshToken) {
+  // Refresco proactivo: renueva el token ~1 min antes de que expire, de forma
+  // silenciosa, para que la sesión nunca caduque mientras el usuario trabaja.
+  _refreshTimer: null,
+  scheduleRefresh() {
+    if (this._refreshTimer) clearTimeout(this._refreshTimer);
     try {
-      const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
-        method: 'POST',
-        headers: { 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
-        body: JSON.stringify({ refresh_token: refreshToken })
-      });
-      if (!r.ok) { localStorage.removeItem('tracker_session'); doLogout(); return; }
-      const data = await r.json();
-      auth.saveSession(data);
-    } catch { localStorage.removeItem('tracker_session'); }
+      const s = JSON.parse(localStorage.getItem('tracker_session') || 'null');
+      if (!s?.expires_at || !s?.refresh_token) return;
+      const ms = Math.max(s.expires_at - Date.now() - 60000, 5000);
+      this._refreshTimer = setTimeout(() => { this.refreshNow(); }, ms);
+    } catch {}
+  },
+  // Renueva el token YA y devuelve true/false. Deduplica refrescos concurrentes
+  // (varias peticiones 401 a la vez comparten un único refresh).
+  _refreshing: null,
+  refreshNow() {
+    if (this._refreshing) return this._refreshing;
+    this._refreshing = (async () => {
+      try {
+        const s = JSON.parse(localStorage.getItem('tracker_session') || 'null');
+        if (!s?.refresh_token) return false;
+        const r = await fetch(`${SUPABASE_URL}/auth/v1/token?grant_type=refresh_token`, {
+          method: 'POST',
+          headers: { 'apikey': SUPABASE_ANON_KEY, 'Content-Type': 'application/json' },
+          body: JSON.stringify({ refresh_token: s.refresh_token })
+        });
+        if (!r.ok) return false;
+        const data = await r.json();
+        this.saveSession(data); // guarda y reprograma el siguiente refresco
+        return true;
+      } catch { return false; }
+    })();
+    const done = this._refreshing.finally(() => { this._refreshing = null; });
+    return done;
   }
 };
 
@@ -4071,30 +4094,37 @@ const api = {
       'Content-Type': 'application/json',
     };
   },
+  // Hace el fetch y, si el token expiró (401), lo renueva en silencio y reintenta
+  // UNA vez con el token fresco. Así el usuario nunca ve el corte de sesión.
+  async _fetch(url, opts, _retried) {
+    const r = await fetch(url, opts);
+    if (r.status === 401 && !_retried) {
+      const ok = await auth.refreshNow();
+      if (ok) {
+        const headers = { ...(opts.headers || {}), 'Authorization': `Bearer ${ACCESS_TOKEN}` };
+        return this._fetch(url, { ...opts, headers }, true);
+      }
+    }
+    return r;
+  },
   async _handleErr(r) {
     const text = await r.text();
-    // JWT expirado — intentar renovar y avisar al usuario
-    if (text.includes('JWT') || text.includes('expired') || r.status === 401) {
-      const s = JSON.parse(localStorage.getItem('tracker_session') || 'null');
-      if (s?.refresh_token) {
-        await auth.refreshSession(s.refresh_token);
-        showError('⚠️ Sesión renovada. Intenta guardar de nuevo.');
-      } else {
-        showError('Sesión expirada. Inicia sesión de nuevo.');
-        setTimeout(doLogout, 2000);
-      }
+    // Si seguimos en 401 aquí, el refresco automático YA falló de verdad → re-login.
+    if (r.status === 401 || text.includes('JWT') || text.includes('expired')) {
+      showError('Sesión expirada. Inicia sesión de nuevo.');
+      setTimeout(doLogout, 2000);
     }
     throw new Error(text);
   },
   async get(table, params='') {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, { headers: this._h() });
+    const r = await this._fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, { headers: this._h() });
     if (!r.ok) await this._handleErr(r);
     return r.json();
   },
   // Conteo exacto sin traer filas (HEAD + count=exact). Evita el tope de ~1000 filas
   // que corta los resultados de un .get() normal — usar SIEMPRE para contadores.
   async count(table, params='') {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
+    const r = await this._fetch(`${SUPABASE_URL}/rest/v1/${table}?${params}`, {
       method: 'HEAD', headers: { ...this._h(), 'Prefer': 'count=exact', 'Range': '0-0' }
     });
     const cr = r.headers.get('content-range') || '*/0';
@@ -4114,7 +4144,7 @@ const api = {
     return out;
   },
   async post(table, data) {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
+    const r = await this._fetch(`${SUPABASE_URL}/rest/v1/${table}`, {
       method: 'POST', headers: { ...this._h(), 'Prefer': 'return=representation' },
       body: JSON.stringify(data)
     });
@@ -4122,7 +4152,7 @@ const api = {
     return r.json();
   },
   async patch(table, id, data) {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+    const r = await this._fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
       method: 'PATCH', headers: { ...this._h(), 'Prefer': 'return=representation' },
       body: JSON.stringify(data)
     });
@@ -4130,7 +4160,7 @@ const api = {
     return r.json();
   },
   async delete(table, id) {
-    const r = await fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
+    const r = await this._fetch(`${SUPABASE_URL}/rest/v1/${table}?id=eq.${id}`, {
       method: 'DELETE', headers: this._h()
     });
     if (!r.ok) await this._handleErr(r);
@@ -4212,10 +4242,13 @@ async function onLoginSuccess(user) {
   document.getElementById('sidebar-user-role').textContent  = IS_ADMIN ? '👑 Administrador' : '👤 Usuario';
   initNotifButton();
 
-  // Mostrar nav admin si corresponde
+  // Mostrar nav admin si corresponde. La barra superior NO se muestra por defecto:
+  // el admin trabaja en SU propia sesión (solo sus productos). La gestión global
+  // vive en la pestaña "👑 Panel Admin". La barra solo aparece en modo inspección.
   if (IS_ADMIN) {
     document.getElementById('nav-admin').style.display = 'flex';
-    document.getElementById('admin-bar').classList.remove('hidden');
+    document.getElementById('admin-bar').classList.add('hidden');
+    ADMIN_VIEWING_USER_ID = null;
     await loadAdminUsers();
   }
 
@@ -4274,28 +4307,42 @@ async function loadAdminUsers() {
 async function onAdminUserChange() {
   const uid = document.getElementById('admin-user-select').value;
   ADMIN_VIEWING_USER_ID = uid || null;
+  const bar = document.getElementById('admin-bar');
   const lbl = document.getElementById('admin-viewing-label');
   if (uid) {
     const opt = document.querySelector(`#admin-user-select option[value="${uid}"]`);
-    lbl.textContent = `Viendo: ${opt?.textContent || uid}`;
+    lbl.textContent = `Viendo a: ${opt?.textContent || uid}`;
+    bar.classList.remove('hidden'); // muestra el banner de inspección
+    CURRENT_WORKSPACE = null;        // forzar a tomar el primer workspace del usuario inspeccionado
     showLoading('Cargando datos del usuario...');
     try {
       await loadAll();
       hideLoading();
       renderDashboard();
       renderAlertas();
-      showSuccess('✅ Mostrando datos del usuario seleccionado');
     } catch(e) { hideLoading(); showError('Error: '+e.message); }
   } else {
     lbl.textContent = '';
-    showLoading('Cargando todos los datos...');
-    try {
-      await loadAll();
-      hideLoading();
-      renderDashboard();
-      renderAlertas();
-    } catch(e) { hideLoading(); showError('Error: '+e.message); }
+    bar.classList.add('hidden');
   }
+}
+
+// Salir del modo inspección y volver a la sesión propia del admin (solo sus productos).
+async function adminVolverAMisDatos() {
+  const sel = document.getElementById('admin-user-select');
+  if (sel) sel.value = '';
+  ADMIN_VIEWING_USER_ID = null;
+  document.getElementById('admin-bar').classList.add('hidden');
+  document.getElementById('admin-viewing-label').textContent = '';
+  CURRENT_WORKSPACE = null; // volver al primer workspace propio
+  showLoading('Volviendo a tus datos...');
+  try {
+    await loadAll();
+    hideLoading();
+    navTo('dashboard', null);
+    renderDashboard();
+    renderAlertas();
+  } catch(e) { hideLoading(); showError('Error: '+e.message); }
 }
 
 async function renderAdminPage() {
@@ -8250,8 +8297,11 @@ async function saveTelegramActivo() {
 }
 
 async function loadAll() {
-  const userFilter = (IS_ADMIN && ADMIN_VIEWING_USER_ID)
-    ? `&user_id=eq.${ADMIN_VIEWING_USER_ID}` : '';
+  // El admin, por defecto, ve SOLO sus propios datos (su sesión personal).
+  // Solo ve los de otro usuario cuando entra en "modo inspección" desde el Panel Admin
+  // (ADMIN_VIEWING_USER_ID). Para usuarios normales el filtro va vacío (RLS los acota).
+  const viewUid = ADMIN_VIEWING_USER_ID || (IS_ADMIN ? CURRENT_USER?.id : null);
+  const userFilter = viewUid ? `&user_id=eq.${viewUid}` : '';
 
   // Cargar workspaces primero
   const wsList = await api.get('workspaces', `order=created_at.asc${userFilter}`);
