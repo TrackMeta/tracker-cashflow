@@ -41,8 +41,8 @@
   --font:'Inter',sans-serif; --mono:'JetBrains Mono',monospace;
 }
 body.dark {
-  --bg:#0A0F1E; --bg2:#121A2E; --bg3:#16203A; --bg4:#1E2A47;
-  --border:rgba(148,170,220,0.10); --border2:rgba(148,170,220,0.18);
+  --bg:#0F1729; --bg2:#1A2540; --bg3:#212E4E; --bg4:#2B3A5E;
+  --border:rgba(150,175,225,0.12); --border2:rgba(150,175,225,0.20);
   --text:#F1F5F9; --text2:#8A9AB8; --text3:#4B5B7C;
   --accent:#818CF8; --accent2:#6366F1;
   --teal:#38BDF8; --green:#34D399; --orange:#FBBF24;
@@ -142,10 +142,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 body.hub-active .sidebar{display:none;}
 body.hub-active .hamburger{display:none;}
 body.hub-active .mobile-nav{display:none;}
-body.hub-active .main{background:radial-gradient(ellipse at 30% 10%,var(--accent-dim) 0%,transparent 50%),radial-gradient(ellipse at 86% 96%,var(--purple-dim) 0%,transparent 55%),var(--bg);}
-body.dark .main{background:linear-gradient(165deg,#0A0F1E 0%,#0D1530 52%,#0A1126 100%);}
-body.dark.hub-active .main{background:radial-gradient(ellipse at 30% 8%,rgba(129,140,248,0.13) 0%,transparent 52%),radial-gradient(ellipse at 86% 96%,rgba(124,58,237,0.13) 0%,transparent 55%),linear-gradient(165deg,#0A0F1E 0%,#0D1530 52%,#0A1126 100%);}
-body.hub-active .page{padding:22px 28px 34px;}
+.main{background:linear-gradient(165deg,#F6F8FE 0%,#EAEFFA 60%,#E4EBF8 100%);}
+body.hub-active .main{background:radial-gradient(ellipse at 28% 8%,rgba(79,110,247,0.10) 0%,transparent 52%),radial-gradient(ellipse at 88% 96%,rgba(124,63,243,0.09) 0%,transparent 55%),linear-gradient(165deg,#F6F8FE 0%,#EAEFFA 60%,#E4EBF8 100%);}
+body.dark .main{background:linear-gradient(165deg,#0F1729 0%,#16224A 55%,#101A33 100%);}
+body.dark.hub-active .main{background:radial-gradient(ellipse at 28% 6%,rgba(129,140,248,0.16) 0%,transparent 52%),radial-gradient(ellipse at 88% 96%,rgba(124,58,237,0.16) 0%,transparent 55%),linear-gradient(165deg,#0F1729 0%,#16224A 55%,#101A33 100%);}
+body.hub-active .page{padding:16px 28px 22px;}
 .hub2{max-width:1120px;margin:0 auto;animation:pageIn .3s ease;}
 .hub2-header{display:flex;align-items:center;justify-content:space-between;gap:12px;}
 .hub2-brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;color:var(--text);letter-spacing:-0.02em;}
@@ -154,14 +155,14 @@ body.hub-active .page{padding:22px 28px 34px;}
 .hub2-pill:hover{border-color:var(--border2);color:var(--text);box-shadow:var(--shadow);transform:translateY(-1px);}
 .hub2-pill.danger:hover{color:var(--red);border-color:rgba(225,29,72,0.3);}
 .hub2-badge{position:absolute;top:-5px;right:-2px;background:var(--red);color:#fff;font-size:10px;font-weight:800;border-radius:999px;min-width:18px;height:18px;display:none;align-items:center;justify-content:center;padding:0 5px;}
-.hub2-welcome{text-align:center;margin:24px 0 4px;}
+.hub2-welcome{text-align:center;margin:14px 0 2px;}
 .hub2-welcome h1{font-size:27px;font-weight:800;color:var(--text);letter-spacing:-0.03em;margin:0;}
 .hub2-welcome p{font-size:14px;color:var(--text2);margin:6px 0 0;}
-.hub2-seg{display:flex;justify-content:center;margin:14px 0 2px;}
+.hub2-seg{display:flex;justify-content:center;margin:10px 0 0;}
 .hub2-seg-inner{display:inline-flex;background:var(--bg2);border:1px solid var(--border);border-radius:999px;padding:4px;gap:2px;box-shadow:var(--shadow);}
 .hub2-seg-inner button{border:none;background:transparent;font-size:12px;font-weight:700;color:var(--text2);padding:6px 18px;border-radius:999px;cursor:pointer;font-family:var(--font);transition:.15s;}
 .hub2-seg-inner button.active{background:var(--grad-accent);color:#fff;box-shadow:var(--shadow-btn);}
-.hub2-stage{position:relative;width:980px;height:820px;margin:4px auto 0;}
+.hub2-stage{position:relative;width:980px;height:600px;margin:2px auto 0;}
 .hub2-lines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;overflow:visible;}
 .hub2-node{animation:hubpulse 2.8s ease-in-out infinite;}
 @keyframes hubpulse{0%,100%{opacity:.45}50%{opacity:.95}}
@@ -187,10 +188,10 @@ body.hub-active .page{padding:22px 28px 34px;}
 .hub2-card-ico{width:56px;height:56px;border-radius:17px;display:flex;align-items:center;justify-content:center;font-size:26px;color:#fff;box-shadow:0 6px 16px rgba(0,0,0,0.12);}
 .hub2-card-title{font-size:15px;font-weight:800;color:var(--text);}
 .hub2-card-go{font-size:12px;font-weight:700;color:var(--c,var(--accent));}
-.hub2-card.pos-tl{top:0;left:0;}
-.hub2-card.pos-tr{top:0;right:0;}
-.hub2-card.pos-bl{bottom:0;left:0;}
-.hub2-card.pos-br{bottom:0;right:0;}
+.hub2-card.pos-tl{top:11px;left:54px;}
+.hub2-card.pos-tr{top:11px;right:54px;}
+.hub2-card.pos-bl{bottom:11px;left:54px;}
+.hub2-card.pos-br{bottom:11px;right:54px;}
 .hub2-footer{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--border);border-radius:18px;padding:14px 22px;font-size:12.5px;font-weight:600;color:var(--text2);max-width:780px;margin:8px auto 0;box-shadow:var(--shadow);}
 .hub2-sep{opacity:.3;}
 @media(max-width:1040px){
@@ -623,18 +624,18 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 
     <div class="hub2-stage">
 
-      <svg class="hub2-lines" viewBox="0 0 980 820" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <svg class="hub2-lines" viewBox="0 0 980 600" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
         <g fill="none" stroke-width="2" stroke-linecap="round">
-          <path d="M212 150 L338 258" style="stroke:var(--accent)" stroke-opacity=".4"/>
-          <path d="M768 150 L642 258" style="stroke:var(--green)" stroke-opacity=".4"/>
-          <path d="M212 670 L338 562" style="stroke:var(--orange)" stroke-opacity=".4"/>
-          <path d="M768 670 L642 562" style="stroke:var(--purple)" stroke-opacity=".4"/>
+          <path d="M266 161 L310 183" style="stroke:var(--accent)" stroke-opacity=".4"/>
+          <path d="M714 161 L670 183" style="stroke:var(--green)" stroke-opacity=".4"/>
+          <path d="M266 439 L310 417" style="stroke:var(--orange)" stroke-opacity=".4"/>
+          <path d="M714 439 L670 417" style="stroke:var(--purple)" stroke-opacity=".4"/>
         </g>
         <g fill="var(--bg2)" stroke-width="2.5">
-          <circle class="hub2-node" cx="338" cy="258" r="6" style="stroke:var(--accent)"/>
-          <circle class="hub2-node" cx="642" cy="258" r="6" style="stroke:var(--green)"/>
-          <circle class="hub2-node" cx="338" cy="562" r="6" style="stroke:var(--orange)"/>
-          <circle class="hub2-node" cx="642" cy="562" r="6" style="stroke:var(--purple)"/>
+          <circle class="hub2-node" cx="310" cy="183" r="6" style="stroke:var(--accent)"/>
+          <circle class="hub2-node" cx="670" cy="183" r="6" style="stroke:var(--green)"/>
+          <circle class="hub2-node" cx="310" cy="417" r="6" style="stroke:var(--orange)"/>
+          <circle class="hub2-node" cx="670" cy="417" r="6" style="stroke:var(--purple)"/>
         </g>
       </svg>
 
