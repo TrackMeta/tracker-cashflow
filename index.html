@@ -138,6 +138,59 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .page{display:none;padding:28px 30px;min-height:100%;}
 .page.active{display:block;animation:pageIn 0.22s ease;}
 @keyframes pageIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
+/* ════════ HUB DE CONTROL ════════ */
+body.hub-active .sidebar{display:none;}
+body.hub-active .hamburger{display:none;}
+body.hub-active .mobile-nav{display:none;}
+body.hub-active .main{background:radial-gradient(ellipse at 28% 18%,var(--accent-dim) 0%,transparent 55%),radial-gradient(ellipse at 82% 92%,var(--purple-dim) 0%,transparent 55%),var(--bg);}
+.hub-wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:22px;animation:pageIn 0.3s ease;}
+.hub-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
+.hub-brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;color:var(--text);letter-spacing:-0.02em;}
+.hub-actions{display:flex;align-items:center;gap:8px;}
+.hub-ico-btn{display:flex;align-items:center;gap:7px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:9px 14px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;font-family:var(--font);transition:.15s;position:relative;}
+.hub-ico-btn:hover{border-color:var(--border2);color:var(--text);box-shadow:var(--shadow);}
+.hub-kbd{font-size:10px;color:var(--text3);border:1px solid var(--border2);border-radius:5px;padding:1px 5px;}
+.hub-badge-dot{position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;font-size:10px;font-weight:800;border-radius:9px;min-width:18px;text-align:center;padding:1px 4px;line-height:1.4;}
+.hub-welcome{text-align:center;margin-top:4px;}
+.hub-welcome h1{font-size:24px;font-weight:800;color:var(--text);letter-spacing:-0.02em;margin:0;}
+.hub-welcome p{font-size:13px;color:var(--text2);margin:5px 0 0;}
+.hub-center{background:var(--bg2);border:1px solid var(--border);border-radius:24px;padding:24px 28px;box-shadow:var(--shadow-md);position:relative;overflow:hidden;}
+.hub-center::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--green);transition:background .3s;}
+.hub-center.warn::before{background:var(--orange);}
+.hub-center.error::before{background:var(--red);}
+.hub-state{display:flex;align-items:center;gap:14px;}
+.hub-state-ico{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;background:var(--green-dim);}
+.hub-state-act{background:var(--grad-accent);color:#fff;border:none;border-radius:11px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);box-shadow:var(--shadow-btn);white-space:nowrap;}
+.hub-seg{display:inline-flex;background:var(--bg3);border-radius:11px;padding:3px;gap:2px;}
+.hub-seg button{border:none;background:transparent;font-size:12px;font-weight:600;color:var(--text2);padding:6px 16px;border-radius:8px;cursor:pointer;font-family:var(--font);transition:.15s;}
+.hub-seg button.active{background:var(--bg2);color:var(--text);box-shadow:var(--shadow);}
+.hub-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
+.hub-kpi{background:var(--bg3);border-radius:14px;padding:14px 16px;}
+.hub-kpi-label{font-size:12px;color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;}
+.hub-kpi-val{font-size:26px;font-weight:800;color:var(--text);font-family:var(--mono);letter-spacing:-0.02em;margin-top:4px;}
+.hub-kpi-sub{font-size:11px;margin-top:3px;min-height:14px;}
+.hub-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
+.hub-tile{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:20px;cursor:pointer;transition:.18s;display:flex;flex-direction:column;gap:9px;text-align:left;min-height:144px;font-family:var(--font);}
+.hub-tile:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);border-color:var(--border2);}
+.hub-tile-top{display:flex;align-items:center;justify-content:space-between;}
+.hub-tile-ico{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;}
+.hub-tile-arrow{color:var(--text3);font-size:18px;}
+.hub-tile-title{font-size:15px;font-weight:800;color:var(--text);}
+.hub-tile-sub{font-size:12px;color:var(--text2);line-height:1.45;}
+.hub-tile-badge{font-size:10px;font-weight:800;border-radius:9px;padding:2px 8px;}
+.hub-sysbar{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:12px 18px;font-size:12px;font-weight:600;color:var(--text2);}
+@media(max-width:900px){.hub-tiles{grid-template-columns:repeat(2,1fr);}}
+@media(max-width:560px){.hub-kpi-val{font-size:20px;}.hub-kpi{padding:11px 12px;}.hub-state{flex-wrap:wrap;}.hub-welcome h1{font-size:21px;}}
+/* ════════ COMMAND PALETTE (Ctrl/Cmd+K) ════════ */
+.cmdk-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9000;display:none;align-items:flex-start;justify-content:center;padding-top:11vh;}
+.cmdk-overlay.open{display:flex;}
+.cmdk-box{width:min(560px,92vw);background:var(--bg2);border:1px solid var(--border2);border-radius:16px;box-shadow:var(--shadow-lg);overflow:hidden;}
+.cmdk-input{width:100%;border:none;background:transparent;padding:16px 18px;font-size:15px;color:var(--text);font-family:var(--font);outline:none;border-bottom:1px solid var(--border);box-sizing:border-box;}
+.cmdk-list{max-height:52vh;overflow-y:auto;padding:6px;}
+.cmdk-item{display:flex;align-items:center;gap:12px;padding:10px 12px;border-radius:10px;cursor:pointer;font-size:14px;color:var(--text);}
+.cmdk-item .ci{font-size:18px;width:24px;text-align:center;}
+.cmdk-item .cs{font-size:11px;color:var(--text3);margin-left:auto;}
+.cmdk-item.sel{background:var(--accent-dim);}
 .page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:10px;}
 .page-title{font-size:22px;font-weight:800;color:var(--text);letter-spacing:-0.02em;}
 .page-sub{font-size:12px;color:var(--text2);margin-top:4px;font-weight:400;}
@@ -404,6 +457,14 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 <button class="hamburger" onclick="toggleSidebar()" id="hamburger">☰</button>
 <div class="sidebar-overlay" id="sidebar-overlay" onclick="closeSidebar()"></div>
 
+<!-- COMMAND PALETTE -->
+<div class="cmdk-overlay" id="cmdk" onclick="if(event.target===this)closeCmdk()">
+  <div class="cmdk-box">
+    <input type="text" class="cmdk-input" id="cmdk-input" placeholder="Buscar sección…  (ej: conciliación, alertas, KPIs)" oninput="cmdkFilter(this.value)" autocomplete="off">
+    <div class="cmdk-list" id="cmdk-list"></div>
+  </div>
+</div>
+
 <div class="app" style="flex-direction:column;">
 <!-- ADMIN BAR (solo visible para admins) -->
 <div class="admin-bar hidden" id="admin-bar" style="width:100%">
@@ -421,7 +482,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 <!-- SIDEBAR -->
 <aside class="sidebar">
   <div class="sidebar-logo">
-    <div style="display:flex;align-items:center;gap:10px;">
+    <div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="navTo('hub',null)" title="Volver al Hub de Control">
       <img src="logo.svg" width="36" height="36" style="border-radius:8px;flex-shrink:0;" alt="logo">
       <div>
         <div class="logo-text">Tracker Pro <span class="sync-dot" id="sync-dot"></span></div>
@@ -500,8 +561,76 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 <!-- MAIN -->
 <main class="main">
 
+<!-- HUB DE CONTROL -->
+<div class="page active" id="page-hub">
+  <div class="hub-wrap">
+
+    <div class="hub-top">
+      <div class="hub-brand"><img src="logo.svg" width="30" height="30" style="border-radius:7px" alt="logo"> Tracker Pro</div>
+      <div class="hub-actions">
+        <button class="hub-ico-btn" onclick="openCmdk()">⌘ Ir a… <span class="hub-kbd">Ctrl K</span></button>
+        <button class="hub-ico-btn" style="padding:9px 12px" onclick="navTo('alertas',null)" title="Alertas">🔔<span class="hub-badge-dot" id="hub-notif-badge" style="display:none">0</span></button>
+        <button class="hub-ico-btn" style="padding:9px 12px" onclick="toggleDarkMode();renderHub()" title="Cambiar tema"><span id="hub-theme-ico">🌙</span></button>
+        <button class="hub-ico-btn" style="padding:9px 12px;color:var(--red)" onclick="doLogout()" title="Cerrar sesión">🚪</button>
+      </div>
+    </div>
+
+    <div class="hub-welcome">
+      <h1 id="hub-saludo">Bienvenido 👋</h1>
+      <p>Tu centro de control de ventas y campañas</p>
+    </div>
+
+    <div class="hub-center" id="hub-center">
+      <div class="hub-state">
+        <div class="hub-state-ico" id="hub-state-ico">✅</div>
+        <div style="flex:1;min-width:0">
+          <div id="hub-state-title" style="font-size:17px;font-weight:800;color:var(--green)">Todo sincronizado</div>
+          <div style="font-size:12px;color:var(--text2);margin-top:2px">📅 <span id="hub-fecha">—</span> · <span id="hub-state-sub">Sistema operativo</span></div>
+        </div>
+        <button class="hub-state-act" id="hub-state-action" style="display:none" onclick="hubStateAction()">Resolver →</button>
+        <div class="hub-seg" id="hub-seg">
+          <button data-p="hoy" onclick="setHubPeriodo('hoy')">Hoy</button>
+          <button data-p="7" onclick="setHubPeriodo('7')">7 días</button>
+          <button data-p="30" onclick="setHubPeriodo('30')">Mes</button>
+        </div>
+      </div>
+      <div class="hub-kpis" style="margin-top:18px">
+        <div class="hub-kpi"><div class="hub-kpi-label">💰 Profit</div><div class="hub-kpi-val" id="hub-profit">—</div><div class="hub-kpi-sub" id="hub-profit-d"></div></div>
+        <div class="hub-kpi"><div class="hub-kpi-label">📈 ROAS</div><div class="hub-kpi-val" id="hub-roas">—</div><div class="hub-kpi-sub" id="hub-roas-d"></div></div>
+        <div class="hub-kpi"><div class="hub-kpi-label">🛒 Ventas</div><div class="hub-kpi-val" id="hub-ventas">—</div><div class="hub-kpi-sub" id="hub-ventas-d"></div></div>
+      </div>
+    </div>
+
+    <div class="hub-tiles">
+      <button class="hub-tile" onclick="navTo('global',null)">
+        <div class="hub-tile-top"><div class="hub-tile-ico" style="background:var(--grad-accent)">🌍</div><span class="hub-tile-arrow">→</span></div>
+        <div class="hub-tile-title">Visión Global</div>
+        <div class="hub-tile-sub" id="hub-tile-global">Dashboard general, KPIs y análisis</div>
+      </button>
+      <button class="hub-tile" onclick="navTo('catalogo',null)">
+        <div class="hub-tile-top"><div class="hub-tile-ico" style="background:var(--grad-green)">📦</div><span class="hub-tile-arrow">→</span></div>
+        <div class="hub-tile-title">Productos</div>
+        <div class="hub-tile-sub" id="hub-tile-prod">Administra productos y campañas</div>
+      </button>
+      <button class="hub-tile" onclick="navTo('importar',null)">
+        <div class="hub-tile-top"><div class="hub-tile-ico" style="background:var(--grad-orange)">📥</div><span class="hub-tile-badge" id="hub-tile-imp-badge" style="display:none">SETUP</span></div>
+        <div class="hub-tile-title">Importar Datos</div>
+        <div class="hub-tile-sub" id="hub-tile-imp">Sincroniza tus fuentes de datos</div>
+      </button>
+      <button class="hub-tile" onclick="openConfig()">
+        <div class="hub-tile-top"><div class="hub-tile-ico" style="background:var(--grad-purple)">⚙️</div><span class="hub-tile-arrow">→</span></div>
+        <div class="hub-tile-title">Configuraciones</div>
+        <div class="hub-tile-sub">Umbrales, estados y preferencias</div>
+      </button>
+    </div>
+
+    <div class="hub-sysbar" id="hub-sysbar"></div>
+
+  </div>
+</div>
+
 <!-- DASHBOARD -->
-<div class="page active" id="page-dashboard">
+<div class="page" id="page-dashboard">
   <div class="page-header">
     <div><div class="page-title">📈 Dashboard</div><div class="page-sub" id="dash-rango-label">Resumen global de todas las campañas</div></div>
     <div style="display:flex;align-items:center;gap:8px;flex-wrap:wrap">
@@ -4396,6 +4525,8 @@ async function onLoginSuccess(user) {
     renderPriceChips();
     try { renderDashboard(); } catch(e) { console.warn('renderDashboard:', e); }
     try { renderAlertas(); } catch(e) { console.warn('renderAlertas:', e); }
+    document.body.classList.add('hub-active');
+    try { renderHub(); } catch(e) { console.warn('renderHub:', e); }
     // Mostrar badge SETUP si el usuario no tiene Google Sheets configurado
     const badge = document.getElementById('nav-setup-badge');
     if (badge) badge.style.display = DB.config?.sheets_url ? 'none' : 'inline';
@@ -4414,6 +4545,7 @@ async function doLogout() {
   CURRENT_USER = null; IS_ADMIN = false; ADMIN_VIEWING_USER_ID = null; ACCESS_TOKEN = null;
   DB = { config:{ id:null,p1:10,p2:7,p3:5,p4:3,igv:0.18,tc:4.0,sat_caida:0.30,sat_dias:3,estados:[],alerta_gasto_min:5,alerta_roas_min:1,roas_gasto_min:1 }, campanas:[], anuncios:[], registros:[], notas:[] };
   document.getElementById('login-screen').classList.remove('hidden');
+  document.body.classList.remove('hub-active');
   document.getElementById('admin-bar').classList.add('hidden');
   document.getElementById('nav-admin').style.display = 'none';
   document.getElementById('login-email').value = '';
@@ -8548,8 +8680,10 @@ function showSuccess(msg) {
 function navTo(page, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
-  document.getElementById('page-'+page).classList.add('active');
+  const _pg = document.getElementById('page-'+page);
+  if(_pg) _pg.classList.add('active');
   if(el) el.classList.add('active');
+  document.body.classList.toggle('hub-active', page==='hub');
   closeSidebar();
   renderPage(page);
   // Sync mobile bottom nav
@@ -8584,6 +8718,7 @@ function updateSheetsStatus() {
 }
 
 function renderPage(page) {
+  if (page==='hub')          renderHub();
   if (page==='dashboard')    renderDashboard();
   if (page==='bitacora')     renderBitacora();
   if (page==='global')       renderGlobal();
@@ -8606,6 +8741,174 @@ function renderPage(page) {
   if (page==='horarios')     renderHorarios();
   if (page==='cruce-pagos')  { if (typeof concBandeja==='function') concBandeja(); if (typeof concSetPeriodo==='function') concSetPeriodo(); }
 }
+
+// ════════════════════════════════════════════════
+// HUB DE CONTROL — pantalla principal / launcher
+// ════════════════════════════════════════════════
+function hubPeriodo(){ return localStorage.getItem('hub_periodo') || 'hoy'; }
+function setHubPeriodo(p){ localStorage.setItem('hub_periodo', p); renderHub(); }
+function hubStateAction(){ const a = window._hubAction; if (typeof a === 'function') a(); }
+
+function renderHub(){
+  try {
+    // Saludo + fecha + tema
+    const nick = (CURRENT_USER?.email || '').split('@')[0];
+    const cap  = nick ? nick.charAt(0).toUpperCase() + nick.slice(1) : '';
+    const elS = document.getElementById('hub-saludo'); if (elS) elS.textContent = `Bienvenido${cap ? ', ' + cap : ''} 👋`;
+    const elF = document.getElementById('hub-fecha'); if (elF) elF.textContent = fmt.date(today());
+    const elT = document.getElementById('hub-theme-ico'); if (elT) elT.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
+
+    // KPIs del período seleccionado (Hoy / 7d / Mes) con delta vs período previo
+    const p = hubPeriodo();
+    document.querySelectorAll('#hub-seg button').forEach(b => b.classList.toggle('active', b.dataset.p === p));
+    const { desde, hasta } = rangoDe(p, null, null, null);
+    const regs = DB.registros.filter(r => r.fecha >= desde && r.fecha <= hasta);
+    const M = calcMetrics(regs);
+    const ant = rangoAnterior(desde, hasta);
+    const Mant = calcMetrics(DB.registros.filter(r => r.fecha >= ant.desde && r.fecha <= ant.hasta));
+    const suf = p === 'hoy' ? 'vs ayer' : 'vs período previo';
+    document.getElementById('hub-profit').textContent = fmt.s(M.profit);
+    document.getElementById('hub-profit-d').innerHTML  = deltaSub(M.profit, Mant.profit, { suf });
+    document.getElementById('hub-roas').textContent    = fmt.roas(M.roas);
+    document.getElementById('hub-roas-d').innerHTML    = deltaSub(M.roas, Mant.roas, { suf });
+    document.getElementById('hub-ventas').textContent  = fmt.num(M.ventas);
+    document.getElementById('hub-ventas-d').innerHTML  = deltaSub(M.ventas, Mant.ventas, { suf });
+
+    // Alertas activas → badge campana
+    let alertas = [];
+    try { alertas = calcAlertas().filter(a => !isAlertaDescartada(a)); } catch(e){}
+    const rojas = alertas.filter(a => a.nivel === 'red').length;
+    const nb = document.getElementById('hub-notif-badge');
+    if (nb){ if (alertas.length){ nb.style.display = 'block'; nb.textContent = alertas.length; } else nb.style.display = 'none'; }
+
+    // Estado del centro = peor caso activo (reacciona, no siempre verde)
+    const center = document.getElementById('hub-center');
+    const ico = document.getElementById('hub-state-ico');
+    const title = document.getElementById('hub-state-title');
+    const sub = document.getElementById('hub-state-sub');
+    const actBtn = document.getElementById('hub-state-action');
+    const syncCls = document.getElementById('sync-dot')?.className || '';
+    center.classList.remove('warn', 'error');
+    actBtn.style.display = 'none'; window._hubAction = null;
+    const setAct = (label, fn) => { actBtn.style.display = 'inline-flex'; actBtn.textContent = label; window._hubAction = fn; };
+
+    if (!DB.config?.sheets_url){
+      center.classList.add('warn'); ico.textContent = '⚙️'; ico.style.background = 'var(--orange-dim)';
+      title.textContent = 'Configura tu Google Sheet'; title.style.color = 'var(--orange)';
+      sub.textContent = 'Conecta tu fuente para empezar a sincronizar';
+      setAct('Conectar →', () => navTo('importar', null));
+    } else if (syncCls.includes('error')){
+      center.classList.add('error'); ico.textContent = '⚠️'; ico.style.background = 'var(--red-dim)';
+      title.textContent = 'Error de sincronización'; title.style.color = 'var(--red)';
+      sub.textContent = 'Revisa la conexión e intenta de nuevo';
+      setAct('Reintentar →', () => navTo('importar', null));
+    } else if (rojas > 0){
+      center.classList.add('error'); ico.textContent = '🔴'; ico.style.background = 'var(--red-dim)';
+      title.textContent = `${rojas} alerta${rojas > 1 ? 's' : ''} crítica${rojas > 1 ? 's' : ''}`; title.style.color = 'var(--red)';
+      sub.textContent = 'Anuncios sin ventas o con ROAS muy bajo';
+      setAct('Revisar →', () => navTo('alertas', null));
+    } else if (alertas.length > 0){
+      center.classList.add('warn'); ico.textContent = '🟠'; ico.style.background = 'var(--orange-dim)';
+      title.textContent = `${alertas.length} alerta${alertas.length > 1 ? 's' : ''} activa${alertas.length > 1 ? 's' : ''}`; title.style.color = 'var(--orange)';
+      sub.textContent = 'Hay campañas que requieren tu atención';
+      setAct('Revisar →', () => navTo('alertas', null));
+    } else {
+      ico.textContent = '✅'; ico.style.background = 'var(--green-dim)';
+      title.textContent = 'Todo sincronizado'; title.style.color = 'var(--green)';
+      sub.textContent = 'Sistema operativo';
+    }
+
+    // Tiles vivos (micro-datos reales)
+    const r7 = DB.registros.filter(r => r.fecha >= nDaysAgo(7) && r.fecha <= today());
+    const m7 = calcMetrics(r7);
+    const tg = document.getElementById('hub-tile-global');
+    if (tg) tg.textContent = r7.length ? `ROAS ${fmt.roas(m7.roas)} · ${fmt.num(m7.ventas)} ventas (7d)` : 'Dashboard general, KPIs y análisis';
+    const nProd = (DB.workspaces || []).length;
+    const tp = document.getElementById('hub-tile-prod');
+    if (tp) tp.textContent = nProd ? `${nProd} producto${nProd > 1 ? 's' : ''} · activo: ${CURRENT_WORKSPACE?.nombre || '—'}` : 'Administra productos y campañas';
+    const impBadge = document.getElementById('hub-tile-imp-badge');
+    const ti = document.getElementById('hub-tile-imp');
+    if (!DB.config?.sheets_url){
+      if (impBadge){ impBadge.style.display = 'inline-block'; impBadge.style.background = 'var(--orange-dim)'; impBadge.style.color = 'var(--orange)'; }
+      if (ti) ti.textContent = 'Conecta tu Google Sheet para sincronizar';
+    } else {
+      if (impBadge) impBadge.style.display = 'none';
+      if (ti) ti.textContent = (document.getElementById('sync-status')?.textContent) || 'Sincroniza tus fuentes de datos';
+    }
+
+    // Barra inferior: resumen rápido del sistema
+    const sys = document.getElementById('hub-sysbar');
+    if (sys){
+      const okSync = !syncCls.includes('error') && !!DB.config?.sheets_url;
+      const aTxt = alertas.length ? `🚨 ${alertas.length} alerta${alertas.length > 1 ? 's' : ''} activa${alertas.length > 1 ? 's' : ''}` : '✅ Sin alertas activas';
+      sys.innerHTML = `<span>${okSync ? '🟢 Sincronización activa' : '🟠 Sincronización pendiente'}</span><span style="opacity:.35">·</span><span>${aTxt}</span><span style="opacity:.35">·</span><span>📦 ${nProd} producto${nProd !== 1 ? 's' : ''}</span>`;
+    }
+  } catch(e){ console.warn('renderHub:', e); }
+}
+
+// ════════════════════════════════════════════════
+// COMMAND PALETTE (Ctrl/Cmd + K) — saltar a cualquier sección
+// ════════════════════════════════════════════════
+const CMDK_DEST = [
+  { i:'🏠', t:'Hub de Control',     s:'Inicio',   f:()=>navTo('hub',null) },
+  { i:'🌍', t:'Visión Global',      s:'Análisis', f:()=>navTo('global',null) },
+  { i:'📈', t:'Dashboard',          s:'Análisis', f:()=>navTo('dashboard',null) },
+  { i:'📅', t:'Bitácora',           s:'Análisis', f:()=>navTo('bitacora',null) },
+  { i:'⚖️', t:'Comparar períodos',  s:'Análisis', f:()=>navTo('comparar',null) },
+  { i:'📦', t:'Comparar productos', s:'Análisis', f:()=>navTo('comparar-productos',null) },
+  { i:'🚨', t:'Alertas',            s:'Análisis', f:()=>navTo('alertas',null) },
+  { i:'🧠', t:'Analyzer Pro',       s:'Detalle',  f:()=>navTo('analyzer',null) },
+  { i:'🗓️', t:'KPIs del Día',       s:'Detalle',  f:()=>navTo('kpis',null) },
+  { i:'🔍', t:'Por Anuncio',        s:'Detalle',  f:()=>navTo('por-anuncio',null) },
+  { i:'📊', t:'Por Campaña',        s:'Detalle',  f:()=>navTo('por-campana',null) },
+  { i:'🔁', t:'Remarketing',        s:'Detalle',  f:()=>navTo('remarketing',null) },
+  { i:'🕐', t:'Horarios',           s:'Detalle',  f:()=>navTo('horarios',null) },
+  { i:'📅', t:'Registro Diario',    s:'Datos',    f:()=>navTo('registro',null) },
+  { i:'📥', t:'Importar Datos',     s:'Datos',    f:()=>navTo('importar',null) },
+  { i:'🔎', t:'Conciliación',       s:'Datos',    f:()=>{ navTo('importar',null); if(typeof impTab==='function') impTab('conciliacion'); } },
+  { i:'📖', t:'Catálogo',           s:'Datos',    f:()=>navTo('catalogo',null) },
+  { i:'💬', t:'Chats vs Ventas',    s:'Sistema',  f:()=>navTo('chats-ventas',null) },
+  { i:'🏆', t:'Mejor anuncio',      s:'Sistema',  f:()=>navTo('mejor-anuncio',null) },
+  { i:'⏱️', t:'Vida útil',          s:'Sistema',  f:()=>navTo('vida-util',null) },
+  { i:'🏷️', t:'Estados y Leyenda',  s:'Sistema',  f:()=>navTo('leyenda',null) },
+  { i:'⚙️', t:'Configuración',      s:'Sistema',  f:()=>{ if(typeof openConfig==='function') openConfig(); } },
+  { i:'📤', t:'Exportar datos',     s:'Sistema',  f:()=>{ if(typeof openExportar==='function') openExportar(); } },
+];
+let _cmdkSel = 0, _cmdkFiltered = CMDK_DEST.slice();
+function openCmdk(){
+  const o = document.getElementById('cmdk'); if (!o) return;
+  o.classList.add('open');
+  const inp = document.getElementById('cmdk-input'); inp.value = '';
+  _cmdkFiltered = CMDK_DEST.slice(); _cmdkSel = 0; renderCmdk();
+  setTimeout(() => inp.focus(), 30);
+}
+function closeCmdk(){ document.getElementById('cmdk')?.classList.remove('open'); }
+function renderCmdk(){
+  const list = document.getElementById('cmdk-list');
+  list.innerHTML = _cmdkFiltered.length
+    ? _cmdkFiltered.map((d,i)=>`<div class="cmdk-item ${i===_cmdkSel?'sel':''}" onmouseenter="_cmdkSel=${i};_cmdkPaint()" onclick="cmdkGo(${i})"><span class="ci">${d.i}</span><span>${d.t}</span><span class="cs">${d.s}</span></div>`).join('')
+    : `<div style="padding:18px;text-align:center;color:var(--text3);font-size:13px">Sin resultados</div>`;
+}
+function _cmdkPaint(){ document.querySelectorAll('#cmdk-list .cmdk-item').forEach((el,i)=>el.classList.toggle('sel', i===_cmdkSel)); }
+function cmdkFilter(q){
+  q = (q||'').toLowerCase().trim();
+  _cmdkFiltered = q ? CMDK_DEST.filter(d => d.t.toLowerCase().includes(q) || d.s.toLowerCase().includes(q)) : CMDK_DEST.slice();
+  _cmdkSel = 0; renderCmdk();
+}
+function cmdkGo(i){ const d = _cmdkFiltered[i]; if (!d) return; closeCmdk(); try { d.f(); } catch(e){ console.warn('cmdk:', e); } }
+document.addEventListener('keydown', e => {
+  if ((e.ctrlKey || e.metaKey) && (e.key === 'k' || e.key === 'K')){
+    if (document.getElementById('login-screen') && !document.getElementById('login-screen').classList.contains('hidden')) return;
+    e.preventDefault();
+    document.getElementById('cmdk')?.classList.contains('open') ? closeCmdk() : openCmdk();
+    return;
+  }
+  if (!document.getElementById('cmdk')?.classList.contains('open')) return;
+  if (e.key === 'Escape') closeCmdk();
+  else if (e.key === 'ArrowDown'){ e.preventDefault(); _cmdkSel = Math.min(_cmdkSel + 1, _cmdkFiltered.length - 1); _cmdkPaint(); }
+  else if (e.key === 'ArrowUp'){ e.preventDefault(); _cmdkSel = Math.max(_cmdkSel - 1, 0); _cmdkPaint(); }
+  else if (e.key === 'Enter'){ e.preventDefault(); cmdkGo(_cmdkSel); }
+});
 
 // ════════════════════════════════════════════════
 // HELPERS DE CÁLCULO
@@ -12833,6 +13136,7 @@ async function repararCampanas() {
 // MOBILE NAVIGATION
 // ════════════════════════════════════════════════
 const MOBILE_NAV_PAGES = {
+  'hub':         'mnav-hub',
   'dashboard':   'mnav-dashboard',
   'registro':    'mnav-registro',
   'estructura':  'mnav-estructura',
@@ -14101,6 +14405,9 @@ init();
 <!-- MOBILE BOTTOM NAV -->
 <nav class="mobile-nav" id="mobile-nav">
   <div class="mobile-nav-items">
+    <div class="mobile-nav-item" id="mnav-hub" onclick="mobileNav('hub')">
+      <span class="mni-icon">🏠</span><span class="mni-label">Hub</span>
+    </div>
     <div class="mobile-nav-item active" id="mnav-dashboard" onclick="mobileNav('dashboard')">
       <span class="mni-icon">📊</span><span class="mni-label">Dashboard</span>
     </div>
