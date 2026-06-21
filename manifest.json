@@ -1,7 +1,7 @@
 {
-  "name": "Tracker Pro",
-  "short_name": "Tracker Pro",
-  "description": "Métricas para infoproductos",
+  "name": "Trakker",
+  "short_name": "Trakker",
+  "description": "Trakker — Métricas para infoproductos",
   "start_url": "/tracker-cashflow/",
   "scope": "/tracker-cashflow/",
   "display": "standalone",
@@ -9,6 +9,12 @@
   "theme_color": "#2563EB",
   "orientation": "portrait",
   "icons": [
+    {
+      "src": "logo.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any maskable"
+    },
     {
       "src": "icon-192.png",
       "sizes": "192x192",
