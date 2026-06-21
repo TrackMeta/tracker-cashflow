@@ -41,8 +41,8 @@
   --font:'Inter',sans-serif; --mono:'JetBrains Mono',monospace;
 }
 body.dark {
-  --bg:#000000; --bg2:#0B0B0F; --bg3:#111116; --bg4:#18181F;
-  --border:rgba(255,255,255,0.07); --border2:rgba(255,255,255,0.12);
+  --bg:#0A0F1E; --bg2:#121A2E; --bg3:#16203A; --bg4:#1E2A47;
+  --border:rgba(148,170,220,0.10); --border2:rgba(148,170,220,0.18);
   --text:#F1F5F9; --text2:#8A9AB8; --text3:#4B5B7C;
   --accent:#818CF8; --accent2:#6366F1;
   --teal:#38BDF8; --green:#34D399; --orange:#FBBF24;
@@ -143,6 +143,8 @@ body.hub-active .sidebar{display:none;}
 body.hub-active .hamburger{display:none;}
 body.hub-active .mobile-nav{display:none;}
 body.hub-active .main{background:radial-gradient(ellipse at 30% 10%,var(--accent-dim) 0%,transparent 50%),radial-gradient(ellipse at 86% 96%,var(--purple-dim) 0%,transparent 55%),var(--bg);}
+body.dark .main{background:linear-gradient(165deg,#0A0F1E 0%,#0D1530 52%,#0A1126 100%);}
+body.dark.hub-active .main{background:radial-gradient(ellipse at 30% 8%,rgba(129,140,248,0.13) 0%,transparent 52%),radial-gradient(ellipse at 86% 96%,rgba(124,58,237,0.13) 0%,transparent 55%),linear-gradient(165deg,#0A0F1E 0%,#0D1530 52%,#0A1126 100%);}
 body.hub-active .page{padding:22px 28px 34px;}
 .hub2{max-width:1120px;margin:0 auto;animation:pageIn .3s ease;}
 .hub2-header{display:flex;align-items:center;justify-content:space-between;gap:12px;}
@@ -159,25 +161,25 @@ body.hub-active .page{padding:22px 28px 34px;}
 .hub2-seg-inner{display:inline-flex;background:var(--bg2);border:1px solid var(--border);border-radius:999px;padding:4px;gap:2px;box-shadow:var(--shadow);}
 .hub2-seg-inner button{border:none;background:transparent;font-size:12px;font-weight:700;color:var(--text2);padding:6px 18px;border-radius:999px;cursor:pointer;font-family:var(--font);transition:.15s;}
 .hub2-seg-inner button.active{background:var(--grad-accent);color:#fff;box-shadow:var(--shadow-btn);}
-.hub2-stage{position:relative;width:980px;height:760px;margin:4px auto 0;}
+.hub2-stage{position:relative;width:980px;height:820px;margin:4px auto 0;}
 .hub2-lines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;overflow:visible;}
 .hub2-node{animation:hubpulse 2.8s ease-in-out infinite;}
 @keyframes hubpulse{0%,100%{opacity:.45}50%{opacity:.95}}
-.hub2-circle{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:360px;height:360px;border-radius:50%;background:var(--bg2);border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 46px;z-index:3;box-shadow:var(--shadow-lg),0 0 50px rgba(5,150,105,0.13);transition:box-shadow .35s;}
+.hub2-circle{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:430px;height:430px;border-radius:50%;background:var(--bg2);border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 52px;z-index:3;box-shadow:var(--shadow-lg),0 0 55px rgba(5,150,105,0.14);transition:box-shadow .35s;}
 .hub2-circle.warn{box-shadow:var(--shadow-lg),0 0 55px rgba(234,124,18,0.20);}
 .hub2-circle.error{box-shadow:var(--shadow-lg),0 0 55px rgba(225,29,72,0.22);}
-.hub2-status-ico{font-size:26px;line-height:1;margin-bottom:5px;}
-.hub2-status-title{font-size:17px;font-weight:800;color:var(--green);letter-spacing:-0.01em;}
+.hub2-status-ico{font-size:27px;line-height:1;margin-bottom:5px;}
+.hub2-status-title{font-size:18px;font-weight:800;color:var(--green);letter-spacing:-0.01em;}
 .hub2-status-sub{font-size:11px;color:var(--text3);font-weight:600;margin-top:1px;}
 .hub2-status-date{font-size:12px;color:var(--text2);font-weight:700;margin-top:7px;}
-.hub2-divider{width:130px;height:1px;background:var(--border2);margin:13px 0;}
-.hub2-kpis{display:flex;flex-direction:column;gap:9px;width:100%;}
-.hub2-krow{display:flex;align-items:center;gap:10px;}
-.hub2-kico{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
-.hub2-kmid{display:flex;flex-direction:column;align-items:flex-start;line-height:1.12;min-width:0;flex:1;}
-.hub2-klabel{font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
-.hub2-kval{font-size:17px;font-weight:800;color:var(--text);font-family:var(--mono);}
-.hub2-kdelta{font-size:10px;font-weight:700;white-space:nowrap;}
+.hub2-divider{width:150px;height:1px;background:var(--border2);margin:12px 0;}
+.hub2-kpis{display:grid;grid-template-columns:1fr 1fr;gap:11px 22px;width:100%;}
+.hub2-kpi{display:flex;flex-direction:column;align-items:center;line-height:1.15;}
+.hub2-kpi.wide{grid-column:1 / -1;}
+.hub2-klabel{font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
+.hub2-kval{font-size:18px;font-weight:800;color:var(--text);font-family:var(--mono);margin-top:1px;letter-spacing:-0.01em;}
+.hub2-kpi.wide .hub2-kval{font-size:23px;color:var(--teal);}
+.hub2-kdelta{font-size:9.5px;font-weight:700;white-space:nowrap;margin-top:1px;}
 .hub2-cta{margin-top:14px;background:transparent;border:1px solid var(--border2);color:var(--accent);border-radius:999px;padding:7px 18px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);transition:.15s;}
 .hub2-cta:hover{background:var(--accent-dim);border-color:var(--accent);}
 .hub2-card{position:absolute;width:212px;background:var(--bg2);border:1px solid var(--border);border-radius:22px;padding:20px 22px;cursor:pointer;transition:transform .2s,box-shadow .2s,border-color .2s;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;z-index:2;box-shadow:var(--shadow);font-family:var(--font);}
@@ -617,6 +619,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div class="hub2-seg">
       <div class="hub2-seg-inner" id="hub-seg">
         <button data-p="hoy" onclick="setHubPeriodo('hoy')">Hoy</button>
+        <button data-p="ayer" onclick="setHubPeriodo('ayer')">Ayer</button>
         <button data-p="7" onclick="setHubPeriodo('7')">7 días</button>
         <button data-p="30" onclick="setHubPeriodo('30')">Mes</button>
       </div>
@@ -624,18 +627,18 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 
     <div class="hub2-stage">
 
-      <svg class="hub2-lines" viewBox="0 0 980 760" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+      <svg class="hub2-lines" viewBox="0 0 980 820" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
         <g fill="none" stroke-width="2" stroke-linecap="round">
-          <path d="M490 150 L490 200" style="stroke:var(--accent)" stroke-opacity=".4"/>
-          <path d="M490 610 L490 560" style="stroke:var(--purple)" stroke-opacity=".4"/>
-          <path d="M212 380 L310 380" style="stroke:var(--orange)" stroke-opacity=".4"/>
-          <path d="M768 380 L670 380" style="stroke:var(--green)" stroke-opacity=".4"/>
+          <path d="M490 150 L490 195" style="stroke:var(--accent)" stroke-opacity=".4"/>
+          <path d="M490 670 L490 625" style="stroke:var(--purple)" stroke-opacity=".4"/>
+          <path d="M212 410 L275 410" style="stroke:var(--orange)" stroke-opacity=".4"/>
+          <path d="M768 410 L705 410" style="stroke:var(--green)" stroke-opacity=".4"/>
         </g>
         <g fill="var(--bg2)" stroke-width="2.5">
-          <circle class="hub2-node" cx="490" cy="200" r="6" style="stroke:var(--accent)"/>
-          <circle class="hub2-node" cx="490" cy="560" r="6" style="stroke:var(--purple)"/>
-          <circle class="hub2-node" cx="310" cy="380" r="6" style="stroke:var(--orange)"/>
-          <circle class="hub2-node" cx="670" cy="380" r="6" style="stroke:var(--green)"/>
+          <circle class="hub2-node" cx="490" cy="195" r="6" style="stroke:var(--accent)"/>
+          <circle class="hub2-node" cx="490" cy="625" r="6" style="stroke:var(--purple)"/>
+          <circle class="hub2-node" cx="275" cy="410" r="6" style="stroke:var(--orange)"/>
+          <circle class="hub2-node" cx="705" cy="410" r="6" style="stroke:var(--green)"/>
         </g>
       </svg>
 
@@ -644,23 +647,33 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
         <div class="hub2-status-ico" id="hub-state-ico">🟢</div>
         <div class="hub2-status-title" id="hub-state-title">Todo sincronizado</div>
         <div class="hub2-status-sub" id="hub-state-sub">Sistema operativo</div>
-        <div class="hub2-status-date">📅 Hoy: <span id="hub-fecha">—</span></div>
+        <div class="hub2-status-date" id="hub-fecha-label">📅 Hoy</div>
         <div class="hub2-divider"></div>
         <div class="hub2-kpis">
-          <div class="hub2-krow">
-            <span class="hub2-kico" style="background:var(--green-dim);color:var(--green)">💰</span>
-            <span class="hub2-kmid"><span class="hub2-klabel">Profit</span><span class="hub2-kval" id="hub-profit">—</span></span>
+          <div class="hub2-kpi">
+            <span class="hub2-klabel">💵 Valor ventas</span>
+            <span class="hub2-kval" id="hub-ingresos">—</span>
+            <span class="hub2-kdelta" id="hub-ingresos-d"></span>
+          </div>
+          <div class="hub2-kpi">
+            <span class="hub2-klabel">📉 Inversión</span>
+            <span class="hub2-kval" id="hub-inversion">—</span>
+            <span class="hub2-kdelta" id="hub-inversion-d"></span>
+          </div>
+          <div class="hub2-kpi">
+            <span class="hub2-klabel">💰 Profit</span>
+            <span class="hub2-kval" id="hub-profit">—</span>
             <span class="hub2-kdelta" id="hub-profit-d"></span>
           </div>
-          <div class="hub2-krow">
-            <span class="hub2-kico" style="background:var(--accent-dim);color:var(--accent)">📈</span>
-            <span class="hub2-kmid"><span class="hub2-klabel">ROAS</span><span class="hub2-kval" id="hub-roas">—</span></span>
-            <span class="hub2-kdelta" id="hub-roas-d"></span>
-          </div>
-          <div class="hub2-krow">
-            <span class="hub2-kico" style="background:var(--purple-dim);color:var(--purple)">🛒</span>
-            <span class="hub2-kmid"><span class="hub2-klabel">Ventas</span><span class="hub2-kval" id="hub-ventas">—</span></span>
+          <div class="hub2-kpi">
+            <span class="hub2-klabel">🛒 Ventas</span>
+            <span class="hub2-kval" id="hub-ventas">—</span>
             <span class="hub2-kdelta" id="hub-ventas-d"></span>
+          </div>
+          <div class="hub2-kpi wide">
+            <span class="hub2-klabel">📈 ROAS</span>
+            <span class="hub2-kval" id="hub-roas">—</span>
+            <span class="hub2-kdelta" id="hub-roas-d"></span>
           </div>
         </div>
         <button class="hub2-cta" id="hub-cta" onclick="hubCta()">Ver resumen completo →</button>
@@ -721,6 +734,15 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <div class="prod-name">Umbrales de alerta</div>
       <div class="prod-meta">Precios, ROAS mínimo, gasto y saturación</div>
       <div class="prod-actions"><span></span><span class="prod-open">Abrir →</span></div>
+    </div>
+    <div class="prod-card" style="cursor:default">
+      <div class="prod-ico" style="background:var(--purple-dim);color:var(--purple)">🙋</div>
+      <div class="prod-name">Tu nombre</div>
+      <div class="prod-meta">Personaliza el saludo del Hub de Control</div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <input id="cfg-nombre" type="text" placeholder="Tu nombre" maxlength="40" onkeydown="if(event.key==='Enter')guardarNombre()" style="flex:1;min-width:0;background:var(--bg3);border:1px solid var(--border2);border-radius:9px;padding:8px 10px;color:var(--text);font-size:13px;font-family:var(--font)">
+        <button class="btn btn-primary btn-sm" onclick="guardarNombre()">Guardar</button>
+      </div>
     </div>
   </div>
 </div>
@@ -8816,6 +8838,7 @@ function updateSheetsStatus() {
 function renderPage(page) {
   if (page==='hub')          renderHub();
   if (page==='productos')    renderProductos();
+  if (page==='configuracion') renderConfiguracion();
   if (page==='dashboard')    renderDashboard();
   if (page==='bitacora')     renderBitacora();
   if (page==='global')       renderGlobal();
@@ -8850,13 +8873,13 @@ function hubCta(){ const f = window._hubCta; if (typeof f === 'function') f(); }
 function renderHub(){
   try {
     // Saludo + fecha + tema
+    const saved = (localStorage.getItem('tracker_nombre') || '').trim();
     const nick = (CURRENT_USER?.email || '').split('@')[0];
-    const cap  = nick ? nick.charAt(0).toUpperCase() + nick.slice(1) : '';
+    const cap  = saved || (nick ? nick.charAt(0).toUpperCase() + nick.slice(1) : '');
     const elS = document.getElementById('hub-saludo'); if (elS) elS.textContent = `Bienvenido${cap ? ', ' + cap : ''} 👋`;
-    const elF = document.getElementById('hub-fecha'); if (elF) elF.textContent = fmt.date(today());
     const elT = document.getElementById('hub-theme-ico'); if (elT) elT.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
 
-    // KPIs del período seleccionado (Hoy / 7d / Mes) con delta vs período previo
+    // KPIs del período seleccionado (Hoy / Ayer / 7d / Mes) con delta vs período previo
     const p = hubPeriodo();
     document.querySelectorAll('#hub-seg button').forEach(b => b.classList.toggle('active', b.dataset.p === p));
     const { desde, hasta } = rangoDe(p, null, null, null);
@@ -8864,14 +8887,24 @@ function renderHub(){
     const M = calcMetrics(regs);
     const ant = rangoAnterior(desde, hasta);
     const Mant = calcMetrics(DB.registros.filter(r => r.fecha >= ant.desde && r.fecha <= ant.hasta));
-    const suf = p === 'hoy' ? 'vs ayer' : 'vs previo';
+    // Etiqueta de fecha del círculo: refleja SIEMPRE el período del filtro (fix bug)
+    const lbl = document.getElementById('hub-fecha-label');
+    if (lbl){
+      lbl.textContent = p === 'hoy'  ? `📅 Hoy · ${fmt.date(hasta)}`
+                      : p === 'ayer' ? `📅 Ayer · ${fmt.date(hasta)}`
+                      : p === '7'    ? `📅 Últimos 7 días`
+                      :                `📅 Últimos 30 días`;
+    }
+    const suf = p === 'hoy' ? 'vs ayer' : p === 'ayer' ? 'vs anteayer' : 'vs previo';
     const setKpi = (id, val, cur, prev, opt) => {
       const v = document.getElementById(id); if (v) v.textContent = val;
       const d = document.getElementById(id + '-d'); if (d) d.innerHTML = deltaSub(cur, prev, Object.assign({ suf }, opt || {}));
     };
-    setKpi('hub-profit', fmt.s(M.profit),   M.profit, Mant.profit);
-    setKpi('hub-roas',   fmt.roas(M.roas),   M.roas,   Mant.roas);
-    setKpi('hub-ventas', fmt.num(M.ventas),  M.ventas, Mant.ventas);
+    setKpi('hub-ingresos',  fmt.s(M.ingresos),  M.ingresos,  Mant.ingresos);
+    setKpi('hub-inversion', fmt.s(M.inversion), M.inversion, Mant.inversion, { higherIsBetter:false });
+    setKpi('hub-profit',    fmt.s(M.profit),    M.profit,    Mant.profit);
+    setKpi('hub-ventas',    fmt.num(M.ventas),  M.ventas,    Mant.ventas);
+    setKpi('hub-roas',      fmt.roas(M.roas),   M.roas,      Mant.roas);
 
     // Alertas activas → badge campana
     let alertas = [];
@@ -8954,6 +8987,19 @@ async function abrirProducto(wsId){
   if (CURRENT_WORKSPACE?.id === wsId){ navTo('dashboard', null); return; }
   await switchWorkspace(wsId);
   navTo('dashboard', null);
+}
+
+// ── Configuraciones: nombre para el saludo personalizado del Hub ──
+function renderConfiguracion(){
+  const inp = document.getElementById('cfg-nombre');
+  if (inp) inp.value = (localStorage.getItem('tracker_nombre') || '').trim();
+}
+function guardarNombre(){
+  const inp = document.getElementById('cfg-nombre'); if (!inp) return;
+  const v = inp.value.trim();
+  if (v) localStorage.setItem('tracker_nombre', v); else localStorage.removeItem('tracker_nombre');
+  if (typeof showSuccess === 'function') showSuccess(v ? `✅ Nombre guardado: ${v}` : 'Nombre restablecido');
+  try { renderHub(); } catch(e){}
 }
 
 // ════════════════════════════════════════════════
