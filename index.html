@@ -139,9 +139,11 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 .page.active{display:block;animation:pageIn 0.22s ease;}
 @keyframes pageIn{from{opacity:0;transform:translateY(8px)}to{opacity:1;transform:translateY(0)}}
 /* ════════ HUB DE CONTROL ════════ */
-body.hub-active .sidebar{display:none;}
-body.hub-active .hamburger{display:none;}
-body.hub-active .mobile-nav{display:none;}
+body:not(.show-sidebar) .sidebar{display:none;}
+body:not(.show-sidebar) .hamburger{display:none;}
+body:not(.show-sidebar) .mobile-nav{display:none;}
+.volver-btn{display:inline-flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:999px;padding:8px 16px;font-size:13px;font-weight:700;color:var(--text2);cursor:pointer;font-family:var(--font);transition:.15s;margin-bottom:18px;box-shadow:var(--shadow);}
+.volver-btn:hover{border-color:var(--border2);color:var(--text);transform:translateX(-2px);box-shadow:var(--shadow-md);}
 .main{background:linear-gradient(165deg,#F6F8FE 0%,#EAEFFA 60%,#E4EBF8 100%);}
 body.hub-active .main{background:radial-gradient(ellipse at 28% 8%,rgba(79,110,247,0.10) 0%,transparent 52%),radial-gradient(ellipse at 88% 96%,rgba(124,63,243,0.09) 0%,transparent 55%),linear-gradient(165deg,#F6F8FE 0%,#EAEFFA 60%,#E4EBF8 100%);}
 body.dark .main{background:linear-gradient(165deg,#0F1729 0%,#16224A 55%,#101A33 100%);}
@@ -155,6 +157,18 @@ body.hub-active .page{padding:16px 28px 22px;}
 .hub2-pill:hover{border-color:var(--border2);color:var(--text);box-shadow:var(--shadow);transform:translateY(-1px);}
 .hub2-pill.danger:hover{color:var(--red);border-color:rgba(225,29,72,0.3);}
 .hub2-badge{position:absolute;top:-5px;right:-2px;background:var(--red);color:#fff;font-size:10px;font-weight:800;border-radius:999px;min-width:18px;height:18px;display:none;align-items:center;justify-content:center;padding:0 5px;}
+.hub2-menu{position:absolute;top:calc(100% + 8px);right:0;width:248px;background:var(--bg2);border:1px solid var(--border2);border-radius:14px;box-shadow:var(--shadow-lg);padding:6px;z-index:200;display:none;}
+.hub2-menu.open{display:block;animation:pageIn .15s ease;}
+.hub2-menu-head{padding:10px 12px 8px;border-bottom:1px solid var(--border);margin-bottom:4px;}
+.hub2-menu-email{font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+.hub2-menu-role{font-size:11px;color:var(--text2);margin-top:2px;}
+.hub2-menu-item{display:flex;align-items:center;gap:9px;width:100%;background:transparent;border:none;text-align:left;padding:9px 12px;border-radius:9px;cursor:pointer;font-size:13px;font-weight:600;color:var(--text);font-family:var(--font);}
+.hub2-menu-item:hover{background:var(--bg3);}
+.hub2-menu-item.danger{color:var(--red);}
+.hub2-notif-row{display:flex;align-items:center;gap:10px;padding:9px 12px;border-radius:9px;cursor:pointer;font-size:13px;color:var(--text);}
+.hub2-notif-row:hover{background:var(--bg3);}
+.hub2-notif-count{margin-left:auto;font-size:11px;font-weight:800;background:var(--red);color:#fff;border-radius:999px;padding:1px 8px;}
+.hub2-notif-empty{padding:18px 12px;text-align:center;color:var(--text3);font-size:12px;}
 .hub2-welcome{text-align:center;margin:14px 0 2px;}
 .hub2-welcome h1{font-size:27px;font-weight:800;color:var(--text);letter-spacing:-0.03em;margin:0;}
 .hub2-welcome p{font-size:14px;color:var(--text2);margin:6px 0 0;}
@@ -192,7 +206,7 @@ body.hub-active .page{padding:16px 28px 22px;}
 .hub2-card.pos-tr{top:11px;right:54px;}
 .hub2-card.pos-bl{bottom:11px;left:54px;}
 .hub2-card.pos-br{bottom:11px;right:54px;}
-.hub2-footer{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--border);border-radius:18px;padding:14px 22px;font-size:12.5px;font-weight:600;color:var(--text2);max-width:780px;margin:8px auto 0;box-shadow:var(--shadow);}
+.hub2-footer{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--border);border-radius:18px;padding:14px 22px;font-size:12.5px;font-weight:600;color:var(--text2);max-width:780px;margin:26px auto 0;box-shadow:var(--shadow);}
 .hub2-sep{opacity:.3;}
 @media(max-width:1040px){
   .hub2-stage{width:100%;height:auto;display:grid;grid-template-columns:1fr 1fr;gap:16px;}
@@ -602,8 +616,25 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <div class="hub2-brand"><img src="logo.svg" width="30" height="30" style="border-radius:7px" alt="logo"> Tracker Pro</div>
       <div class="hub2-actions">
         <button class="hub2-pill" onclick="openCmdk()" title="Buscar sección (Ctrl/Cmd K)">⌘ <span class="hub2-lbl">Ir a…</span></button>
-        <button class="hub2-pill" onclick="toggleDarkMode();renderHub()" title="Modo oscuro / claro"><span id="hub-theme-ico">🌙</span> <span class="hub2-lbl">Tema</span></button>
-        <button class="hub2-pill" onclick="navTo('alertas',null)" title="Notificaciones">🔔 <span class="hub2-lbl">Notificaciones</span><span class="hub2-badge" id="hub-notif-badge">0</span></button>
+        <div style="position:relative">
+          <button class="hub2-pill" onclick="toggleNotifPanel()" title="Notificaciones globales">🔔 <span class="hub2-lbl">Notificaciones</span><span class="hub2-badge" id="hub-notif-badge">0</span></button>
+          <div class="hub2-menu" id="hub-notif-menu" style="width:280px">
+            <div class="hub2-menu-head"><div class="hub2-menu-email">🔔 Alertas globales</div><div class="hub2-menu-role" id="hub-notif-sub">de todos tus productos</div></div>
+            <div id="hub-notif-list"></div>
+          </div>
+        </div>
+        <div style="position:relative">
+          <button class="hub2-pill" onclick="toggleHubAccount()" title="Mi cuenta">👤 <span class="hub2-lbl" id="hub-acc-pill">Cuenta</span> ▾</button>
+          <div class="hub2-menu" id="hub-account-menu">
+            <div class="hub2-menu-head">
+              <div class="hub2-menu-email" id="hub-acc-email">—</div>
+              <div class="hub2-menu-role" id="hub-acc-role">—</div>
+            </div>
+            <button class="hub2-menu-item" onclick="toggleDarkMode();renderHub()"><span id="hub-acc-theme-ico">🌙</span> <span id="hub-acc-theme-lbl">Modo oscuro</span></button>
+            <button class="hub2-menu-item" onclick="toggleNotif()"><span id="hub-acc-notif-ico">🔔</span> <span id="hub-acc-notif-lbl">Notificaciones activas</span></button>
+            <button class="hub2-menu-item danger" onclick="deleteSelfAccount()">🗑️ Eliminar mi cuenta</button>
+          </div>
+        </div>
         <button class="hub2-pill danger" onclick="doLogout()" title="Cerrar sesión">🚪 <span class="hub2-lbl">Cerrar sesión</span></button>
       </div>
     </div>
@@ -740,6 +771,12 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
         <input id="cfg-nombre" type="text" placeholder="Tu nombre" maxlength="40" onkeydown="if(event.key==='Enter')guardarNombre()" style="flex:1;min-width:0;background:var(--bg3);border:1px solid var(--border2);border-radius:9px;padding:8px 10px;color:var(--text);font-size:13px;font-family:var(--font)">
         <button class="btn btn-primary btn-sm" onclick="guardarNombre()">Guardar</button>
       </div>
+    </div>
+    <div class="prod-card" id="cfg-admin-card" style="display:none" onclick="navTo('admin',null)">
+      <div class="prod-ico" style="background:var(--purple-dim);color:var(--purple)">👑</div>
+      <div class="prod-name">Panel Admin</div>
+      <div class="prod-meta">Gestión de usuarios y sus productos (solo administradores)</div>
+      <div class="prod-actions"><span></span><span class="prod-open">Abrir →</span></div>
     </div>
   </div>
 </div>
@@ -4642,6 +4679,8 @@ async function onLoginSuccess(user) {
     try { renderAlertas(); } catch(e) { console.warn('renderAlertas:', e); }
     document.body.classList.add('hub-active');
     try { renderHub(); } catch(e) { console.warn('renderHub:', e); }
+    try { refreshAccountMenu(); } catch(e){}
+    loadGlobalAlertas();  // alertas globales de todos los productos (no bloquea el arranque)
     // Mostrar badge SETUP si el usuario no tiene Google Sheets configurado
     const badge = document.getElementById('nav-setup-badge');
     if (badge) badge.style.display = DB.config?.sheets_url ? 'none' : 'inline';
@@ -8792,17 +8831,41 @@ function showSuccess(msg) {
 // ════════════════════════════════════════════════
 // NAVEGACIÓN
 // ════════════════════════════════════════════════
+// Páginas que SÍ muestran el sidebar (secciones internas de un producto).
+const SIDEBAR_PAGES = new Set(['dashboard','bitacora','comparar','alertas','analyzer','kpis','por-anuncio','por-campana','remarketing','horarios','registro','catalogo','chats-ventas','mejor-anuncio','vida-util']);
+// Jerarquía para el botón "Volver" (solo pantallas sin sidebar).
+const PAGE_PARENT = { global:'hub', productos:'hub', importar:'hub', configuracion:'hub', leyenda:'configuracion', admin:'configuracion', 'comparar-productos':'productos' };
+const PARENT_LABEL = { hub:'Hub', configuracion:'Configuración', productos:'Productos' };
+let CURRENT_PAGE = 'hub';
+
 function navTo(page, el) {
   document.querySelectorAll('.page').forEach(p=>p.classList.remove('active'));
   document.querySelectorAll('.nav-item').forEach(n=>n.classList.remove('active'));
   const _pg = document.getElementById('page-'+page);
   if(_pg) _pg.classList.add('active');
   if(el) el.classList.add('active');
+  CURRENT_PAGE = page;
+  // Sidebar solo dentro de un producto; Hub y sub-hubs sin sidebar.
+  document.body.classList.toggle('show-sidebar', SIDEBAR_PAGES.has(page));
   document.body.classList.toggle('hub-active', page==='hub');
+  ensureVolver(page);
   closeSidebar();
   renderPage(page);
   // Sync mobile bottom nav
   if(typeof syncMobileNav === 'function') syncMobileNav(page);
+}
+
+// Inserta (o quita) el botón "Volver" en las pantallas sin sidebar.
+function ensureVolver(page){
+  document.querySelectorAll('.volver-btn').forEach(b=>b.remove());
+  const parent = PAGE_PARENT[page];
+  if(!parent) return;
+  const pg = document.getElementById('page-'+page); if(!pg) return;
+  const btn = document.createElement('button');
+  btn.className = 'volver-btn';
+  btn.innerHTML = `← Volver a ${PARENT_LABEL[parent] || 'Hub'}`;
+  btn.onclick = () => navTo(parent, null);
+  pg.insertBefore(btn, pg.firstChild);
 }
 
 function updateSheetsStatus() {
@@ -8903,12 +8966,11 @@ function renderHub(){
     setKpi('hub-ventas',    fmt.num(M.ventas),  M.ventas,    Mant.ventas);
     setKpi('hub-roas',      fmt.roas(M.roas),   M.roas,      Mant.roas);
 
-    // Alertas activas → badge campana
-    let alertas = [];
-    try { alertas = calcAlertas().filter(a => !isAlertaDescartada(a)); } catch(e){}
-    const rojas = alertas.filter(a => a.nivel === 'red').length;
-    const nb = document.getElementById('hub-notif-badge');
-    if (nb){ if (alertas.length){ nb.style.display = 'flex'; nb.textContent = alertas.length; } else nb.style.display = 'none'; }
+    // Alertas GLOBALES (de todos los productos) → badge campana + estado
+    const totalAl = notifEnabled() ? (GLOBAL_ALERTS.total || 0) : 0;
+    const rojas   = notifEnabled() ? (GLOBAL_ALERTS.red   || 0) : 0;
+    actualizarNotifBadge();
+    refreshAccountMenu();
 
     // Estado del círculo central = peor caso activo (reacciona, no siempre verde).
     // El CTA del círculo se adapta: normal "Ver resumen", si hay problema lleva a resolverlo.
@@ -8933,9 +8995,9 @@ function renderHub(){
       cls = 'error'; ico.textContent = '🔴';
       title.textContent = `${rojas} alerta${rojas > 1 ? 's' : ''} crítica${rojas > 1 ? 's' : ''}`; sub.textContent = 'Anuncios sin ventas / ROAS bajo';
       ctaLabel = 'Revisar alertas →'; ctaFn = () => navTo('alertas', null);
-    } else if (alertas.length > 0){
+    } else if (totalAl > 0){
       cls = 'warn'; ico.textContent = '🟠';
-      title.textContent = `${alertas.length} alerta${alertas.length > 1 ? 's' : ''} activa${alertas.length > 1 ? 's' : ''}`; sub.textContent = 'Campañas requieren atención';
+      title.textContent = `${totalAl} alerta${totalAl > 1 ? 's' : ''} activa${totalAl > 1 ? 's' : ''}`; sub.textContent = 'Campañas requieren atención';
       ctaLabel = 'Revisar alertas →'; ctaFn = () => navTo('alertas', null);
     } else {
       ico.textContent = '🟢';
@@ -8950,7 +9012,7 @@ function renderHub(){
     if (sys){
       const nProd = (DB.workspaces || []).length;
       const okSync = !syncCls.includes('error') && !!DB.config?.sheets_url;
-      const aTxt = alertas.length ? `🚨 ${alertas.length} alerta${alertas.length > 1 ? 's' : ''} activa${alertas.length > 1 ? 's' : ''}` : '✅ Sin alertas activas';
+      const aTxt = totalAl ? `🚨 ${totalAl} alerta${totalAl > 1 ? 's' : ''} activa${totalAl > 1 ? 's' : ''}` : '✅ Sin alertas activas';
       sys.innerHTML = `<span>${okSync ? '🟢 Sincronización activa' : '🟠 Sincronización pendiente'}</span><span class="hub2-sep">·</span><span>${aTxt}</span><span class="hub2-sep">·</span><span>📦 ${nProd} producto${nProd !== 1 ? 's' : ''}</span>`;
     }
   } catch(e){ console.warn('renderHub:', e); }
@@ -8963,21 +9025,31 @@ function renderProductos(){
   const cards = ws.map(w => {
     const active = w.id === CURRENT_WORKSPACE?.id;
     const cur = CURRENCIES[w.currency_code] ? w.currency_code : 'PEN';
+    const al = (GLOBAL_ALERTS.byWs && GLOBAL_ALERTS.byWs[w.id]) ? GLOBAL_ALERTS.byWs[w.id].total : 0;
+    const alChip = al > 0 ? `<span style="color:var(--red);font-weight:700">🚨 ${al} alerta${al>1?'s':''}</span>` : `<span style="color:var(--green);font-weight:700">✅ sin alertas</span>`;
     return `<div class="prod-card${active ? ' active' : ''}" onclick="abrirProducto('${w.id}')">
       <div class="prod-ico">${w.emoji || '📦'}</div>
       <div class="prod-name">${w.nombre || 'Producto'}</div>
       <div class="prod-meta">Moneda ${cur}${active ? ' · <span style="color:var(--green);font-weight:700">● Activo</span>' : ''}</div>
+      <div class="prod-meta" style="font-size:11px">${alChip}</div>
       <div class="prod-actions">
         <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();editWorkspace('${w.id}')" title="Editar">✏️ Editar</button>
         <span class="prod-open">Abrir →</span>
       </div>
     </div>`;
   }).join('');
-  grid.innerHTML = cards + `<div class="prod-card prod-new" onclick="openNuevoWorkspace()">
-    <div class="prod-ico" style="background:var(--accent-dim);color:var(--accent)">＋</div>
-    <div class="prod-name">Nuevo Producto</div>
-    <div class="prod-meta">Crea y configura un nuevo producto</div>
-  </div>`;
+  grid.innerHTML = cards
+    + `<div class="prod-card prod-new" onclick="openNuevoWorkspace()">
+        <div class="prod-ico" style="background:var(--accent-dim);color:var(--accent)">＋</div>
+        <div class="prod-name">Nuevo Producto</div>
+        <div class="prod-meta">Crea y configura un nuevo producto</div>
+      </div>`
+    + `<div class="prod-card" onclick="navTo('comparar-productos',null)">
+        <div class="prod-ico" style="background:var(--teal-dim);color:var(--teal)">⚖️</div>
+        <div class="prod-name">Comparar productos</div>
+        <div class="prod-meta">Rendimiento lado a lado de todos tus productos</div>
+        <div class="prod-actions"><span></span><span class="prod-open">Abrir →</span></div>
+      </div>`;
 }
 // Abre un producto: cambia de workspace (si hace falta) y entra a su Dashboard
 async function abrirProducto(wsId){
@@ -8990,6 +9062,8 @@ async function abrirProducto(wsId){
 function renderConfiguracion(){
   const inp = document.getElementById('cfg-nombre');
   if (inp) inp.value = (localStorage.getItem('tracker_nombre') || '').trim();
+  const adm = document.getElementById('cfg-admin-card');
+  if (adm) adm.style.display = IS_ADMIN ? 'flex' : 'none';
 }
 function guardarNombre(){
   const inp = document.getElementById('cfg-nombre'); if (!inp) return;
@@ -8997,6 +9071,109 @@ function guardarNombre(){
   if (v) localStorage.setItem('tracker_nombre', v); else localStorage.removeItem('tracker_nombre');
   if (typeof showSuccess === 'function') showSuccess(v ? `✅ Nombre guardado: ${v}` : 'Nombre restablecido');
   try { renderHub(); } catch(e){}
+}
+
+// ════════════════════════════════════════════════
+// CUENTA + NOTIFICACIONES GLOBALES (Hub)
+// ════════════════════════════════════════════════
+let GLOBAL_ALERTS = { total:0, red:0, byWs:{} };
+function notifEnabled(){ return localStorage.getItem('tracker_notif') !== 'off'; }
+
+function toggleHubAccount(){
+  const m = document.getElementById('hub-account-menu');
+  document.getElementById('hub-notif-menu')?.classList.remove('open');
+  if (m){ m.classList.toggle('open'); if (m.classList.contains('open')) refreshAccountMenu(); }
+}
+function toggleNotifPanel(){
+  const m = document.getElementById('hub-notif-menu');
+  document.getElementById('hub-account-menu')?.classList.remove('open');
+  if (m){ m.classList.toggle('open'); if (m.classList.contains('open')) renderNotifList(); }
+}
+document.addEventListener('click', e => {
+  if (!e.target.closest('.hub2-actions')){
+    document.getElementById('hub-account-menu')?.classList.remove('open');
+    document.getElementById('hub-notif-menu')?.classList.remove('open');
+  }
+});
+
+function refreshAccountMenu(){
+  const em = document.getElementById('hub-acc-email'); if (em) em.textContent = CURRENT_USER?.email || '—';
+  const rl = document.getElementById('hub-acc-role'); if (rl) rl.textContent = IS_ADMIN ? '👑 Administrador' : '👤 Usuario';
+  const dark = document.body.classList.contains('dark');
+  const ti = document.getElementById('hub-acc-theme-ico'); if (ti) ti.textContent = dark ? '☀️' : '🌙';
+  const tl = document.getElementById('hub-acc-theme-lbl'); if (tl) tl.textContent = dark ? 'Modo claro' : 'Modo oscuro';
+  const on = notifEnabled();
+  const ni = document.getElementById('hub-acc-notif-ico'); if (ni) ni.textContent = on ? '🔔' : '🔕';
+  const nl = document.getElementById('hub-acc-notif-lbl'); if (nl) nl.textContent = on ? 'Notificaciones activas' : 'Notificaciones desactivadas';
+}
+function toggleNotif(){
+  const on = notifEnabled();
+  localStorage.setItem('tracker_notif', on ? 'off' : 'on');
+  refreshAccountMenu();
+  if (notifEnabled()) loadGlobalAlertas();
+  else { GLOBAL_ALERTS = { total:0, red:0, byWs:{} }; actualizarNotifBadge(); try{ renderHub(); }catch(e){} renderNotifList(); }
+  if (typeof showSuccess === 'function') showSuccess(notifEnabled() ? '🔔 Notificaciones activadas' : '🔕 Notificaciones desactivadas');
+}
+
+// Cuenta las alertas (últimos 3 días) de un set de registros con su config.
+function _contarAlertasRegs(regs, P){
+  const gastoMin = P.alerta_gasto_min || 5, roasMin = P.alerta_roas_min || 1;
+  const hoy = today(), desde = nDaysAgo(3); let total = 0, red = 0;
+  (regs || []).forEach(r => {
+    if (r.fecha < desde || r.fecha > hoy) return;
+    const gasto  = (+r.gasto_meta||0) + (+r.gasto_tiktok||0);
+    const ventas = (+r.v1||0) + (+r.v2||0) + (+r.v3||0) + (+r.v4||0);
+    const ing    = (+r.v1||0)*(P.p1??10) + (+r.v2||0)*(P.p2??7) + (+r.v3||0)*(P.p3??5) + (+r.v4||0)*(P.p4??3);
+    const roas   = gasto > 0 ? ing/gasto : 0;
+    if (gasto >= gastoMin && ventas === 0){ total++; red++; }
+    else if (gasto > 0 && roas < roasMin && roas > 0){ total++; }
+  });
+  return { total, red };
+}
+
+// Carga las alertas de TODOS los productos (decisión del usuario: global al inicio).
+async function loadGlobalAlertas(){
+  GLOBAL_ALERTS = { total:0, red:0, byWs:{} };
+  if (!notifEnabled()){ actualizarNotifBadge(); return; }
+  const wss = DB.workspaces || [];
+  if (!wss.length){ actualizarNotifBadge(); return; }
+  const desde = nDaysAgo(3);
+  try {
+    await Promise.all(wss.map(async w => {
+      const [regs, cfgArr] = await Promise.all([
+        api.get('registros', `workspace_id=eq.${w.id}&fecha=gte.${desde}&order=fecha.asc`).catch(()=>[]),
+        api.get('config', `limit=1&workspace_id=eq.${w.id}`).catch(()=>[])
+      ]);
+      const c = _contarAlertasRegs(regs, cfgArr[0] || {});
+      GLOBAL_ALERTS.byWs[w.id] = { total:c.total, red:c.red, nombre:w.nombre, emoji:w.emoji || '📦' };
+      GLOBAL_ALERTS.total += c.total; GLOBAL_ALERTS.red += c.red;
+    }));
+  } catch(e){ console.warn('loadGlobalAlertas:', e); }
+  actualizarNotifBadge();
+  try { renderHub(); } catch(e){}
+  if (CURRENT_PAGE === 'productos'){ try { renderProductos(); } catch(e){} }
+  renderNotifList();
+}
+
+function actualizarNotifBadge(){
+  const nb = document.getElementById('hub-notif-badge'); if (!nb) return;
+  if (notifEnabled() && GLOBAL_ALERTS.total > 0){ nb.style.display = 'flex'; nb.textContent = GLOBAL_ALERTS.total; }
+  else nb.style.display = 'none';
+}
+
+function renderNotifList(){
+  const list = document.getElementById('hub-notif-list'); if (!list) return;
+  if (!notifEnabled()){ list.innerHTML = `<div class="hub2-notif-empty">Notificaciones desactivadas.<br>Actívalas en 👤 Cuenta.</div>`; return; }
+  const entries = Object.entries(GLOBAL_ALERTS.byWs).filter(([id, v]) => v.total > 0);
+  if (!entries.length){ list.innerHTML = `<div class="hub2-notif-empty">✅ Sin alertas activas en tus productos</div>`; return; }
+  list.innerHTML = entries.map(([id, v]) =>
+    `<div class="hub2-notif-row" onclick="abrirProductoAlertas('${id}')"><span>${v.emoji}</span><span style="overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${v.nombre}</span><span class="hub2-notif-count">${v.total}</span></div>`
+  ).join('');
+}
+async function abrirProductoAlertas(wsId){
+  document.getElementById('hub-notif-menu')?.classList.remove('open');
+  if (CURRENT_WORKSPACE?.id !== wsId) await switchWorkspace(wsId);
+  navTo('alertas', null);
 }
 
 // ════════════════════════════════════════════════
