@@ -8,10 +8,10 @@
 <meta name="apple-mobile-web-app-capable" content="yes">
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="Trakker">
-<link rel="apple-touch-icon" href="logo.svg">
+<link rel="apple-touch-icon" href="logo.png">
 <meta name="description" content="Trakker — Infoproductos — Dashboard, Registro y Estructura de Campañas">
 <link rel="manifest" href="manifest.json">
-<link rel="icon" type="image/svg+xml" href="logo.svg">
+<link rel="icon" type="image/png" href="logo.png">
 <title>Trakker</title>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&family=JetBrains+Mono:wght@400;500;600&display=swap" rel="stylesheet">
@@ -142,6 +142,7 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 body:not(.show-sidebar) .sidebar{display:none;}
 body:not(.show-sidebar) .hamburger{display:none;}
 body:not(.show-sidebar) .mobile-nav{display:none;}
+body.show-sidebar .mobile-nav{display:none;}
 .volver-btn{display:inline-flex;align-items:center;gap:6px;background:var(--bg2);border:1px solid var(--border);border-radius:999px;padding:8px 16px;font-size:13px;font-weight:700;color:var(--text2);cursor:pointer;font-family:var(--font);transition:.15s;margin-bottom:18px;box-shadow:var(--shadow);}
 .volver-btn:hover{border-color:var(--border2);color:var(--text);transform:translateX(-2px);box-shadow:var(--shadow-md);}
 .main{background:linear-gradient(165deg,#F6F8FE 0%,#EAEFFA 60%,#E4EBF8 100%);}
@@ -478,7 +479,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 <div class="login-screen" id="login-screen">
   <div class="login-card">
     <div class="login-logo">
-      <div class="login-logo-icon"><img src="logo.svg" width="72" height="72" style="border-radius:16px;display:block;margin:0 auto 2px;" alt="logo"></div>
+      <div class="login-logo-icon"><img src="logo.png" width="72" height="72" style="border-radius:16px;display:block;margin:0 auto 2px;" alt="logo"></div>
       <div class="login-logo-title">Trakker</div>
       <div class="login-logo-sub">Infoproductos · Inicia sesión para continuar</div>
     </div>
@@ -530,7 +531,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 <aside class="sidebar">
   <div class="sidebar-logo">
     <div style="display:flex;align-items:center;gap:10px;cursor:pointer" onclick="navTo('hub',null)" title="Volver al Hub de Control">
-      <img src="logo.svg" width="36" height="36" style="border-radius:8px;flex-shrink:0;" alt="logo">
+      <img src="logo.png" width="36" height="36" style="border-radius:8px;flex-shrink:0;" alt="logo">
       <div>
         <div class="logo-text">Trakker <span class="sync-dot" id="sync-dot"></span></div>
         <div class="logo-sub" id="sync-status">Sincronizando...</div>
@@ -596,7 +597,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   <div class="hub2">
 
     <div class="hub2-header">
-      <div class="hub2-brand"><img src="logo.svg" width="30" height="30" style="border-radius:7px" alt="logo"> Trakker</div>
+      <div class="hub2-brand"><img src="logo.png" width="30" height="30" style="border-radius:7px" alt="logo"> Trakker</div>
       <div class="hub2-actions">
         <div style="position:relative">
           <button class="hub2-pill" onclick="toggleNotifPanel()" title="Notificaciones globales">🔔 <span class="hub2-lbl">Notificaciones</span><span class="hub2-badge" id="hub-notif-badge">0</span></button>
@@ -1448,6 +1449,31 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <div style="font-size:10px;color:var(--text3);margin-top:6px;line-height:1.6">
         Sincroniza Sheets + Meta de los últimos 5 días. Mismo comportamiento que la ejecución automática. Útil para verificar que todo funcione antes de esperar el horario programado.
       </div>
+    </div>
+  </div>
+
+  <!-- SINCRONIZACIÓN POR INTERVALO (cliente) -->
+  <div class="panel" style="margin-bottom:20px" id="autosync-int-panel">
+    <div class="panel-header">
+      <span class="panel-title">🔁 Sincronización automática por intervalo</span>
+    </div>
+    <div class="panel-body">
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px">Mientras tengas Trakker abierto, sincroniza tus datos automáticamente cada cierto tiempo. Ideal para mantener el panel al día durante el día sin pulsar "Sincronizar". (Funciona con la app abierta; la sincronización del servidor de arriba sigue corriendo aunque la cierres.)</div>
+      <div class="form-row" style="max-width:320px">
+        <div class="field" style="width:100%">
+          <label>Sincronizar cada</label>
+          <select id="autosync-int" onchange="setAutoSyncInterval()" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;font-family:var(--font);width:100%">
+            <option value="0">Desactivada</option>
+            <option value="15">15 minutos</option>
+            <option value="30">30 minutos</option>
+            <option value="60">1 hora</option>
+            <option value="120">2 horas</option>
+            <option value="240">4 horas</option>
+            <option value="360">6 horas</option>
+          </select>
+        </div>
+      </div>
+      <div id="autosync-int-estado" style="font-size:11px;color:var(--text3);margin-top:8px"></div>
     </div>
   </div>
 
@@ -4691,6 +4717,7 @@ async function onLoginSuccess(user) {
     try { renderHub(); } catch(e) { console.warn('renderHub:', e); }
     try { refreshAccountMenu(); } catch(e){}
     loadGlobalData();  // datos+alertas de todos los productos para el círculo global (no bloquea el arranque)
+    try { startAutoSyncInterval(); } catch(e){}  // sincronización automática por intervalo (si está activa)
     // Mostrar badge SETUP si el usuario no tiene Google Sheets configurado
     const badge = document.getElementById('nav-setup-badge');
     if (badge) badge.style.display = DB.config?.sheets_url ? 'none' : 'inline';
@@ -8586,9 +8613,48 @@ async function deleteFuente() {
   } catch(e) { setSyncStatus('error', 'Error'); showError('Error: ' + e.message); }
 }
 
+// ── Sincronización automática por INTERVALO (cliente, mientras la app está abierta) ──
+let _autoSyncTimer = null;
+function autoSyncMin(){ return parseInt(localStorage.getItem('trakker_autosync_min') || '0', 10) || 0; }
+async function runAutoSync(){
+  if (!DB.config?.sheets_url) return;                 // sin Sheet configurado, no hay nada que sincronizar
+  if (document.querySelector('.loading-overlay')) return; // evita solaparse con otra operación
+  try {
+    if (typeof syncGoogleSheets === 'function') await syncGoogleSheets();
+    localStorage.setItem('trakker_autosync_last', String(Date.now()));
+  } catch(e) { console.warn('autoSync intervalo:', e); }
+  updateAutoSyncIntLabel();
+}
+function startAutoSyncInterval(){
+  if (_autoSyncTimer){ clearInterval(_autoSyncTimer); _autoSyncTimer = null; }
+  const min = autoSyncMin();
+  if (!min) { updateAutoSyncIntLabel(); return; }
+  const ms = min * 60000;
+  const last = +localStorage.getItem('trakker_autosync_last') || 0;
+  if (Date.now() - last > ms) setTimeout(runAutoSync, 10000); // catch-up tras cargar
+  _autoSyncTimer = setInterval(runAutoSync, ms);
+  updateAutoSyncIntLabel();
+}
+function setAutoSyncInterval(){
+  const sel = document.getElementById('autosync-int'); if (!sel) return;
+  localStorage.setItem('trakker_autosync_min', sel.value);
+  startAutoSyncInterval();
+  if (typeof showSuccess === 'function') showSuccess(+sel.value ? `✅ Sincronización cada ${sel.options[sel.selectedIndex].text}` : 'Sincronización por intervalo desactivada');
+}
+function updateAutoSyncIntLabel(){
+  const est = document.getElementById('autosync-int-estado'); if (!est) return;
+  const min = autoSyncMin();
+  if (!min){ est.textContent = '○ Desactivada'; return; }
+  const last = +localStorage.getItem('trakker_autosync_last') || 0;
+  const cada = min < 60 ? `${min} min` : `${min/60} h`;
+  est.textContent = `🟢 Activa · cada ${cada}${last ? ` · última: ${new Date(last).toLocaleString('es-PE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}` : ''}`;
+}
+
 // ── Horarios de sincronización automática (sync_config) ──
 let AUTOSYNC_CFG = null;
 async function loadAutosyncConfig() {
+  const _si = document.getElementById('autosync-int'); if (_si) _si.value = String(autoSyncMin());
+  updateAutoSyncIntLabel();
   try {
     const r = await api.get('sync_config', `user_id=eq.${CURRENT_USER?.id}&limit=1`);
     AUTOSYNC_CFG = r[0] || null;
