@@ -142,45 +142,68 @@ body{font-family:var(--font);background:var(--bg);color:var(--text);min-height:1
 body.hub-active .sidebar{display:none;}
 body.hub-active .hamburger{display:none;}
 body.hub-active .mobile-nav{display:none;}
-body.hub-active .main{background:radial-gradient(ellipse at 28% 18%,var(--accent-dim) 0%,transparent 55%),radial-gradient(ellipse at 82% 92%,var(--purple-dim) 0%,transparent 55%),var(--bg);}
-.hub-wrap{max-width:1080px;margin:0 auto;display:flex;flex-direction:column;gap:22px;animation:pageIn 0.3s ease;}
-.hub-top{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap;}
-.hub-brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;color:var(--text);letter-spacing:-0.02em;}
-.hub-actions{display:flex;align-items:center;gap:8px;}
-.hub-ico-btn{display:flex;align-items:center;gap:7px;background:var(--bg2);border:1px solid var(--border);border-radius:12px;padding:9px 14px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;font-family:var(--font);transition:.15s;position:relative;}
-.hub-ico-btn:hover{border-color:var(--border2);color:var(--text);box-shadow:var(--shadow);}
-.hub-kbd{font-size:10px;color:var(--text3);border:1px solid var(--border2);border-radius:5px;padding:1px 5px;}
-.hub-badge-dot{position:absolute;top:-6px;right:-6px;background:var(--red);color:#fff;font-size:10px;font-weight:800;border-radius:9px;min-width:18px;text-align:center;padding:1px 4px;line-height:1.4;}
-.hub-welcome{text-align:center;margin-top:4px;}
-.hub-welcome h1{font-size:24px;font-weight:800;color:var(--text);letter-spacing:-0.02em;margin:0;}
-.hub-welcome p{font-size:13px;color:var(--text2);margin:5px 0 0;}
-.hub-center{background:var(--bg2);border:1px solid var(--border);border-radius:24px;padding:24px 28px;box-shadow:var(--shadow-md);position:relative;overflow:hidden;}
-.hub-center::before{content:'';position:absolute;left:0;top:0;bottom:0;width:5px;background:var(--green);transition:background .3s;}
-.hub-center.warn::before{background:var(--orange);}
-.hub-center.error::before{background:var(--red);}
-.hub-state{display:flex;align-items:center;gap:14px;}
-.hub-state-ico{width:46px;height:46px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:22px;flex-shrink:0;background:var(--green-dim);}
-.hub-state-act{background:var(--grad-accent);color:#fff;border:none;border-radius:11px;padding:9px 16px;font-size:13px;font-weight:700;cursor:pointer;font-family:var(--font);box-shadow:var(--shadow-btn);white-space:nowrap;}
-.hub-seg{display:inline-flex;background:var(--bg3);border-radius:11px;padding:3px;gap:2px;}
-.hub-seg button{border:none;background:transparent;font-size:12px;font-weight:600;color:var(--text2);padding:6px 16px;border-radius:8px;cursor:pointer;font-family:var(--font);transition:.15s;}
-.hub-seg button.active{background:var(--bg2);color:var(--text);box-shadow:var(--shadow);}
-.hub-kpis{display:grid;grid-template-columns:repeat(3,1fr);gap:14px;}
-.hub-kpi{background:var(--bg3);border-radius:14px;padding:14px 16px;}
-.hub-kpi-label{font-size:12px;color:var(--text2);font-weight:600;display:flex;align-items:center;gap:6px;}
-.hub-kpi-val{font-size:26px;font-weight:800;color:var(--text);font-family:var(--mono);letter-spacing:-0.02em;margin-top:4px;}
-.hub-kpi-sub{font-size:11px;margin-top:3px;min-height:14px;}
-.hub-tiles{display:grid;grid-template-columns:repeat(4,1fr);gap:16px;}
-.hub-tile{background:var(--bg2);border:1px solid var(--border);border-radius:20px;padding:20px;cursor:pointer;transition:.18s;display:flex;flex-direction:column;gap:9px;text-align:left;min-height:144px;font-family:var(--font);}
-.hub-tile:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);border-color:var(--border2);}
-.hub-tile-top{display:flex;align-items:center;justify-content:space-between;}
-.hub-tile-ico{width:46px;height:46px;border-radius:14px;display:flex;align-items:center;justify-content:center;font-size:22px;color:#fff;}
-.hub-tile-arrow{color:var(--text3);font-size:18px;}
-.hub-tile-title{font-size:15px;font-weight:800;color:var(--text);}
-.hub-tile-sub{font-size:12px;color:var(--text2);line-height:1.45;}
-.hub-tile-badge{font-size:10px;font-weight:800;border-radius:9px;padding:2px 8px;}
-.hub-sysbar{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--border);border-radius:16px;padding:12px 18px;font-size:12px;font-weight:600;color:var(--text2);}
-@media(max-width:900px){.hub-tiles{grid-template-columns:repeat(2,1fr);}}
-@media(max-width:560px){.hub-kpi-val{font-size:20px;}.hub-kpi{padding:11px 12px;}.hub-state{flex-wrap:wrap;}.hub-welcome h1{font-size:21px;}}
+body.hub-active .main{background:radial-gradient(ellipse at 30% 10%,var(--accent-dim) 0%,transparent 50%),radial-gradient(ellipse at 86% 96%,var(--purple-dim) 0%,transparent 55%),var(--bg);}
+body.hub-active .page{padding:22px 28px 34px;}
+.hub2{max-width:1120px;margin:0 auto;animation:pageIn .3s ease;}
+.hub2-header{display:flex;align-items:center;justify-content:space-between;gap:12px;}
+.hub2-brand{display:flex;align-items:center;gap:10px;font-weight:800;font-size:18px;color:var(--text);letter-spacing:-0.02em;}
+.hub2-actions{display:flex;align-items:center;gap:9px;}
+.hub2-pill{display:flex;align-items:center;gap:7px;background:var(--bg2);border:1px solid var(--border);border-radius:999px;padding:9px 16px;font-size:13px;font-weight:600;color:var(--text2);cursor:pointer;font-family:var(--font);transition:.15s;position:relative;}
+.hub2-pill:hover{border-color:var(--border2);color:var(--text);box-shadow:var(--shadow);transform:translateY(-1px);}
+.hub2-pill.danger:hover{color:var(--red);border-color:rgba(225,29,72,0.3);}
+.hub2-badge{position:absolute;top:-5px;right:-2px;background:var(--red);color:#fff;font-size:10px;font-weight:800;border-radius:999px;min-width:18px;height:18px;display:none;align-items:center;justify-content:center;padding:0 5px;}
+.hub2-welcome{text-align:center;margin:24px 0 4px;}
+.hub2-welcome h1{font-size:27px;font-weight:800;color:var(--text);letter-spacing:-0.03em;margin:0;}
+.hub2-welcome p{font-size:14px;color:var(--text2);margin:6px 0 0;}
+.hub2-seg{display:flex;justify-content:center;margin:14px 0 2px;}
+.hub2-seg-inner{display:inline-flex;background:var(--bg2);border:1px solid var(--border);border-radius:999px;padding:4px;gap:2px;box-shadow:var(--shadow);}
+.hub2-seg-inner button{border:none;background:transparent;font-size:12px;font-weight:700;color:var(--text2);padding:6px 18px;border-radius:999px;cursor:pointer;font-family:var(--font);transition:.15s;}
+.hub2-seg-inner button.active{background:var(--grad-accent);color:#fff;box-shadow:var(--shadow-btn);}
+.hub2-stage{position:relative;width:980px;height:760px;margin:4px auto 0;}
+.hub2-lines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;overflow:visible;}
+.hub2-node{animation:hubpulse 2.8s ease-in-out infinite;}
+@keyframes hubpulse{0%,100%{opacity:.45}50%{opacity:.95}}
+.hub2-circle{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:360px;height:360px;border-radius:50%;background:var(--bg2);border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 46px;z-index:3;box-shadow:var(--shadow-lg),0 0 50px rgba(5,150,105,0.13);transition:box-shadow .35s;}
+.hub2-circle.warn{box-shadow:var(--shadow-lg),0 0 55px rgba(234,124,18,0.20);}
+.hub2-circle.error{box-shadow:var(--shadow-lg),0 0 55px rgba(225,29,72,0.22);}
+.hub2-status-ico{font-size:26px;line-height:1;margin-bottom:5px;}
+.hub2-status-title{font-size:17px;font-weight:800;color:var(--green);letter-spacing:-0.01em;}
+.hub2-status-sub{font-size:11px;color:var(--text3);font-weight:600;margin-top:1px;}
+.hub2-status-date{font-size:12px;color:var(--text2);font-weight:700;margin-top:7px;}
+.hub2-divider{width:130px;height:1px;background:var(--border2);margin:13px 0;}
+.hub2-kpis{display:flex;flex-direction:column;gap:9px;width:100%;}
+.hub2-krow{display:flex;align-items:center;gap:10px;}
+.hub2-kico{width:30px;height:30px;border-radius:9px;display:flex;align-items:center;justify-content:center;font-size:15px;flex-shrink:0;}
+.hub2-kmid{display:flex;flex-direction:column;align-items:flex-start;line-height:1.12;min-width:0;flex:1;}
+.hub2-klabel{font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.05em;}
+.hub2-kval{font-size:17px;font-weight:800;color:var(--text);font-family:var(--mono);}
+.hub2-kdelta{font-size:10px;font-weight:700;white-space:nowrap;}
+.hub2-cta{margin-top:14px;background:transparent;border:1px solid var(--border2);color:var(--accent);border-radius:999px;padding:7px 18px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);transition:.15s;}
+.hub2-cta:hover{background:var(--accent-dim);border-color:var(--accent);}
+.hub2-card{position:absolute;width:212px;background:var(--bg2);border:1px solid var(--border);border-radius:22px;padding:20px 22px;cursor:pointer;transition:transform .2s,box-shadow .2s,border-color .2s;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;z-index:2;box-shadow:var(--shadow);font-family:var(--font);}
+.hub2-card:hover{box-shadow:var(--shadow-md);border-color:var(--c,var(--border2));}
+.hub2-card-ico{width:56px;height:56px;border-radius:17px;display:flex;align-items:center;justify-content:center;font-size:26px;color:#fff;box-shadow:0 6px 16px rgba(0,0,0,0.12);}
+.hub2-card-title{font-size:15px;font-weight:800;color:var(--text);}
+.hub2-card-go{font-size:12px;font-weight:700;color:var(--c,var(--accent));}
+.hub2-card.pos-top{top:0;left:50%;transform:translateX(-50%);}
+.hub2-card.pos-top:hover{transform:translate(-50%,-5px);}
+.hub2-card.pos-bottom{bottom:0;left:50%;transform:translateX(-50%);}
+.hub2-card.pos-bottom:hover{transform:translate(-50%,-5px);}
+.hub2-card.pos-left{left:0;top:50%;transform:translateY(-50%);}
+.hub2-card.pos-left:hover{transform:translate(0,calc(-50% - 5px));}
+.hub2-card.pos-right{right:0;top:50%;transform:translateY(-50%);}
+.hub2-card.pos-right:hover{transform:translate(0,calc(-50% - 5px));}
+.hub2-footer{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--border);border-radius:18px;padding:14px 22px;font-size:12.5px;font-weight:600;color:var(--text2);max-width:780px;margin:8px auto 0;box-shadow:var(--shadow);}
+.hub2-sep{opacity:.3;}
+@media(max-width:1040px){
+  .hub2-stage{width:100%;height:auto;display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .hub2-lines{display:none;}
+  .hub2-circle{position:static;transform:none!important;width:auto;height:auto;border-radius:24px;grid-column:1/-1;padding:26px;box-shadow:var(--shadow-md);}
+  .hub2-circle.warn,.hub2-circle.error{box-shadow:var(--shadow-md);}
+  .hub2-card{position:static!important;transform:none!important;width:auto;}
+  .hub2-card:hover{transform:translateY(-4px)!important;}
+}
+@media(max-width:560px){.hub2-stage{grid-template-columns:1fr;}.hub2-welcome h1{font-size:22px;}.hub2-actions .hub2-lbl{display:none;}}
 /* ════════ COMMAND PALETTE (Ctrl/Cmd+K) ════════ */
 .cmdk-overlay{position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9000;display:none;align-items:flex-start;justify-content:center;padding-top:11vh;}
 .cmdk-overlay.open{display:flex;}
@@ -191,6 +214,17 @@ body.hub-active .main{background:radial-gradient(ellipse at 28% 18%,var(--accent
 .cmdk-item .ci{font-size:18px;width:24px;text-align:center;}
 .cmdk-item .cs{font-size:11px;color:var(--text3);margin-left:auto;}
 .cmdk-item.sel{background:var(--accent-dim);}
+/* ════════ PRODUCTOS / CONFIGURACIONES (sub-hubs) ════════ */
+.prod-grid{display:grid;grid-template-columns:repeat(auto-fill,minmax(224px,1fr));gap:16px;}
+.prod-card{background:var(--bg2);border:1px solid var(--border);border-radius:18px;padding:20px;cursor:pointer;transition:transform .18s,box-shadow .18s,border-color .18s;box-shadow:var(--shadow);display:flex;flex-direction:column;gap:8px;}
+.prod-card:hover{transform:translateY(-3px);box-shadow:var(--shadow-md);border-color:var(--border2);}
+.prod-card.active{border-color:var(--green);box-shadow:0 0 0 1px var(--green),var(--shadow);}
+.prod-ico{width:52px;height:52px;border-radius:15px;display:flex;align-items:center;justify-content:center;font-size:26px;background:var(--bg3);}
+.prod-name{font-size:16px;font-weight:800;color:var(--text);}
+.prod-meta{font-size:12px;color:var(--text2);}
+.prod-actions{display:flex;align-items:center;justify-content:space-between;gap:8px;margin-top:6px;}
+.prod-open{font-size:12px;font-weight:700;color:var(--accent);white-space:nowrap;}
+.prod-card.prod-new{border-style:dashed;align-items:center;text-align:center;justify-content:center;color:var(--text2);}
 .page-header{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:24px;flex-wrap:wrap;gap:10px;}
 .page-title{font-size:22px;font-weight:800;color:var(--text);letter-spacing:-0.02em;}
 .page-sub{font-size:12px;color:var(--text2);margin-top:4px;font-weight:400;}
@@ -563,69 +597,131 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 
 <!-- HUB DE CONTROL -->
 <div class="page active" id="page-hub">
-  <div class="hub-wrap">
+  <div class="hub2">
 
-    <div class="hub-top">
-      <div class="hub-brand"><img src="logo.svg" width="30" height="30" style="border-radius:7px" alt="logo"> Tracker Pro</div>
-      <div class="hub-actions">
-        <button class="hub-ico-btn" onclick="openCmdk()">⌘ Ir a… <span class="hub-kbd">Ctrl K</span></button>
-        <button class="hub-ico-btn" style="padding:9px 12px" onclick="navTo('alertas',null)" title="Alertas">🔔<span class="hub-badge-dot" id="hub-notif-badge" style="display:none">0</span></button>
-        <button class="hub-ico-btn" style="padding:9px 12px" onclick="toggleDarkMode();renderHub()" title="Cambiar tema"><span id="hub-theme-ico">🌙</span></button>
-        <button class="hub-ico-btn" style="padding:9px 12px;color:var(--red)" onclick="doLogout()" title="Cerrar sesión">🚪</button>
+    <div class="hub2-header">
+      <div class="hub2-brand"><img src="logo.svg" width="30" height="30" style="border-radius:7px" alt="logo"> Tracker Pro</div>
+      <div class="hub2-actions">
+        <button class="hub2-pill" onclick="openCmdk()" title="Buscar sección (Ctrl/Cmd K)">⌘ <span class="hub2-lbl">Ir a…</span></button>
+        <button class="hub2-pill" onclick="toggleDarkMode();renderHub()" title="Modo oscuro / claro"><span id="hub-theme-ico">🌙</span> <span class="hub2-lbl">Tema</span></button>
+        <button class="hub2-pill" onclick="navTo('alertas',null)" title="Notificaciones">🔔 <span class="hub2-lbl">Notificaciones</span><span class="hub2-badge" id="hub-notif-badge">0</span></button>
+        <button class="hub2-pill danger" onclick="doLogout()" title="Cerrar sesión">🚪 <span class="hub2-lbl">Cerrar sesión</span></button>
       </div>
     </div>
 
-    <div class="hub-welcome">
+    <div class="hub2-welcome">
       <h1 id="hub-saludo">Bienvenido 👋</h1>
       <p>Tu centro de control de ventas y campañas</p>
     </div>
 
-    <div class="hub-center" id="hub-center">
-      <div class="hub-state">
-        <div class="hub-state-ico" id="hub-state-ico">✅</div>
-        <div style="flex:1;min-width:0">
-          <div id="hub-state-title" style="font-size:17px;font-weight:800;color:var(--green)">Todo sincronizado</div>
-          <div style="font-size:12px;color:var(--text2);margin-top:2px">📅 <span id="hub-fecha">—</span> · <span id="hub-state-sub">Sistema operativo</span></div>
-        </div>
-        <button class="hub-state-act" id="hub-state-action" style="display:none" onclick="hubStateAction()">Resolver →</button>
-        <div class="hub-seg" id="hub-seg">
-          <button data-p="hoy" onclick="setHubPeriodo('hoy')">Hoy</button>
-          <button data-p="7" onclick="setHubPeriodo('7')">7 días</button>
-          <button data-p="30" onclick="setHubPeriodo('30')">Mes</button>
-        </div>
-      </div>
-      <div class="hub-kpis" style="margin-top:18px">
-        <div class="hub-kpi"><div class="hub-kpi-label">💰 Profit</div><div class="hub-kpi-val" id="hub-profit">—</div><div class="hub-kpi-sub" id="hub-profit-d"></div></div>
-        <div class="hub-kpi"><div class="hub-kpi-label">📈 ROAS</div><div class="hub-kpi-val" id="hub-roas">—</div><div class="hub-kpi-sub" id="hub-roas-d"></div></div>
-        <div class="hub-kpi"><div class="hub-kpi-label">🛒 Ventas</div><div class="hub-kpi-val" id="hub-ventas">—</div><div class="hub-kpi-sub" id="hub-ventas-d"></div></div>
+    <div class="hub2-seg">
+      <div class="hub2-seg-inner" id="hub-seg">
+        <button data-p="hoy" onclick="setHubPeriodo('hoy')">Hoy</button>
+        <button data-p="7" onclick="setHubPeriodo('7')">7 días</button>
+        <button data-p="30" onclick="setHubPeriodo('30')">Mes</button>
       </div>
     </div>
 
-    <div class="hub-tiles">
-      <button class="hub-tile" onclick="navTo('global',null)">
-        <div class="hub-tile-top"><div class="hub-tile-ico" style="background:var(--grad-accent)">🌍</div><span class="hub-tile-arrow">→</span></div>
-        <div class="hub-tile-title">Visión Global</div>
-        <div class="hub-tile-sub" id="hub-tile-global">Dashboard general, KPIs y análisis</div>
+    <div class="hub2-stage">
+
+      <svg class="hub2-lines" viewBox="0 0 980 760" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
+        <g fill="none" stroke-width="2" stroke-linecap="round">
+          <path d="M490 150 L490 200" style="stroke:var(--accent)" stroke-opacity=".4"/>
+          <path d="M490 610 L490 560" style="stroke:var(--purple)" stroke-opacity=".4"/>
+          <path d="M212 380 L310 380" style="stroke:var(--orange)" stroke-opacity=".4"/>
+          <path d="M768 380 L670 380" style="stroke:var(--green)" stroke-opacity=".4"/>
+        </g>
+        <g fill="var(--bg2)" stroke-width="2.5">
+          <circle class="hub2-node" cx="490" cy="200" r="6" style="stroke:var(--accent)"/>
+          <circle class="hub2-node" cx="490" cy="560" r="6" style="stroke:var(--purple)"/>
+          <circle class="hub2-node" cx="310" cy="380" r="6" style="stroke:var(--orange)"/>
+          <circle class="hub2-node" cx="670" cy="380" r="6" style="stroke:var(--green)"/>
+        </g>
+      </svg>
+
+      <!-- Círculo central: estado del negocio -->
+      <div class="hub2-circle ok" id="hub-center">
+        <div class="hub2-status-ico" id="hub-state-ico">🟢</div>
+        <div class="hub2-status-title" id="hub-state-title">Todo sincronizado</div>
+        <div class="hub2-status-sub" id="hub-state-sub">Sistema operativo</div>
+        <div class="hub2-status-date">📅 Hoy: <span id="hub-fecha">—</span></div>
+        <div class="hub2-divider"></div>
+        <div class="hub2-kpis">
+          <div class="hub2-krow">
+            <span class="hub2-kico" style="background:var(--green-dim);color:var(--green)">💰</span>
+            <span class="hub2-kmid"><span class="hub2-klabel">Profit</span><span class="hub2-kval" id="hub-profit">—</span></span>
+            <span class="hub2-kdelta" id="hub-profit-d"></span>
+          </div>
+          <div class="hub2-krow">
+            <span class="hub2-kico" style="background:var(--accent-dim);color:var(--accent)">📈</span>
+            <span class="hub2-kmid"><span class="hub2-klabel">ROAS</span><span class="hub2-kval" id="hub-roas">—</span></span>
+            <span class="hub2-kdelta" id="hub-roas-d"></span>
+          </div>
+          <div class="hub2-krow">
+            <span class="hub2-kico" style="background:var(--purple-dim);color:var(--purple)">🛒</span>
+            <span class="hub2-kmid"><span class="hub2-klabel">Ventas</span><span class="hub2-kval" id="hub-ventas">—</span></span>
+            <span class="hub2-kdelta" id="hub-ventas-d"></span>
+          </div>
+        </div>
+        <button class="hub2-cta" id="hub-cta" onclick="hubCta()">Ver resumen completo →</button>
+      </div>
+
+      <!-- Tarjetas módulo (diamante) -->
+      <button class="hub2-card pos-top" style="--c:var(--accent)" onclick="navTo('global',null)">
+        <div class="hub2-card-ico" style="background:var(--grad-accent)">🌎</div>
+        <div class="hub2-card-title">Visión Global</div>
+        <div class="hub2-card-go">Ir ahora →</div>
       </button>
-      <button class="hub-tile" onclick="navTo('catalogo',null)">
-        <div class="hub-tile-top"><div class="hub-tile-ico" style="background:var(--grad-green)">📦</div><span class="hub-tile-arrow">→</span></div>
-        <div class="hub-tile-title">Productos</div>
-        <div class="hub-tile-sub" id="hub-tile-prod">Administra productos y campañas</div>
+      <button class="hub2-card pos-left" style="--c:var(--orange)" onclick="navTo('importar',null)">
+        <div class="hub2-card-ico" style="background:var(--grad-orange)">📥</div>
+        <div class="hub2-card-title">Importar Datos</div>
+        <div class="hub2-card-go">Ir ahora →</div>
       </button>
-      <button class="hub-tile" onclick="navTo('importar',null)">
-        <div class="hub-tile-top"><div class="hub-tile-ico" style="background:var(--grad-orange)">📥</div><span class="hub-tile-badge" id="hub-tile-imp-badge" style="display:none">SETUP</span></div>
-        <div class="hub-tile-title">Importar Datos</div>
-        <div class="hub-tile-sub" id="hub-tile-imp">Sincroniza tus fuentes de datos</div>
+      <button class="hub2-card pos-right" style="--c:var(--green)" onclick="navTo('productos',null)">
+        <div class="hub2-card-ico" style="background:var(--grad-green)">📦</div>
+        <div class="hub2-card-title">Productos</div>
+        <div class="hub2-card-go">Ir ahora →</div>
       </button>
-      <button class="hub-tile" onclick="openConfig()">
-        <div class="hub-tile-top"><div class="hub-tile-ico" style="background:var(--grad-purple)">⚙️</div><span class="hub-tile-arrow">→</span></div>
-        <div class="hub-tile-title">Configuraciones</div>
-        <div class="hub-tile-sub">Umbrales, estados y preferencias</div>
+      <button class="hub2-card pos-bottom" style="--c:var(--purple)" onclick="navTo('configuracion',null)">
+        <div class="hub2-card-ico" style="background:var(--grad-purple)">⚙️</div>
+        <div class="hub2-card-title">Configuraciones</div>
+        <div class="hub2-card-go">Ir ahora →</div>
       </button>
+
     </div>
 
-    <div class="hub-sysbar" id="hub-sysbar"></div>
+    <div class="hub2-footer" id="hub-sysbar"></div>
 
+  </div>
+</div>
+
+<!-- PRODUCTOS (selector) -->
+<div class="page" id="page-productos">
+  <div class="page-header">
+    <div><div class="page-title">📦 Productos</div><div class="page-sub">Selecciona un producto para administrarlo o crea uno nuevo</div></div>
+    <button class="btn btn-primary" onclick="openNuevoWorkspace()">＋ Nuevo Producto</button>
+  </div>
+  <div class="prod-grid" id="productos-grid"></div>
+</div>
+
+<!-- CONFIGURACIONES (sub-hub) -->
+<div class="page" id="page-configuracion">
+  <div class="page-header">
+    <div><div class="page-title">⚙️ Configuraciones</div><div class="page-sub">Estados, leyendas y umbrales de alerta</div></div>
+  </div>
+  <div class="prod-grid">
+    <div class="prod-card" onclick="navTo('leyenda',null)">
+      <div class="prod-ico" style="background:var(--accent-dim);color:var(--accent)">🏷️</div>
+      <div class="prod-name">Estados y Leyenda</div>
+      <div class="prod-meta">Define y entiende los estados de tus anuncios</div>
+      <div class="prod-actions"><span></span><span class="prod-open">Abrir →</span></div>
+    </div>
+    <div class="prod-card" onclick="openConfig()">
+      <div class="prod-ico" style="background:var(--orange-dim);color:var(--orange)">🚨</div>
+      <div class="prod-name">Umbrales de alerta</div>
+      <div class="prod-meta">Precios, ROAS mínimo, gasto y saturación</div>
+      <div class="prod-actions"><span></span><span class="prod-open">Abrir →</span></div>
+    </div>
   </div>
 </div>
 
@@ -8719,6 +8815,7 @@ function updateSheetsStatus() {
 
 function renderPage(page) {
   if (page==='hub')          renderHub();
+  if (page==='productos')    renderProductos();
   if (page==='dashboard')    renderDashboard();
   if (page==='bitacora')     renderBitacora();
   if (page==='global')       renderGlobal();
@@ -8748,6 +8845,7 @@ function renderPage(page) {
 function hubPeriodo(){ return localStorage.getItem('hub_periodo') || 'hoy'; }
 function setHubPeriodo(p){ localStorage.setItem('hub_periodo', p); renderHub(); }
 function hubStateAction(){ const a = window._hubAction; if (typeof a === 'function') a(); }
+function hubCta(){ const f = window._hubCta; if (typeof f === 'function') f(); }
 
 function renderHub(){
   try {
@@ -8766,84 +8864,96 @@ function renderHub(){
     const M = calcMetrics(regs);
     const ant = rangoAnterior(desde, hasta);
     const Mant = calcMetrics(DB.registros.filter(r => r.fecha >= ant.desde && r.fecha <= ant.hasta));
-    const suf = p === 'hoy' ? 'vs ayer' : 'vs período previo';
-    document.getElementById('hub-profit').textContent = fmt.s(M.profit);
-    document.getElementById('hub-profit-d').innerHTML  = deltaSub(M.profit, Mant.profit, { suf });
-    document.getElementById('hub-roas').textContent    = fmt.roas(M.roas);
-    document.getElementById('hub-roas-d').innerHTML    = deltaSub(M.roas, Mant.roas, { suf });
-    document.getElementById('hub-ventas').textContent  = fmt.num(M.ventas);
-    document.getElementById('hub-ventas-d').innerHTML  = deltaSub(M.ventas, Mant.ventas, { suf });
+    const suf = p === 'hoy' ? 'vs ayer' : 'vs previo';
+    const setKpi = (id, val, cur, prev, opt) => {
+      const v = document.getElementById(id); if (v) v.textContent = val;
+      const d = document.getElementById(id + '-d'); if (d) d.innerHTML = deltaSub(cur, prev, Object.assign({ suf }, opt || {}));
+    };
+    setKpi('hub-profit', fmt.s(M.profit),   M.profit, Mant.profit);
+    setKpi('hub-roas',   fmt.roas(M.roas),   M.roas,   Mant.roas);
+    setKpi('hub-ventas', fmt.num(M.ventas),  M.ventas, Mant.ventas);
 
     // Alertas activas → badge campana
     let alertas = [];
     try { alertas = calcAlertas().filter(a => !isAlertaDescartada(a)); } catch(e){}
     const rojas = alertas.filter(a => a.nivel === 'red').length;
     const nb = document.getElementById('hub-notif-badge');
-    if (nb){ if (alertas.length){ nb.style.display = 'block'; nb.textContent = alertas.length; } else nb.style.display = 'none'; }
+    if (nb){ if (alertas.length){ nb.style.display = 'flex'; nb.textContent = alertas.length; } else nb.style.display = 'none'; }
 
-    // Estado del centro = peor caso activo (reacciona, no siempre verde)
+    // Estado del círculo central = peor caso activo (reacciona, no siempre verde).
+    // El CTA del círculo se adapta: normal "Ver resumen", si hay problema lleva a resolverlo.
     const center = document.getElementById('hub-center');
     const ico = document.getElementById('hub-state-ico');
     const title = document.getElementById('hub-state-title');
     const sub = document.getElementById('hub-state-sub');
-    const actBtn = document.getElementById('hub-state-action');
+    const cta = document.getElementById('hub-cta');
     const syncCls = document.getElementById('sync-dot')?.className || '';
-    center.classList.remove('warn', 'error');
-    actBtn.style.display = 'none'; window._hubAction = null;
-    const setAct = (label, fn) => { actBtn.style.display = 'inline-flex'; actBtn.textContent = label; window._hubAction = fn; };
+    center.classList.remove('ok', 'warn', 'error');
+    let cls = 'ok', ctaLabel = 'Ver resumen completo →', ctaFn = () => navTo('global', null);
 
     if (!DB.config?.sheets_url){
-      center.classList.add('warn'); ico.textContent = '⚙️'; ico.style.background = 'var(--orange-dim)';
-      title.textContent = 'Configura tu Google Sheet'; title.style.color = 'var(--orange)';
-      sub.textContent = 'Conecta tu fuente para empezar a sincronizar';
-      setAct('Conectar →', () => navTo('importar', null));
+      cls = 'warn'; ico.textContent = '⚙️';
+      title.textContent = 'Configura tu Google Sheet'; sub.textContent = 'Conecta tu fuente para sincronizar';
+      ctaLabel = 'Conectar →'; ctaFn = () => navTo('importar', null);
     } else if (syncCls.includes('error')){
-      center.classList.add('error'); ico.textContent = '⚠️'; ico.style.background = 'var(--red-dim)';
-      title.textContent = 'Error de sincronización'; title.style.color = 'var(--red)';
-      sub.textContent = 'Revisa la conexión e intenta de nuevo';
-      setAct('Reintentar →', () => navTo('importar', null));
+      cls = 'error'; ico.textContent = '⚠️';
+      title.textContent = 'Error de sincronización'; sub.textContent = 'Revisa la conexión e intenta de nuevo';
+      ctaLabel = 'Reintentar →'; ctaFn = () => navTo('importar', null);
     } else if (rojas > 0){
-      center.classList.add('error'); ico.textContent = '🔴'; ico.style.background = 'var(--red-dim)';
-      title.textContent = `${rojas} alerta${rojas > 1 ? 's' : ''} crítica${rojas > 1 ? 's' : ''}`; title.style.color = 'var(--red)';
-      sub.textContent = 'Anuncios sin ventas o con ROAS muy bajo';
-      setAct('Revisar →', () => navTo('alertas', null));
+      cls = 'error'; ico.textContent = '🔴';
+      title.textContent = `${rojas} alerta${rojas > 1 ? 's' : ''} crítica${rojas > 1 ? 's' : ''}`; sub.textContent = 'Anuncios sin ventas / ROAS bajo';
+      ctaLabel = 'Revisar alertas →'; ctaFn = () => navTo('alertas', null);
     } else if (alertas.length > 0){
-      center.classList.add('warn'); ico.textContent = '🟠'; ico.style.background = 'var(--orange-dim)';
-      title.textContent = `${alertas.length} alerta${alertas.length > 1 ? 's' : ''} activa${alertas.length > 1 ? 's' : ''}`; title.style.color = 'var(--orange)';
-      sub.textContent = 'Hay campañas que requieren tu atención';
-      setAct('Revisar →', () => navTo('alertas', null));
+      cls = 'warn'; ico.textContent = '🟠';
+      title.textContent = `${alertas.length} alerta${alertas.length > 1 ? 's' : ''} activa${alertas.length > 1 ? 's' : ''}`; sub.textContent = 'Campañas requieren atención';
+      ctaLabel = 'Revisar alertas →'; ctaFn = () => navTo('alertas', null);
     } else {
-      ico.textContent = '✅'; ico.style.background = 'var(--green-dim)';
-      title.textContent = 'Todo sincronizado'; title.style.color = 'var(--green)';
-      sub.textContent = 'Sistema operativo';
+      ico.textContent = '🟢';
+      title.textContent = 'Todo sincronizado'; sub.textContent = 'Sistema operativo';
     }
-
-    // Tiles vivos (micro-datos reales)
-    const r7 = DB.registros.filter(r => r.fecha >= nDaysAgo(7) && r.fecha <= today());
-    const m7 = calcMetrics(r7);
-    const tg = document.getElementById('hub-tile-global');
-    if (tg) tg.textContent = r7.length ? `ROAS ${fmt.roas(m7.roas)} · ${fmt.num(m7.ventas)} ventas (7d)` : 'Dashboard general, KPIs y análisis';
-    const nProd = (DB.workspaces || []).length;
-    const tp = document.getElementById('hub-tile-prod');
-    if (tp) tp.textContent = nProd ? `${nProd} producto${nProd > 1 ? 's' : ''} · activo: ${CURRENT_WORKSPACE?.nombre || '—'}` : 'Administra productos y campañas';
-    const impBadge = document.getElementById('hub-tile-imp-badge');
-    const ti = document.getElementById('hub-tile-imp');
-    if (!DB.config?.sheets_url){
-      if (impBadge){ impBadge.style.display = 'inline-block'; impBadge.style.background = 'var(--orange-dim)'; impBadge.style.color = 'var(--orange)'; }
-      if (ti) ti.textContent = 'Conecta tu Google Sheet para sincronizar';
-    } else {
-      if (impBadge) impBadge.style.display = 'none';
-      if (ti) ti.textContent = (document.getElementById('sync-status')?.textContent) || 'Sincroniza tus fuentes de datos';
-    }
+    center.classList.add(cls);
+    title.style.color = cls === 'ok' ? 'var(--green)' : cls === 'warn' ? 'var(--orange)' : 'var(--red)';
+    if (cta){ cta.textContent = ctaLabel; window._hubCta = ctaFn; }
 
     // Barra inferior: resumen rápido del sistema
     const sys = document.getElementById('hub-sysbar');
     if (sys){
+      const nProd = (DB.workspaces || []).length;
       const okSync = !syncCls.includes('error') && !!DB.config?.sheets_url;
       const aTxt = alertas.length ? `🚨 ${alertas.length} alerta${alertas.length > 1 ? 's' : ''} activa${alertas.length > 1 ? 's' : ''}` : '✅ Sin alertas activas';
-      sys.innerHTML = `<span>${okSync ? '🟢 Sincronización activa' : '🟠 Sincronización pendiente'}</span><span style="opacity:.35">·</span><span>${aTxt}</span><span style="opacity:.35">·</span><span>📦 ${nProd} producto${nProd !== 1 ? 's' : ''}</span>`;
+      sys.innerHTML = `<span>${okSync ? '🟢 Sincronización activa' : '🟠 Sincronización pendiente'}</span><span class="hub2-sep">·</span><span>${aTxt}</span><span class="hub2-sep">·</span><span>📦 ${nProd} producto${nProd !== 1 ? 's' : ''}</span>`;
     }
   } catch(e){ console.warn('renderHub:', e); }
+}
+
+// ── Productos: selector de workspaces + nuevo producto ──
+function renderProductos(){
+  const grid = document.getElementById('productos-grid'); if (!grid) return;
+  const ws = DB.workspaces || [];
+  const cards = ws.map(w => {
+    const active = w.id === CURRENT_WORKSPACE?.id;
+    const cur = CURRENCIES[w.currency_code] ? w.currency_code : 'PEN';
+    return `<div class="prod-card${active ? ' active' : ''}" onclick="abrirProducto('${w.id}')">
+      <div class="prod-ico">${w.emoji || '📦'}</div>
+      <div class="prod-name">${w.nombre || 'Producto'}</div>
+      <div class="prod-meta">Moneda ${cur}${active ? ' · <span style="color:var(--green);font-weight:700">● Activo</span>' : ''}</div>
+      <div class="prod-actions">
+        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();editWorkspace('${w.id}')" title="Editar">✏️ Editar</button>
+        <span class="prod-open">Abrir →</span>
+      </div>
+    </div>`;
+  }).join('');
+  grid.innerHTML = cards + `<div class="prod-card prod-new" onclick="openNuevoWorkspace()">
+    <div class="prod-ico" style="background:var(--accent-dim);color:var(--accent)">＋</div>
+    <div class="prod-name">Nuevo Producto</div>
+    <div class="prod-meta">Crea y configura un nuevo producto</div>
+  </div>`;
+}
+// Abre un producto: cambia de workspace (si hace falta) y entra a su Dashboard
+async function abrirProducto(wsId){
+  if (CURRENT_WORKSPACE?.id === wsId){ navTo('dashboard', null); return; }
+  await switchWorkspace(wsId);
+  navTo('dashboard', null);
 }
 
 // ════════════════════════════════════════════════
@@ -8866,12 +8976,14 @@ const CMDK_DEST = [
   { i:'📅', t:'Registro Diario',    s:'Datos',    f:()=>navTo('registro',null) },
   { i:'📥', t:'Importar Datos',     s:'Datos',    f:()=>navTo('importar',null) },
   { i:'🔎', t:'Conciliación',       s:'Datos',    f:()=>{ navTo('importar',null); if(typeof impTab==='function') impTab('conciliacion'); } },
+  { i:'📦', t:'Productos',          s:'Datos',    f:()=>navTo('productos',null) },
   { i:'📖', t:'Catálogo',           s:'Datos',    f:()=>navTo('catalogo',null) },
   { i:'💬', t:'Chats vs Ventas',    s:'Sistema',  f:()=>navTo('chats-ventas',null) },
   { i:'🏆', t:'Mejor anuncio',      s:'Sistema',  f:()=>navTo('mejor-anuncio',null) },
   { i:'⏱️', t:'Vida útil',          s:'Sistema',  f:()=>navTo('vida-util',null) },
   { i:'🏷️', t:'Estados y Leyenda',  s:'Sistema',  f:()=>navTo('leyenda',null) },
-  { i:'⚙️', t:'Configuración',      s:'Sistema',  f:()=>{ if(typeof openConfig==='function') openConfig(); } },
+  { i:'⚙️', t:'Configuraciones',    s:'Sistema',  f:()=>navTo('configuracion',null) },
+  { i:'🚨', t:'Umbrales de alerta', s:'Sistema',  f:()=>{ if(typeof openConfig==='function') openConfig(); } },
   { i:'📤', t:'Exportar datos',     s:'Sistema',  f:()=>{ if(typeof openExportar==='function') openExportar(); } },
 ];
 let _cmdkSel = 0, _cmdkFiltered = CMDK_DEST.slice();
