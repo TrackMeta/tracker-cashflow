@@ -183,18 +183,14 @@ body.hub-active .page{padding:22px 28px 34px;}
 .hub2-cta{margin-top:14px;background:transparent;border:1px solid var(--border2);color:var(--accent);border-radius:999px;padding:7px 18px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);transition:.15s;}
 .hub2-cta:hover{background:var(--accent-dim);border-color:var(--accent);}
 .hub2-card{position:absolute;width:212px;background:var(--bg2);border:1px solid var(--border);border-radius:22px;padding:20px 22px;cursor:pointer;transition:transform .2s,box-shadow .2s,border-color .2s;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;z-index:2;box-shadow:var(--shadow);font-family:var(--font);}
-.hub2-card:hover{box-shadow:var(--shadow-md);border-color:var(--c,var(--border2));}
+.hub2-card:hover{transform:translateY(-5px);box-shadow:var(--shadow-md);border-color:var(--c,var(--border2));}
 .hub2-card-ico{width:56px;height:56px;border-radius:17px;display:flex;align-items:center;justify-content:center;font-size:26px;color:#fff;box-shadow:0 6px 16px rgba(0,0,0,0.12);}
 .hub2-card-title{font-size:15px;font-weight:800;color:var(--text);}
 .hub2-card-go{font-size:12px;font-weight:700;color:var(--c,var(--accent));}
-.hub2-card.pos-top{top:0;left:50%;transform:translateX(-50%);}
-.hub2-card.pos-top:hover{transform:translate(-50%,-5px);}
-.hub2-card.pos-bottom{bottom:0;left:50%;transform:translateX(-50%);}
-.hub2-card.pos-bottom:hover{transform:translate(-50%,-5px);}
-.hub2-card.pos-left{left:0;top:50%;transform:translateY(-50%);}
-.hub2-card.pos-left:hover{transform:translate(0,calc(-50% - 5px));}
-.hub2-card.pos-right{right:0;top:50%;transform:translateY(-50%);}
-.hub2-card.pos-right:hover{transform:translate(0,calc(-50% - 5px));}
+.hub2-card.pos-tl{top:0;left:0;}
+.hub2-card.pos-tr{top:0;right:0;}
+.hub2-card.pos-bl{bottom:0;left:0;}
+.hub2-card.pos-br{bottom:0;right:0;}
 .hub2-footer{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--border);border-radius:18px;padding:14px 22px;font-size:12.5px;font-weight:600;color:var(--text2);max-width:780px;margin:8px auto 0;box-shadow:var(--shadow);}
 .hub2-sep{opacity:.3;}
 @media(max-width:1040px){
@@ -629,16 +625,16 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 
       <svg class="hub2-lines" viewBox="0 0 980 820" preserveAspectRatio="xMidYMid meet" aria-hidden="true">
         <g fill="none" stroke-width="2" stroke-linecap="round">
-          <path d="M490 150 L490 195" style="stroke:var(--accent)" stroke-opacity=".4"/>
-          <path d="M490 670 L490 625" style="stroke:var(--purple)" stroke-opacity=".4"/>
-          <path d="M212 410 L275 410" style="stroke:var(--orange)" stroke-opacity=".4"/>
-          <path d="M768 410 L705 410" style="stroke:var(--green)" stroke-opacity=".4"/>
+          <path d="M212 150 L338 258" style="stroke:var(--accent)" stroke-opacity=".4"/>
+          <path d="M768 150 L642 258" style="stroke:var(--green)" stroke-opacity=".4"/>
+          <path d="M212 670 L338 562" style="stroke:var(--orange)" stroke-opacity=".4"/>
+          <path d="M768 670 L642 562" style="stroke:var(--purple)" stroke-opacity=".4"/>
         </g>
         <g fill="var(--bg2)" stroke-width="2.5">
-          <circle class="hub2-node" cx="490" cy="195" r="6" style="stroke:var(--accent)"/>
-          <circle class="hub2-node" cx="490" cy="625" r="6" style="stroke:var(--purple)"/>
-          <circle class="hub2-node" cx="275" cy="410" r="6" style="stroke:var(--orange)"/>
-          <circle class="hub2-node" cx="705" cy="410" r="6" style="stroke:var(--green)"/>
+          <circle class="hub2-node" cx="338" cy="258" r="6" style="stroke:var(--accent)"/>
+          <circle class="hub2-node" cx="642" cy="258" r="6" style="stroke:var(--green)"/>
+          <circle class="hub2-node" cx="338" cy="562" r="6" style="stroke:var(--orange)"/>
+          <circle class="hub2-node" cx="642" cy="562" r="6" style="stroke:var(--purple)"/>
         </g>
       </svg>
 
@@ -679,23 +675,23 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
         <button class="hub2-cta" id="hub-cta" onclick="hubCta()">Ver resumen completo →</button>
       </div>
 
-      <!-- Tarjetas módulo (diamante) -->
-      <button class="hub2-card pos-top" style="--c:var(--accent)" onclick="navTo('global',null)">
+      <!-- Tarjetas módulo (formación X: esquinas a 45°) -->
+      <button class="hub2-card pos-tl" style="--c:var(--accent)" onclick="navTo('global',null)">
         <div class="hub2-card-ico" style="background:var(--grad-accent)">🌎</div>
         <div class="hub2-card-title">Visión Global</div>
         <div class="hub2-card-go">Ir ahora →</div>
       </button>
-      <button class="hub2-card pos-left" style="--c:var(--orange)" onclick="navTo('importar',null)">
-        <div class="hub2-card-ico" style="background:var(--grad-orange)">📥</div>
-        <div class="hub2-card-title">Importar Datos</div>
-        <div class="hub2-card-go">Ir ahora →</div>
-      </button>
-      <button class="hub2-card pos-right" style="--c:var(--green)" onclick="navTo('productos',null)">
+      <button class="hub2-card pos-tr" style="--c:var(--green)" onclick="navTo('productos',null)">
         <div class="hub2-card-ico" style="background:var(--grad-green)">📦</div>
         <div class="hub2-card-title">Productos</div>
         <div class="hub2-card-go">Ir ahora →</div>
       </button>
-      <button class="hub2-card pos-bottom" style="--c:var(--purple)" onclick="navTo('configuracion',null)">
+      <button class="hub2-card pos-bl" style="--c:var(--orange)" onclick="navTo('importar',null)">
+        <div class="hub2-card-ico" style="background:var(--grad-orange)">📥</div>
+        <div class="hub2-card-title">Importar Datos</div>
+        <div class="hub2-card-go">Ir ahora →</div>
+      </button>
+      <button class="hub2-card pos-br" style="--c:var(--purple)" onclick="navTo('configuracion',null)">
         <div class="hub2-card-ico" style="background:var(--grad-purple)">⚙️</div>
         <div class="hub2-card-title">Configuraciones</div>
         <div class="hub2-card-go">Ir ahora →</div>
