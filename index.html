@@ -8618,10 +8618,17 @@ let _autoSyncTimer = null;
 function autoSyncMin(){ return parseInt(localStorage.getItem('trakker_autosync_min') || '0', 10) || 0; }
 async function runAutoSync(){
   if (!DB.config?.sheets_url) return;                 // sin Sheet configurado, no hay nada que sincronizar
-  if (document.querySelector('.loading-overlay')) return; // evita solaparse con otra operación
   try {
-    if (typeof syncGoogleSheets === 'function') await syncGoogleSheets();
-    localStorage.setItem('trakker_autosync_last', String(Date.now()));
+    // Sync COMPLETO en el servidor: ventas del Sheet + gasto de Meta + consolidación (igual que el auto-sync programado)
+    const res = await fetch(`${SUPABASE_URL}/functions/v1/auto-sync`, {
+      method: 'POST', headers: { ...api._h(), 'Content-Type': 'application/json' }, body: JSON.stringify({ days: 5 })
+    });
+    if (res.ok){
+      localStorage.setItem('trakker_autosync_last', String(Date.now()));
+      _upsertSyncCfg({ ultima_intervalo: new Date().toISOString() }).catch(()=>{}); // marca para que el cron no duplique
+      // refrescar la vista actual con los datos nuevos
+      try { await loadAll(); const ap = document.querySelector('.page.active')?.id?.replace('page-',''); if (ap) renderPage(ap); } catch(e){}
+    }
   } catch(e) { console.warn('autoSync intervalo:', e); }
   updateAutoSyncIntLabel();
 }
