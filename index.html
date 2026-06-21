@@ -8626,8 +8626,10 @@ async function runAutoSync(){
     if (res.ok){
       localStorage.setItem('trakker_autosync_last', String(Date.now()));
       _upsertSyncCfg({ ultima_intervalo: new Date().toISOString() }).catch(()=>{}); // marca para que el cron no duplique
-      // refrescar la vista actual con los datos nuevos
-      try { await loadAll(); const ap = document.querySelector('.page.active')?.id?.replace('page-',''); if (ap) renderPage(ap); } catch(e){}
+      // refrescar la vista actual + los KPIs globales del Hub (si no, el círculo queda con datos viejos)
+      try { await loadAll(); } catch(e){}
+      try { await loadGlobalData(); } catch(e){}
+      try { const ap = document.querySelector('.page.active')?.id?.replace('page-',''); if (ap && ap !== 'hub') renderPage(ap); } catch(e){}
     }
   } catch(e) { console.warn('autoSync intervalo:', e); }
   updateAutoSyncIntLabel();
@@ -8962,6 +8964,7 @@ function navTo(page, el) {
   ensureVolver(page);
   closeSidebar();
   renderPage(page);
+  if (page === 'hub' && typeof maybeRefreshGlobal === 'function') maybeRefreshGlobal(); // refresca KPIs globales si están viejos
   // Sync mobile bottom nav
   if(typeof syncMobileNav === 'function') syncMobileNav(page);
 }
@@ -9265,7 +9268,13 @@ function _contarAlertasRegs(regs, P){
 // Datos de TODOS los productos (decisión usuario): registros (35d) + config por workspace.
 // Sirve para: KPIs globales del círculo + alertas globales.
 let GLOBAL_DATA = {};
+let _globalDataAt = 0;
+// Refresca los datos globales del Hub si están viejos (evita el círculo desactualizado tras un auto-sync).
+function maybeRefreshGlobal(maxAgeMs = 60000){
+  if (Date.now() - _globalDataAt > maxAgeMs) loadGlobalData();
+}
 async function loadGlobalData(){
+  _globalDataAt = Date.now();
   GLOBAL_DATA = {};
   GLOBAL_ALERTS = { total:0, red:0, byWs:{} };
   const wss = DB.workspaces || [];
