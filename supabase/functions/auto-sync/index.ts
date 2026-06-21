@@ -11,7 +11,7 @@ const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("ADMIN_SERVICE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // Marcador de versión: aparece en cada respuesta JSON. Si no aparece, el deploy es viejo.
-const FN_VERSION = "2026-06-20-telegram-hdr-centrado";
+const FN_VERSION = "2026-06-21-autosync-intervalo";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -538,11 +538,30 @@ async function runScheduled() {
         console.error("slot " + slot + " user " + cfg.user_id, e);
       }
     };
+    let corrio = false;
     if (nowMin >= toMin(cfg.hora_noche || "23:00") && cfg.ultima_noche !== hoy) {
-      await correrSlot("noche", { ultima_noche: hoy });
+      await correrSlot("noche", { ultima_noche: hoy }); corrio = true;
     } else if (nowMin >= toMin(cfg.hora_manana || "06:30") && cfg.ultima_manana !== hoy) {
       // La mañana también trae Meta: captura el gasto ya consolidado durante la noche
-      await correrSlot("manana", { ultima_manana: hoy });
+      await correrSlot("manana", { ultima_manana: hoy }); corrio = true;
+    }
+    // Sincronización por INTERVALO (cada N min, programable desde la app; corre con la app CERRADA).
+    // El cron ya invoca esta función ~cada 15 min, así que el intervalo efectivo mínimo es 15 min.
+    const interv = +cfg.intervalo_min || 0;
+    if (!corrio && interv > 0) {
+      const last = cfg.ultima_intervalo ? new Date(cfg.ultima_intervalo).getTime() : 0;
+      if (Date.now() - last >= interv * 60000) {
+        const marca = { ultima_intervalo: new Date().toISOString() };
+        try {
+          const r = await procesarUsuario(cfg.user_id, true);
+          await sb("PATCH", `sync_config?user_id=eq.${cfg.user_id}`, marca, "return=minimal").catch(() => {});
+          await enviarAlertas(r);                       // alertas sí; reporte completo NO (evita spam por intervalo)
+          ejecutados.push({ ...r, slot: "intervalo" });
+        } catch (e) {
+          await sb("PATCH", `sync_config?user_id=eq.${cfg.user_id}`, marca, "return=minimal").catch(() => {});
+          errores.push({ user_id: cfg.user_id, slot: "intervalo", error: String((e as Error)?.message || e) });
+        }
+      }
     }
   }
   return json({ ok: true, scheduled: true, version: FN_VERSION, hora_peru: `${String(peru.getUTCHours()).padStart(2, "0")}:${String(peru.getUTCMinutes()).padStart(2, "0")}`, ejecutados, errores });

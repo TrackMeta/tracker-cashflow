@@ -1458,7 +1458,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <span class="panel-title">🔁 Sincronización automática por intervalo</span>
     </div>
     <div class="panel-body">
-      <div style="font-size:11px;color:var(--text3);margin-bottom:12px">Mientras tengas Trakker abierto, sincroniza tus datos automáticamente cada cierto tiempo. Ideal para mantener el panel al día durante el día sin pulsar "Sincronizar". (Funciona con la app abierta; la sincronización del servidor de arriba sigue corriendo aunque la cierres.)</div>
+      <div style="font-size:11px;color:var(--text3);margin-bottom:12px">Sincroniza tus datos automáticamente cada cierto tiempo. Funciona <b>aunque cierres la app</b>: el servidor revisa cada ~15 min y sincroniza si toca (por eso el intervalo mínimo es 15 min). Con la app abierta también se actualiza al instante en cada intervalo.</div>
       <div class="form-row" style="max-width:320px">
         <div class="field" style="width:100%">
           <label>Sincronizar cada</label>
@@ -8638,8 +8638,9 @@ function startAutoSyncInterval(){
 function setAutoSyncInterval(){
   const sel = document.getElementById('autosync-int'); if (!sel) return;
   localStorage.setItem('trakker_autosync_min', sel.value);
-  startAutoSyncInterval();
-  if (typeof showSuccess === 'function') showSuccess(+sel.value ? `✅ Sincronización cada ${sel.options[sel.selectedIndex].text}` : 'Sincronización por intervalo desactivada');
+  startAutoSyncInterval();                                  // timer del cliente (app abierta)
+  _upsertSyncCfg({ intervalo_min: +sel.value }).catch(()=>{}); // servidor (app CERRADA, vía Edge Function)
+  if (typeof showSuccess === 'function') showSuccess(+sel.value ? `✅ Sincronización cada ${sel.options[sel.selectedIndex].text} (también con la app cerrada)` : 'Sincronización por intervalo desactivada');
 }
 function updateAutoSyncIntLabel(){
   const est = document.getElementById('autosync-int-estado'); if (!est) return;
@@ -8659,6 +8660,12 @@ async function loadAutosyncConfig() {
     const r = await api.get('sync_config', `user_id=eq.${CURRENT_USER?.id}&limit=1`);
     AUTOSYNC_CFG = r[0] || null;
   } catch(e) { AUTOSYNC_CFG = null; }
+  // El intervalo del servidor manda (corre con la app cerrada); sincroniza el timer del cliente
+  if (AUTOSYNC_CFG && AUTOSYNC_CFG.intervalo_min != null){
+    localStorage.setItem('trakker_autosync_min', String(AUTOSYNC_CFG.intervalo_min));
+    const si = document.getElementById('autosync-int'); if (si) si.value = String(AUTOSYNC_CFG.intervalo_min);
+    startAutoSyncInterval();
+  }
   const act = document.getElementById('autosync-activo');
   const noche = document.getElementById('autosync-noche');
   const manana = document.getElementById('autosync-manana');
