@@ -206,7 +206,7 @@ body.hub-active .page{padding:16px 28px 22px;}
 .hub2-card.pos-tr{top:11px;right:54px;}
 .hub2-card.pos-bl{bottom:11px;left:54px;}
 .hub2-card.pos-br{bottom:11px;right:54px;}
-.hub2-footer{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--border);border-radius:18px;padding:14px 22px;font-size:12.5px;font-weight:600;color:var(--text2);max-width:780px;margin:26px auto 0;box-shadow:var(--shadow);}
+.hub2-footer{display:flex;align-items:center;justify-content:center;gap:16px;flex-wrap:wrap;background:var(--bg2);border:1px solid var(--border);border-radius:18px;padding:14px 22px;font-size:12.5px;font-weight:600;color:var(--text2);max-width:780px;margin:50px auto 0;box-shadow:var(--shadow);}
 .hub2-sep{opacity:.3;}
 @media(max-width:1040px){
   .hub2-stage{width:100%;height:auto;display:grid;grid-template-columns:1fr 1fr;gap:16px;}
@@ -538,10 +538,9 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     </div>
   </div>
 
-  <!-- ACCESOS PRINCIPALES -->
-  <div style="padding:2px 2px 8px">
-    <div class="nav-hero global" onclick="navTo('global',null)"><span class="hicon">🌍</span> Visión Global <span style="margin-left:auto;font-size:14px;opacity:0.85">→</span></div>
-    <div class="nav-hero importar" onclick="navTo('importar',null)"><span class="hicon">📥</span> Importar Datos <span id="nav-setup-badge" style="display:none;margin-left:auto;background:rgba(255,255,255,0.28);color:#fff;font-size:9px;font-weight:700;padding:2px 7px;border-radius:10px">SETUP</span></div>
+  <!-- VOLVER A PRODUCTOS -->
+  <div style="padding:8px 10px 2px">
+    <button class="btn btn-ghost btn-sm" style="width:100%;justify-content:center;font-weight:800" onclick="navTo('productos',null)">← Volver a Productos</button>
   </div>
 
   <!-- WORKSPACE SELECTOR -->
@@ -562,7 +561,6 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div class="nav-item active" onclick="navTo('dashboard',this)"><span class="icon">📈</span> Dashboard</div>
     <div class="nav-item" onclick="navTo('bitacora',this)"><span class="icon">📅</span> Bitácora</div>
     <div class="nav-item" onclick="navTo('comparar',this)"><span class="icon">⚖️</span> Comparar períodos</div>
-    <div class="nav-item" onclick="navTo('comparar-productos',this)"><span class="icon">📦</span> Comparar productos</div>
     <div class="nav-item" onclick="navTo('alertas',this)" id="nav-alertas"><span class="icon">🚨</span> Alertas <span id="alertas-badge" style="display:none;background:var(--red);color:#fff;border-radius:10px;padding:1px 6px;font-size:10px;font-weight:700;margin-left:auto"></span></div>
     <div class="nav-section">Detalle</div>
     <div class="nav-item" onclick="navTo('analyzer',this)" style="border-left:3px solid var(--green)"><span class="icon">🧠</span> Analyzer Pro</div>
@@ -573,35 +571,20 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div class="nav-item" onclick="navTo('horarios',this)"><span class="icon">🕐</span> Horarios</div>
     <div class="nav-section">Datos</div>
     <div class="nav-item" onclick="navTo('registro',this)"><span class="icon">📅</span> Registro Diario</div>
-    <div class="nav-item" onclick="navTo('importar',this); impTab('conciliacion')"><span class="icon">🔎</span> Conciliación</div>
     <div class="nav-item" onclick="navTo('catalogo',this)"><span class="icon">📖</span> Catálogo</div>
-    <div class="nav-section">Sistema</div>
     <div class="nav-item" onclick="navTo('chats-ventas',this)"><span class="icon">💬</span> Chats vs Ventas</div>
     <div class="nav-item" onclick="navTo('mejor-anuncio',this)"><span class="icon">🏆</span> Mejor anuncio</div>
     <div class="nav-item" onclick="navTo('vida-util',this)"><span class="icon">⏱️</span> Vida útil</div>
-    <div class="nav-item" onclick="navTo('leyenda',this)"><span class="icon">🏷️</span> Estados y Leyenda</div>
     <div class="nav-item" onclick="openExportar()"><span class="icon">📤</span> Exportar datos</div>
-    <div class="nav-item" id="nav-admin" style="display:none" onclick="navTo('admin',this)"><span class="icon">👑</span> Panel Admin</div>
+    <div class="nav-section">Producto</div>
+    <div class="nav-item" onclick="abrirConfigProducto()"><span class="icon">⚙️</span> Configuración del producto</div>
   </nav>
-  <div class="sidebar-footer">
-    <div class="cfg-bar">
-      <div class="cfg-title">⚙️ Precios activos</div>
-      <div class="price-chips" id="price-chips"></div>
-    </div>
-    <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:7px;justify-content:center" onclick="openConfig()">Configurar</button>
-    <div style="margin-top:8px;padding:8px 10px;background:var(--bg3);border-radius:var(--radius-sm);border:1px solid var(--border)">
-      <div style="font-size:10px;color:var(--text3);margin-bottom:3px">SESIÓN ACTIVA</div>
-      <div id="sidebar-user-email" style="font-size:11px;font-weight:600;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap">—</div>
-      <div id="sidebar-user-role" style="font-size:10px;color:var(--text2);margin-top:1px"></div>
-      <div class="theme-toggle" onclick="toggleDarkMode()">
-        <span id="theme-icon">🌙</span>
-        <span class="theme-toggle-label" id="theme-label">Modo oscuro</span>
-        <div class="theme-track" id="theme-track"><div class="theme-thumb"></div></div>
-      </div>
-      <button id="btn-notif" class="btn btn-ghost btn-sm" style="width:100%;margin-top:6px;justify-content:center" onclick="enableNotificaciones()">🔔 Activar notificaciones</button>
-      <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:6px;justify-content:center;color:var(--red);border-color:rgba(220,38,38,0.2)" onclick="doLogout()">Cerrar sesión</button>
-      <button class="btn btn-ghost btn-sm" style="width:100%;margin-top:4px;justify-content:center;color:var(--text3);border-color:var(--border);font-size:10px" onclick="deleteSelfAccount()">Eliminar mi cuenta</button>
-    </div>
+  <!-- IDs ocultos conservados para compatibilidad con JS (sesión vive en el Hub) -->
+  <div style="display:none">
+    <span id="nav-setup-badge"></span><span id="price-chips"></span>
+    <span id="sidebar-user-email"></span><span id="sidebar-user-role"></span>
+    <span id="theme-icon"></span><span id="theme-label"></span><span id="theme-track"></span>
+    <button id="btn-notif"></button><span id="nav-admin"></span>
   </div>
 </aside>
 
@@ -1393,13 +1376,30 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 
 <!-- IMPORTAR CRM -->
 <div class="page" id="page-importar">
-  <div class="page-header"><div><div class="page-title">📥 Importar Datos</div><div class="page-sub">Sincroniza y verifica tus datos · configura bots, Telegram y auto-sync</div></div></div>
-
-  <div class="tab-bar" style="margin-bottom:18px">
-    <button class="tab-btn active" id="imp-tab-btn-importar" onclick="impTab('importar')">📥 Importar y verificar</button>
-    <button class="tab-btn" id="imp-tab-btn-conciliacion" onclick="impTab('conciliacion')">🔎 Conciliación</button>
-    <button class="tab-btn" id="imp-tab-btn-ajustes" onclick="impTab('ajustes')">⚙️ Ajustes</button>
+  <div id="imp-hub">
+    <div class="page-header"><div><div class="page-title">📥 Importar Datos</div><div class="page-sub">Conecta, verifica y concilia tus fuentes de datos</div></div></div>
+    <div class="prod-grid">
+      <div class="prod-card" onclick="impTab('importar')">
+        <div class="prod-ico" style="background:var(--accent-dim);color:var(--accent)">📥</div>
+        <div class="prod-name">Importar y verificar</div>
+        <div class="prod-meta">Sincroniza ventas e inversión y verifícalas</div>
+        <div class="prod-actions"><span></span><span class="prod-open">Abrir →</span></div>
+      </div>
+      <div class="prod-card" onclick="impTab('conciliacion')">
+        <div class="prod-ico" style="background:var(--teal-dim);color:var(--teal)">🔎</div>
+        <div class="prod-name">Conciliación</div>
+        <div class="prod-meta">Cuadra ventas registradas con pagos reales</div>
+        <div class="prod-actions"><span></span><span class="prod-open">Abrir →</span></div>
+      </div>
+      <div class="prod-card" onclick="impTab('ajustes')">
+        <div class="prod-ico" style="background:var(--orange-dim);color:var(--orange)">⚙️</div>
+        <div class="prod-name">Ajustes</div>
+        <div class="prod-meta">Fuentes, Google Sheets, Telegram y auto-sync</div>
+        <div class="prod-actions"><span></span><span class="prod-open">Abrir →</span></div>
+      </div>
+    </div>
   </div>
+  <button id="imp-back" class="volver-btn" style="display:none" onclick="impHome()">← Volver a Importar Datos</button>
 
   <!-- ════════ TAB CONCILIACIÓN ════════ -->
   <div id="imp-tab-conciliacion" style="display:none"></div>
@@ -2651,9 +2651,12 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <div class="field"><label>Fuente (bot)</label><select id="ws-fuente"></select></div>
     </div>
     <input type="hidden" id="ws-edit-id" value="">
-    <div style="display:flex;justify-content:flex-end;gap:8px;margin-top:14px">
-      <button class="btn btn-ghost" onclick="closeModal('modal-workspace')">Cancelar</button>
-      <button class="btn btn-primary" onclick="saveWorkspace()">Guardar</button>
+    <div style="display:flex;align-items:center;gap:8px;margin-top:14px">
+      <button class="btn btn-ghost" id="ws-delete-btn" style="display:none;color:var(--red);border-color:rgba(225,29,72,0.3)" onclick="eliminarProductoActual()">🗑️ Eliminar producto</button>
+      <div style="display:flex;gap:8px;margin-left:auto">
+        <button class="btn btn-ghost" onclick="closeModal('modal-workspace')">Cancelar</button>
+        <button class="btn btn-primary" onclick="saveWorkspace()">Guardar</button>
+      </div>
     </div>
   </div>
 </div>
@@ -4654,16 +4657,17 @@ async function onLoginSuccess(user) {
     IS_ADMIN = profiles[0]?.is_admin === true;
   } catch(e) { IS_ADMIN = false; }
 
-  // Actualizar UI de sesión
-  document.getElementById('sidebar-user-email').textContent = user.email;
-  document.getElementById('sidebar-user-role').textContent  = IS_ADMIN ? '👑 Administrador' : '👤 Usuario';
+  // Actualizar UI de sesión (los datos de cuenta viven ahora en el Hub)
+  const _se = document.getElementById('sidebar-user-email'); if (_se) _se.textContent = user.email;
+  const _sr = document.getElementById('sidebar-user-role'); if (_sr) _sr.textContent = IS_ADMIN ? '👑 Administrador' : '👤 Usuario';
+  try { refreshAccountMenu(); } catch(e){}
   initNotifButton();
 
   // Mostrar nav admin si corresponde. La barra superior NO se muestra por defecto:
   // el admin trabaja en SU propia sesión (solo sus productos). La gestión global
   // vive en la pestaña "👑 Panel Admin". La barra solo aparece en modo inspección.
   if (IS_ADMIN) {
-    document.getElementById('nav-admin').style.display = 'flex';
+    const _na = document.getElementById('nav-admin'); if (_na) _na.style.display = 'flex';
     document.getElementById('admin-bar').classList.add('hidden');
     ADMIN_VIEWING_USER_ID = null;
     await loadAdminUsers();
@@ -4680,7 +4684,7 @@ async function onLoginSuccess(user) {
     document.body.classList.add('hub-active');
     try { renderHub(); } catch(e) { console.warn('renderHub:', e); }
     try { refreshAccountMenu(); } catch(e){}
-    loadGlobalAlertas();  // alertas globales de todos los productos (no bloquea el arranque)
+    loadGlobalData();  // datos+alertas de todos los productos para el círculo global (no bloquea el arranque)
     // Mostrar badge SETUP si el usuario no tiene Google Sheets configurado
     const badge = document.getElementById('nav-setup-badge');
     if (badge) badge.style.display = DB.config?.sheets_url ? 'none' : 'inline';
@@ -4700,8 +4704,9 @@ async function doLogout() {
   DB = { config:{ id:null,p1:10,p2:7,p3:5,p4:3,igv:0.18,tc:4.0,sat_caida:0.30,sat_dias:3,estados:[],alerta_gasto_min:5,alerta_roas_min:1,roas_gasto_min:1 }, campanas:[], anuncios:[], registros:[], notas:[] };
   document.getElementById('login-screen').classList.remove('hidden');
   document.body.classList.remove('hub-active');
+  document.body.classList.remove('show-sidebar');
   document.getElementById('admin-bar').classList.add('hidden');
-  document.getElementById('nav-admin').style.display = 'none';
+  const _na2 = document.getElementById('nav-admin'); if (_na2) _na2.style.display = 'none';
   document.getElementById('login-email').value = '';
   document.getElementById('login-pass').value  = '';
   document.getElementById('login-error').style.display = 'none';
@@ -4965,15 +4970,10 @@ function renderWorkspaceSelector() {
 
   const lista = document.getElementById('ws-lista');
   lista.innerHTML = DB.workspaces.map(w => `
-    <div class="ws-option ${w.id === CURRENT_WORKSPACE.id ? 'active' : ''}" style="display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;font-size:13px;color:var(--text);transition:background 0.1s;border-bottom:1px solid var(--border)">
-      <span onclick="switchWorkspace('${w.id}')" style="display:flex;align-items:center;gap:8px;flex:1">
-        <span style="font-size:16px">${w.emoji || '📦'}</span>
-        <span>${w.nombre}</span>
-      </span>
-      <button class="btn btn-yellow btn-sm btn-icon" onclick="event.stopPropagation();editWorkspace('${w.id}')" title="Editar">✏️</button>
-      ${DB.workspaces.length > 1
-        ? `<button class="ws-delete-btn" onclick="event.stopPropagation();deleteWorkspace('${w.id}')" title="Eliminar">🗑️</button>`
-        : `<span title="No puedes eliminar el único producto" style="font-size:11px;color:var(--text3);padding:2px 6px">🔒</span>`}
+    <div class="ws-option ${w.id === CURRENT_WORKSPACE.id ? 'active' : ''}" onclick="switchWorkspace('${w.id}')" style="display:flex;align-items:center;gap:8px;padding:9px 12px;cursor:pointer;font-size:13px;color:var(--text);transition:background 0.1s;border-bottom:1px solid var(--border)">
+      <span style="font-size:16px">${w.emoji || '📦'}</span>
+      <span style="flex:1">${w.nombre}</span>
+      ${w.id === CURRENT_WORKSPACE.id ? '<span style="font-size:11px;color:var(--green)">●</span>' : ''}
     </div>`).join('');
 }
 
@@ -5028,6 +5028,7 @@ function openNuevoWorkspace() {
   document.getElementById('ws-nombre-input').value = '';
   document.getElementById('ws-edit-id').value = '';
   populateWsModalSelects(null);
+  const del = document.getElementById('ws-delete-btn'); if (del) del.style.display = 'none';
   document.getElementById('ws-dropdown').classList.add('hidden');
   openModal('modal-workspace');
 }
@@ -5035,13 +5036,27 @@ function openNuevoWorkspace() {
 function editWorkspace(wsId) {
   const ws = DB.workspaces.find(w => w.id === wsId);
   if (!ws) return;
-  document.getElementById('ws-modal-title').textContent = '✏️ Editar Producto';
+  document.getElementById('ws-modal-title').textContent = '⚙️ Configuración del producto';
   document.getElementById('ws-emoji-input').value  = ws.emoji || '📦';
   document.getElementById('ws-nombre-input').value = ws.nombre;
   document.getElementById('ws-edit-id').value = wsId;
   populateWsModalSelects(ws);
+  // Eliminar producto vive aquí (administración del producto), no en la navegación
+  const del = document.getElementById('ws-delete-btn');
+  if (del) del.style.display = (DB.workspaces.length > 1) ? 'inline-flex' : 'none';
   document.getElementById('ws-dropdown').classList.add('hidden');
   openModal('modal-workspace');
+}
+// Atajo desde el sidebar: "Configuración del producto" del producto activo
+function abrirConfigProducto(){
+  if (CURRENT_WORKSPACE) editWorkspace(CURRENT_WORKSPACE.id);
+}
+// Eliminar el producto que se está editando (desde Configuración del producto)
+function eliminarProductoActual(){
+  const id = document.getElementById('ws-edit-id').value;
+  if (!id) return;
+  closeModal('modal-workspace');
+  if (typeof deleteWorkspace === 'function') deleteWorkspace(id);
 }
 
 async function deleteWorkspace(wsId) {
@@ -8392,17 +8407,27 @@ async function migrarFuentes() {
 // FUENTES (BOTS) — CRUD
 // ════════════════════════════════════════════════
 // Marca todas las ventas del producto activo como verificadas (cuando los totales ya cuadran)
+// Pantalla principal de Importar Datos (sub-hub con 3 tarjetas).
+function impHome(){
+  document.getElementById('imp-hub').style.display = 'block';
+  document.getElementById('imp-back').style.display = 'none';
+  document.getElementById('imp-tab-importar').style.display = 'none';
+  document.getElementById('imp-tab-ajustes').style.display  = 'none';
+  const cTab = document.getElementById('imp-tab-conciliacion'); if (cTab) cTab.style.display = 'none';
+  // Mostrar de nuevo el botón "Volver a Hub" inyectado en la página
+  const pv = document.querySelector('#page-importar > .volver-injected'); if (pv) pv.style.display = '';
+}
+// Abre una de las 3 secciones (sin pestañas superiores).
 function impTab(t) {
+  document.getElementById('imp-hub').style.display = 'none';
+  document.getElementById('imp-back').style.display = '';
+  // Ocultar el "Volver a Hub" de página mientras estamos dentro de una sección
+  const pv = document.querySelector('#page-importar > .volver-injected'); if (pv) pv.style.display = 'none';
   document.getElementById('imp-tab-importar').style.display = t === 'importar' ? 'block' : 'none';
   document.getElementById('imp-tab-ajustes').style.display  = t === 'ajustes'  ? 'block' : 'none';
   const cTab = document.getElementById('imp-tab-conciliacion');
   if (cTab) cTab.style.display = t === 'conciliacion' ? 'block' : 'none';
-  document.getElementById('imp-tab-btn-importar').classList.toggle('active', t === 'importar');
-  document.getElementById('imp-tab-btn-ajustes').classList.toggle('active', t === 'ajustes');
-  const cBtn = document.getElementById('imp-tab-btn-conciliacion');
-  if (cBtn) cBtn.classList.toggle('active', t === 'conciliacion');
   if (t === 'conciliacion') {
-    // Reubicar el flujo de conciliación dentro de la pestaña (una sola vez)
     const root = document.getElementById('conc-root');
     if (root && cTab && !cTab.contains(root)) cTab.appendChild(root);
     if (typeof concBandeja === 'function') concBandeja();
@@ -8857,12 +8882,12 @@ function navTo(page, el) {
 
 // Inserta (o quita) el botón "Volver" en las pantallas sin sidebar.
 function ensureVolver(page){
-  document.querySelectorAll('.volver-btn').forEach(b=>b.remove());
+  document.querySelectorAll('.volver-injected').forEach(b=>b.remove());
   const parent = PAGE_PARENT[page];
   if(!parent) return;
   const pg = document.getElementById('page-'+page); if(!pg) return;
   const btn = document.createElement('button');
-  btn.className = 'volver-btn';
+  btn.className = 'volver-btn volver-injected';
   btn.innerHTML = `← Volver a ${PARENT_LABEL[parent] || 'Hub'}`;
   btn.onclick = () => navTo(parent, null);
   pg.insertBefore(btn, pg.firstChild);
@@ -8909,7 +8934,7 @@ function renderPage(page) {
   if (page==='catalogo')     renderCatalogo();
   if (page==='leyenda')      renderLeyenda();
   if (page==='alertas')      renderAlertas();
-  if (page==='importar')            { impTab('importar'); initMetaApiPage(); updateSheetsStatus(); renderFuentesPanel(); loadAutosyncConfig(); }
+  if (page==='importar')            { impHome(); initMetaApiPage(); updateSheetsStatus(); renderFuentesPanel(); loadAutosyncConfig(); }
   if (page==='comparar')            { initComparar(); renderComparar(); }
   if (page==='comparar-productos')  renderCompararProductos();
   if (page==='admin')        renderAdminPage();
@@ -8943,11 +8968,8 @@ function renderHub(){
     const p = hubPeriodo();
     document.querySelectorAll('#hub-seg button').forEach(b => b.classList.toggle('active', b.dataset.p === p));
     const { desde, hasta } = rangoDe(p, null, null, null);
-    const regs = DB.registros.filter(r => r.fecha >= desde && r.fecha <= hasta);
-    const M = calcMetrics(regs);
     const ant = rangoAnterior(desde, hasta);
-    const Mant = calcMetrics(DB.registros.filter(r => r.fecha >= ant.desde && r.fecha <= ant.hasta));
-    // Etiqueta de fecha del círculo: refleja SIEMPRE el período del filtro (fix bug)
+    // Etiqueta de fecha del círculo: refleja SIEMPRE el período del filtro
     const lbl = document.getElementById('hub-fecha-label');
     if (lbl){
       lbl.textContent = p === 'hoy'  ? `📅 Hoy · ${fmt.date(hasta)}`
@@ -8960,11 +8982,28 @@ function renderHub(){
       const v = document.getElementById(id); if (v) v.textContent = val;
       const d = document.getElementById(id + '-d'); if (d) d.innerHTML = deltaSub(cur, prev, Object.assign({ suf }, opt || {}));
     };
-    setKpi('hub-ingresos',  fmt.s(M.ingresos),  M.ingresos,  Mant.ingresos);
-    setKpi('hub-inversion', fmt.s(M.inversion), M.inversion, Mant.inversion, { higherIsBetter:false });
-    setKpi('hub-profit',    fmt.s(M.profit),    M.profit,    Mant.profit);
-    setKpi('hub-ventas',    fmt.num(M.ventas),  M.ventas,    Mant.ventas);
-    setKpi('hub-roas',      fmt.roas(M.roas),   M.roas,      Mant.roas);
+    // KPIs GLOBALES (suma de TODOS los productos, convertida a la moneda del producto activo).
+    // Mientras GLOBAL_DATA aún no carga, cae al producto activo para no mostrar ceros.
+    const code = gblCode(), rate = gblRate();
+    const fML = usd => fmtMoney(usd * rate, code);
+    let kI,kV,kP,kN,kR, pI,pV,pP,pN,pR, sI,sV,sP,sN,sR;
+    if (Object.keys(GLOBAL_DATA).length){
+      const G = globalMetricsPeriodo(desde, hasta), Gp = globalMetricsPeriodo(ant.desde, ant.hasta);
+      kI=G.ingresosUSD;kV=G.inversionUSD;kP=G.profitUSD;kN=G.ventas;kR=G.roas;
+      pI=Gp.ingresosUSD;pV=Gp.inversionUSD;pP=Gp.profitUSD;pN=Gp.ventas;pR=Gp.roas;
+      sI=fML(kI);sV=fML(kV);sP=fML(kP);sN=fmt.num(kN);sR=fmt.roas(kR);
+    } else {
+      const M=calcMetrics(DB.registros.filter(r=>r.fecha>=desde&&r.fecha<=hasta));
+      const Mant=calcMetrics(DB.registros.filter(r=>r.fecha>=ant.desde&&r.fecha<=ant.hasta));
+      kI=M.ingresos;kV=M.inversion;kP=M.profit;kN=M.ventas;kR=M.roas;
+      pI=Mant.ingresos;pV=Mant.inversion;pP=Mant.profit;pN=Mant.ventas;pR=Mant.roas;
+      sI=fmt.s(kI);sV=fmt.s(kV);sP=fmt.s(kP);sN=fmt.num(kN);sR=fmt.roas(kR);
+    }
+    setKpi('hub-ingresos',  sI, kI, pI);
+    setKpi('hub-inversion', sV, kV, pV, { higherIsBetter:false });
+    setKpi('hub-profit',    sP, kP, pP);
+    setKpi('hub-ventas',    sN, kN, pN);
+    setKpi('hub-roas',      sR, kR, pR);
 
     // Alertas GLOBALES (de todos los productos) → badge campana + estado
     const totalAl = notifEnabled() ? (GLOBAL_ALERTS.total || 0) : 0;
@@ -9032,10 +9071,7 @@ function renderProductos(){
       <div class="prod-name">${w.nombre || 'Producto'}</div>
       <div class="prod-meta">Moneda ${cur}${active ? ' · <span style="color:var(--green);font-weight:700">● Activo</span>' : ''}</div>
       <div class="prod-meta" style="font-size:11px">${alChip}</div>
-      <div class="prod-actions">
-        <button class="btn btn-ghost btn-sm" onclick="event.stopPropagation();editWorkspace('${w.id}')" title="Editar">✏️ Editar</button>
-        <span class="prod-open">Abrir →</span>
-      </div>
+      <div class="prod-actions"><span></span><span class="prod-open">Abrir →</span></div>
     </div>`;
   }).join('');
   grid.innerHTML = cards
@@ -9110,49 +9146,83 @@ function toggleNotif(){
   const on = notifEnabled();
   localStorage.setItem('tracker_notif', on ? 'off' : 'on');
   refreshAccountMenu();
-  if (notifEnabled()) loadGlobalAlertas();
-  else { GLOBAL_ALERTS = { total:0, red:0, byWs:{} }; actualizarNotifBadge(); try{ renderHub(); }catch(e){} renderNotifList(); }
+  recomputeGlobalAlertas();
+  try { renderHub(); } catch(e){}
+  renderNotifList();
   if (typeof showSuccess === 'function') showSuccess(notifEnabled() ? '🔔 Notificaciones activadas' : '🔕 Notificaciones desactivadas');
 }
 
 // Cuenta las alertas (últimos 3 días) de un set de registros con su config.
+// Cuenta alertas (últimos 3 días) excluyendo las que el usuario YA descartó.
 function _contarAlertasRegs(regs, P){
   const gastoMin = P.alerta_gasto_min || 5, roasMin = P.alerta_roas_min || 1;
   const hoy = today(), desde = nDaysAgo(3); let total = 0, red = 0;
+  const desc = JSON.parse(localStorage.getItem('tracker_alertas_desc') || '[]');
+  const esDesc = (tipo, adId, fecha) => { const k = `${tipo}||${adId}||${fecha}`; return desc.includes(k) || desc.includes('del:'+k); };
   (regs || []).forEach(r => {
     if (r.fecha < desde || r.fecha > hoy) return;
     const gasto  = (+r.gasto_meta||0) + (+r.gasto_tiktok||0);
     const ventas = (+r.v1||0) + (+r.v2||0) + (+r.v3||0) + (+r.v4||0);
     const ing    = (+r.v1||0)*(P.p1??10) + (+r.v2||0)*(P.p2??7) + (+r.v3||0)*(P.p3??5) + (+r.v4||0)*(P.p4??3);
     const roas   = gasto > 0 ? ing/gasto : 0;
-    if (gasto >= gastoMin && ventas === 0){ total++; red++; }
-    else if (gasto > 0 && roas < roasMin && roas > 0){ total++; }
+    if (gasto >= gastoMin && ventas === 0){ if (!esDesc('sin_ventas', r.ad_id, r.fecha)){ total++; red++; } }
+    else if (gasto > 0 && roas < roasMin && roas > 0){ if (!esDesc('roas_bajo', r.ad_id, r.fecha)){ total++; } }
   });
   return { total, red };
 }
 
-// Carga las alertas de TODOS los productos (decisión del usuario: global al inicio).
-async function loadGlobalAlertas(){
+// Datos de TODOS los productos (decisión usuario): registros (35d) + config por workspace.
+// Sirve para: KPIs globales del círculo + alertas globales.
+let GLOBAL_DATA = {};
+async function loadGlobalData(){
+  GLOBAL_DATA = {};
   GLOBAL_ALERTS = { total:0, red:0, byWs:{} };
-  if (!notifEnabled()){ actualizarNotifBadge(); return; }
   const wss = DB.workspaces || [];
-  if (!wss.length){ actualizarNotifBadge(); return; }
-  const desde = nDaysAgo(3);
+  if (!wss.length){ actualizarNotifBadge(); try{ renderHub(); }catch(e){} return; }
+  const desde = nDaysAgo(35);
   try {
     await Promise.all(wss.map(async w => {
       const [regs, cfgArr] = await Promise.all([
-        api.get('registros', `workspace_id=eq.${w.id}&fecha=gte.${desde}&order=fecha.asc`).catch(()=>[]),
+        api.getAll('registros', `workspace_id=eq.${w.id}&fecha=gte.${desde}&order=fecha.asc`).catch(()=>[]),
         api.get('config', `limit=1&workspace_id=eq.${w.id}`).catch(()=>[])
       ]);
-      const c = _contarAlertasRegs(regs, cfgArr[0] || {});
-      GLOBAL_ALERTS.byWs[w.id] = { total:c.total, red:c.red, nombre:w.nombre, emoji:w.emoji || '📦' };
-      GLOBAL_ALERTS.total += c.total; GLOBAL_ALERTS.red += c.red;
+      const P = cfgArr[0] || {};
+      GLOBAL_DATA[w.id] = { regs: regs || [], P, ws: w };
+      if (notifEnabled()){
+        const c = _contarAlertasRegs(regs, P);
+        GLOBAL_ALERTS.byWs[w.id] = { total:c.total, red:c.red, nombre:w.nombre, emoji:w.emoji || '📦' };
+        GLOBAL_ALERTS.total += c.total; GLOBAL_ALERTS.red += c.red;
+      }
     }));
-  } catch(e){ console.warn('loadGlobalAlertas:', e); }
+  } catch(e){ console.warn('loadGlobalData:', e); }
   actualizarNotifBadge();
   try { renderHub(); } catch(e){}
   if (CURRENT_PAGE === 'productos'){ try { renderProductos(); } catch(e){} }
   renderNotifList();
+}
+// Recalcula solo el conteo de alertas global desde GLOBAL_DATA (sin volver a la red).
+function recomputeGlobalAlertas(){
+  GLOBAL_ALERTS = { total:0, red:0, byWs:{} };
+  if (notifEnabled()){
+    Object.values(GLOBAL_DATA).forEach(d => {
+      const c = _contarAlertasRegs(d.regs, d.P);
+      GLOBAL_ALERTS.byWs[d.ws.id] = { total:c.total, red:c.red, nombre:d.ws.nombre, emoji:d.ws.emoji || '📦' };
+      GLOBAL_ALERTS.total += c.total; GLOBAL_ALERTS.red += c.red;
+    });
+  }
+  actualizarNotifBadge();
+}
+// Métricas GLOBALES del período, convertidas a USD (suma de todos los productos).
+function globalMetricsPeriodo(desde, hasta){
+  let ing = 0, inv = 0, ven = 0, count = 0;
+  Object.values(GLOBAL_DATA).forEach(d => {
+    const regsP = (d.regs || []).filter(r => r.fecha >= desde && r.fecha <= hasta);
+    if (!regsP.length) return;
+    const M = calcMetricsWithConfig(regsP, d.P);
+    const rate = (d.ws.currency_code === 'USD') ? 1 : (+d.ws.usd_rate || +d.P?.tc || 3.7);
+    ing += M.ingresos / rate; inv += M.inversion / rate; ven += M.ventas; count++;
+  });
+  return { ingresosUSD:ing, inversionUSD:inv, ventas:ven, profitUSD:ing - inv, roas: inv > 0 ? ing / inv : 0, count };
 }
 
 function actualizarNotifBadge(){
