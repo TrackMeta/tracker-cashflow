@@ -8629,7 +8629,8 @@ async function runAutoSync(){
       // refrescar la vista actual + los KPIs globales del Hub (si no, el círculo queda con datos viejos)
       try { await loadAll(); } catch(e){}
       try { await loadGlobalData(); } catch(e){}
-      try { const ap = document.querySelector('.page.active')?.id?.replace('page-',''); if (ap && ap !== 'hub') renderPage(ap); } catch(e){}
+      // No re-renderizar 'importar': romperia una conciliacion en curso (archivo cargado, papelera, etc.)
+      try { const ap = document.querySelector('.page.active')?.id?.replace('page-',''); if (ap && ap !== 'hub' && ap !== 'importar') renderPage(ap); } catch(e){}
     }
   } catch(e) { console.warn('autoSync intervalo:', e); }
   updateAutoSyncIntLabel();
@@ -14779,7 +14780,8 @@ init();
     CONC.ventas = CONC.ventas.filter(x=>x!==v);
     CONC.papelera = CONC.papelera||[]; CONC.papelera.push(v);
     concAuditar(); concRender();
-    concToast('Registro eliminado', ()=>{ concRestaurar(v.id); });
+    _concFlashPapelera();
+    concToast('Enviado a la 🗑️ Papelera (NO se borró del Sheet)', ()=>{ concRestaurar(v.id); });
   };
   window.concEliminarSel = function(){
     const ids=new Set([...document.querySelectorAll('.conc-chk:checked')].map(c=>c.dataset.id));
@@ -14790,7 +14792,17 @@ init();
     CONC.ventas = CONC.ventas.filter(v=>!ids.has(String(v.id)));
     CONC.papelera = (CONC.papelera||[]).concat(mover);
     concAuditar(); concRender();
+    _concFlashPapelera();
   };
+  // Lleva la papelera a la vista y la destella, para que nunca pase desapercibida tras borrar.
+  function _concFlashPapelera(){
+    const pe = document.getElementById('conc-papelera'); if(!pe) return;
+    setTimeout(()=>{
+      pe.scrollIntoView({ behavior:'smooth', block:'center' });
+      pe.style.transition = 'box-shadow .3s'; pe.style.boxShadow = '0 0 0 3px var(--red)';
+      setTimeout(()=>{ pe.style.boxShadow = ''; }, 1500);
+    }, 60);
+  }
   window.concRestaurar = function(id){
     CONC.papelera = CONC.papelera||[];
     const idx=CONC.papelera.findIndex(v=>String(v.id)===String(id)); if(idx<0) return;
