@@ -14418,15 +14418,19 @@ init();
       for(let i=0;i<pool.length;i++){
         if(pool[i].used) continue;
         if(Math.abs(pool[i].monto-precio)<=0.01){
+          // VENTANA DE FECHA: el pago debe ser del mismo día de la venta (±1 día como mucho).
+          // Sin esto, una venta emparejaba con un pago ANTIGUO solo porque coincidía el nombre.
+          const dd = _concDiaDiff(v.fecha, pool[i].fechaDia);
+          if(dd > 1) continue;
           const dmin = Math.abs(pool[i].fecha-v._dt)/60000;
           const nm = _concNameSim(v.cliente, pool[i].origen);
           const ph = _concPhoneMatch(v, pool[i]);
           // score de afinidad: teléfono pesa fuerte, nombre proporcional
-          cands.push({ i, dmin, nm, ph, score: (ph?0.6:0) + nm });
+          cands.push({ i, dd, dmin, nm, ph, score: (ph?0.6:0) + nm });
         }
       }
-      // Ordenar por afinidad (nombre/teléfono) y luego por cercanía temporal
-      cands.sort((a,b)=> (b.score - a.score) || (a.dmin - b.dmin));
+      // Mismo día primero → luego afinidad (nombre/teléfono) → luego cercanía temporal
+      cands.sort((a,b)=> (a.dd - b.dd) || (b.score - a.score) || (a.dmin - b.dmin));
       v.candidatos = cands.map(c=>c.i);
       if(cands.length){
         const best = cands[0], seg = cands[1];
@@ -14449,6 +14453,7 @@ init();
       let bt=-1, btd=Infinity, btScore=-1;
       for(let i=0;i<pool.length;i++){
         if(pool[i].used) continue;
+        if(_concDiaDiff(v.fecha, pool[i].fechaDia) > 1) continue;   // misma ventana de fecha
         const d = Math.abs(pool[i].fecha-v._dt)/60000; if(d > VERIF_NEAR_MIN) continue;
         const nm = _concNameSim(v.cliente, pool[i].origen), ph = _concPhoneMatch(v, pool[i]);
         const sc = (ph?0.6:0) + nm;
@@ -14472,6 +14477,13 @@ init();
   }
 
   // ── Afinidad por nombre / teléfono para emparejar venta↔pago ──
+  // Diferencia en días entre la fecha de la venta ('yyyy-mm-dd') y la del pago (fechaDia).
+  function _concDiaDiff(fVenta, fDiaPago){
+    if(!fVenta || !fDiaPago) return 999;
+    const a = new Date(fVenta + 'T00:00:00'), b = new Date(fDiaPago + 'T00:00:00');
+    if(isNaN(a) || isNaN(b)) return 999;
+    return Math.abs((a - b) / 86400000);
+  }
   // Similitud de nombres por tokens (1.0 si todos los tokens del más corto están en el otro).
   function _concNameSim(a, b){
     a = String(a||'').toLowerCase().replace(/[^a-záéíóúñü ]/gi,' ').trim();
