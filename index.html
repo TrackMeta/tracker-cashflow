@@ -14326,6 +14326,34 @@ init();
     try { await concBandeja(); } catch(e){}     // contadores
     if (typeof showSuccess === 'function') showSuccess('🔄 Cola actualizada');
   };
+  // Carga las ventas DESCARTADAS (ciclo=descartado) del periodo a la cola, para poder verlas/restaurarlas.
+  window.concVerDescartadas = async function(){
+    const fechaQ = (CONC.desde?`&fecha=gte.${CONC.desde}`:'') + (CONC.hasta?`&fecha=lte.${CONC.hasta}`:'');
+    const sel = 'select=id,fecha,ad_id,hora,precio,workspace_id,telefono,producto,cliente,origen,estado_verif,ciclo,sincronizado_at,conciliado_at,historial';
+    const rows = await api.get('crm_ventas', `ciclo=eq.descartado&${sel}&order=fecha.desc&limit=2000${fechaQ}`).catch(()=>[]);
+    if(!rows.length){ if(typeof showSuccess==='function') showSuccess('No hay ventas descartadas en este periodo'); return; }
+    const existentes = new Set(CONC.ventas.map(v=>String(v.id)));
+    const wsFuente = {}; (DB.workspaces||[]).forEach(w => { wsFuente[w.id] = w.fuente_id; });
+    rows.forEach(r=>{ if(existentes.has(String(r.id))) return;
+      CONC.ventas.push({ ...r, _dt:new Date(r.hora), estado:'descartado', pago:null, candidatos:[], manual:true,
+        fuente_id: wsFuente[r.workspace_id], historial: Array.isArray(r.historial)?r.historial:[] });
+    });
+    CONC.ventas.sort((a,b)=>a._dt-b._dt);
+    CONC.filtro = 'descartado';
+    concAuditar(); concRender();
+    if(typeof showSuccess==='function') showSuccess(`Mostrando ${rows.length} descartada(s) — usa ↩️ Restaurar para devolverlas a la cola`);
+  };
+  // Restaura una venta descartada → vuelve a 'pendiente' en la BD y a la cola.
+  window.concRestaurarDescartada = async function(id){
+    try{
+      await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas?id=eq.${id}`, {
+        method:'PATCH', headers:{...api._h(),'Prefer':'return=minimal'},
+        body: JSON.stringify({ ciclo:'pendiente', estado_verif:'pendiente', conciliado_at:null })
+      });
+      if(typeof showSuccess==='function') showSuccess('↩️ Venta restaurada a la cola');
+      await concRefrescar();
+    }catch(e){ if(typeof showError==='function') showError('Error al restaurar: '+e.message); }
+  };
   window.concBandeja = async function(){
     const box = document.getElementById('conc-bandeja-cards'); if(!box) return;
     box.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">⏳ Cargando la cola...</div>';
@@ -14340,9 +14368,10 @@ init();
         kpiCard('Con error', r.err, r.err?'red':'green', '🔴 sin coincidencia'),
       ].join('');
       if(guia){
-        if(r.pend) guia.innerHTML = `Tienes <strong style="color:var(--orange)">${r.pend} venta(s) pendiente(s)</strong> de conciliar. Sube el reporte del banco abajo y se resolverán las que cubra su rango de fechas.`;
-        else if(r.rev||r.err) guia.innerHTML = `Todo sincronizado. Quedan <strong>${r.rev+r.err}</strong> excepción(es) por resolver abajo.${desc?` <span style="color:var(--text3)">(${desc} descartada(s))</span>`:''}`;
-        else guia.innerHTML = `✅ Todo validado.${desc?` <span style="color:var(--text3)">(${desc} descartada(s))</span>`:''}`;
+        const descLink = desc ? ` · <a href="#" onclick="concVerDescartadas();return false" style="color:var(--accent);font-weight:700">⚫ ${desc} descartada(s) — ver / restaurar</a>` : '';
+        if(r.pend) guia.innerHTML = `Tienes <strong style="color:var(--orange)">${r.pend} venta(s) pendiente(s)</strong> de conciliar. Sube el reporte del banco abajo y se resolverán las que cubra su rango de fechas.${descLink}`;
+        else if(r.rev||r.err) guia.innerHTML = `Todo sincronizado. Quedan <strong>${r.rev+r.err}</strong> excepción(es) por resolver abajo.${descLink}`;
+        else guia.innerHTML = `✅ Todo validado.${descLink}`;
       }
     }catch(e){ box.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">No se pudo cargar la cola.</div>'; }
   };
@@ -14687,11 +14716,16 @@ init();
       }
       // CENTER
       let acciones='';
-      if(v.pago) acciones += `<button class="btn btn-ghost btn-sm" title="Desvincular" onclick="concDesvincular('${v.id}')">🔗✖</button>`;
-      if(v.estado!=='verificada' && v.estado!=='manual') acciones += `<button class="btn btn-ghost btn-sm" title="Validar (a mano o con su pago)" onclick="concValidar('${v.id}')">✓</button>`;
-      if(v.dup) acciones += `<button class="btn btn-ghost btn-sm" title="Ver ambas (la venta y su posible duplicada)" onclick="concVerAmbas('${v.id}')">👀</button>`;
-      acciones += `<button class="btn btn-ghost btn-sm" title="Ignorar / falso positivo" onclick="concIgnorar('${v.id}')">🚫</button>`;
-      acciones += `<button class="btn btn-ghost btn-sm" title="Eliminar registro" style="color:var(--red)" onclick="concEliminar('${v.id}')">🗑️</button>`;
+      if(v.estado==='descartado'){
+        // Venta descartada: solo permitir restaurarla a la cola
+        acciones += `<button class="btn btn-ghost btn-sm" title="Restaurar a la cola (pendiente)" onclick="concRestaurarDescartada('${v.id}')">↩️ Restaurar</button>`;
+      } else {
+        if(v.pago) acciones += `<button class="btn btn-ghost btn-sm" title="Desvincular" onclick="concDesvincular('${v.id}')">🔗✖</button>`;
+        if(v.estado!=='verificada' && v.estado!=='manual') acciones += `<button class="btn btn-ghost btn-sm" title="Validar (a mano o con su pago)" onclick="concValidar('${v.id}')">✓</button>`;
+        if(v.dup) acciones += `<button class="btn btn-ghost btn-sm" title="Ver ambas (la venta y su posible duplicada)" onclick="concVerAmbas('${v.id}')">👀</button>`;
+        acciones += `<button class="btn btn-ghost btn-sm" title="Ignorar / falso positivo" onclick="concIgnorar('${v.id}')">🚫</button>`;
+        acciones += `<button class="btn btn-ghost btn-sm" title="Eliminar registro" style="color:var(--red)" onclick="concEliminar('${v.id}')">🗑️</button>`;
+      }
       const center = `<div style="text-align:center;display:flex;flex-direction:column;align-items:center;gap:3px">
         <input type="checkbox" class="conc-chk" data-id="${v.id}">
         <div style="font-size:20px;line-height:1">${CONC_ICON[v.estado]}${v.manual?'<span title="Modificado manualmente" style="font-size:12px">🟣</span>':''}</div>
