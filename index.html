@@ -2270,7 +2270,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   <div id="conc-root">
   <!-- ⓪ BANDEJA / ESTADO DE LA COLA -->
   <div class="panel" style="margin-bottom:14px">
-    <div class="panel-header"><span class="panel-title">🗂️ Tu cola de conciliación</span><button class="btn btn-ghost btn-sm" onclick="concBandeja()">🔄 Actualizar</button></div>
+    <div class="panel-header"><span class="panel-title">🗂️ Tu cola de conciliación</span><button class="btn btn-ghost btn-sm" onclick="concRefrescar()">🔄 Actualizar</button></div>
     <div class="panel-body">
       <div class="cards-row cards-4" id="conc-bandeja-cards" style="margin-bottom:10px"></div>
       <div id="conc-bandeja-guia" style="font-size:12px;color:var(--text2)"></div>
@@ -14318,6 +14318,14 @@ init();
 
   // ── Bandeja inteligente (Fase 3): estado de la cola desde la BD (todas las ventas) ──
   // No requiere subir nada: al entrar, encuentras el trabajo pendiente.
+  // Refresco real de la cola: recarga ventas desde crm_ventas (incluye las recién
+  // sincronizadas), reconcilia si hay banco cargado y actualiza los contadores.
+  window.concRefrescar = async function(){
+    CONC._sheetAll = null;                // invalida el caché del parse del Sheet
+    try { await concSetPeriodo(); } catch(e){}  // recarga la cola con el periodo actual (+ reconcilia)
+    try { await concBandeja(); } catch(e){}     // contadores
+    if (typeof showSuccess === 'function') showSuccess('🔄 Cola actualizada');
+  };
   window.concBandeja = async function(){
     const box = document.getElementById('conc-bandeja-cards'); if(!box) return;
     box.innerHTML = '<div style="color:var(--text3);font-size:12px;padding:8px">⏳ Cargando la cola...</div>';
