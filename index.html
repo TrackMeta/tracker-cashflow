@@ -2270,7 +2270,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   <div id="conc-root">
   <!-- ⓪ BANDEJA / ESTADO DE LA COLA -->
   <div class="panel" style="margin-bottom:14px">
-    <div class="panel-header"><span class="panel-title">🗂️ Tu cola de conciliación</span><button class="btn btn-ghost btn-sm" onclick="concRefrescar()">🔄 Actualizar</button></div>
+    <div class="panel-header"><span class="panel-title">🗂️ Tu cola de conciliación</span><div style="display:flex;gap:6px"><button class="btn btn-ghost btn-sm" onclick="concReconstruirDesdeSheet()" title="Vuelve a leer el Google Sheet y aplica ediciones (ej: Ad ID agregado) a la cola">🔁 Reconstruir desde Sheet</button><button class="btn btn-ghost btn-sm" onclick="concRefrescar()">🔄 Actualizar</button></div></div>
     <div class="panel-body">
       <div class="cards-row cards-4" id="conc-bandeja-cards" style="margin-bottom:10px"></div>
       <div id="conc-bandeja-guia" style="font-size:12px;color:var(--text2)"></div>
@@ -2342,6 +2342,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       </div>
       <div class="panel-body" id="conc-lista-cards" style="display:grid;gap:8px"></div>
     </div>
+    <div id="conc-huerfanos" style="display:none;margin-top:14px"></div>
     <div id="conc-papelera" style="display:none;margin-top:14px"></div>
   </div>
   <div id="conc-empty" class="empty" style="padding:30px">
@@ -14617,9 +14618,89 @@ init();
     concRenderFiltros();
     // Tabla
     concRenderTabla();
+    // Pagos huérfanos (sin venta) del periodo
+    concRenderHuerfanos();
     // Papelera
     concRenderPapelera();
   }
+  // Panel de pagos del banco que quedaron SIN venta (huérfanos/fantasma) en el periodo.
+  // Muestra pagador, monto, fecha/hora y referencia, y sugiere ventas cercanas para asignarlo.
+  function concRenderHuerfanos(){
+    const el = document.getElementById('conc-huerfanos'); if(!el) return;
+    const hs = (CONC.huerfanos||[]).filter(p => {
+      if(!CONC.desde && !CONC.hasta) return true;
+      return (!CONC.desde || p.fechaDia >= CONC.desde) && (!CONC.hasta || p.fechaDia <= CONC.hasta);
+    }).slice().sort((a,b)=> (a.fecha - b.fecha));
+    if(!hs.length){ el.style.display='none'; el.innerHTML=''; return; }
+    el.style.display='block';
+    const code = wsCurrencyCode();
+    // ventas de la cola sin pago, para sugerir a cuál podría pertenecer cada huérfano
+    const libres = CONC.ventas.filter(v=>!v.pago && v.estado!=='descartado');
+    const row = p => {
+      // sugerencia: misma cantidad o nombre parecido, fecha ±1 día
+      const sug = libres.map(v=>{
+        const dd = _concDiaDiff(v.fecha, p.fechaDia);
+        const nm = _concNameSim(v.cliente, p.origen);
+        const montoOk = Math.abs((+v.precio)-(+p.monto))<=0.01;
+        return { v, dd, nm, montoOk, score:(montoOk?1:0)+(p && _concPhoneMatch(v,p)?0.6:0)+nm };
+      }).filter(s=> s.dd<=1 && (s.montoOk || s.nm>=0.5))
+        .sort((a,b)=> b.score-a.score).slice(0,4);
+      const opts = sug.map(s=>{
+        const vh = s.v.hora? new Date(s.v.hora).toLocaleTimeString('es-PE',{hour:'2-digit',minute:'2-digit'}):'';
+        return `<option value="${s.v.id}">${s.montoOk?'= ':'≈ '}${fmtMoney(s.v.precio,code)} · ${escH(s.v.cliente||s.v.telefono||s.v.producto||'venta')} · ${fmt.date(s.v.fecha)} ${vh}</option>`;
+      }).join('');
+      return `<div style="display:flex;align-items:center;gap:10px;font-size:12px;padding:8px 10px;background:var(--bg3);border-radius:6px;flex-wrap:wrap">
+        <span style="font-size:16px">🏦</span>
+        <div style="min-width:0;flex:1">
+          <div style="font-weight:700;color:var(--text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${escH(p.origen||'—')} · <span style="font-family:var(--mono)">${fmtMoney(p.monto,code)}</span></div>
+          <div style="font-size:11px;color:var(--text2)">📅 ${p.fechaDia} · ${p.hora}${p.operacion?` · #️⃣ ${escH(p.operacion)}`:''}</div>
+          ${p.descripcion?`<div style="font-size:10px;color:var(--text3);white-space:nowrap;overflow:hidden;text-overflow:ellipsis" title="${escH(p.descripcion)}">📝 ${escH(p.descripcion)}</div>`:''}
+        </div>
+        ${opts ? `<select onchange="concAsignarHuerfano('${p._i}', this.value)" style="background:var(--bg2);border:1px solid var(--border2);border-radius:6px;padding:5px 8px;color:var(--text);font-size:11px;max-width:260px"><option value="">🔗 Asignar a una venta…</option>${opts}</select>`
+               : `<span style="font-size:10px;color:var(--text3)">sin venta candidata cercana</span>`}
+      </div>`;
+    };
+    el.innerHTML = `<div class="panel" style="border-left:3px solid var(--orange)">
+      <div class="panel-header" style="background:var(--orange-dim)"><span class="panel-title" style="color:var(--orange)">🏦 ${hs.length} pago(s) sin venta (huérfanos) en el periodo</span></div>
+      <div class="panel-body" style="display:grid;gap:6px">${hs.map(row).join('')}</div>
+      <div style="font-size:11px;color:var(--text3);padding:0 16px 12px">Pagos del banco que llegaron sin una venta que los explique. Revisa el pagador y el monto para identificar a cuál venta pertenecen; puedes asignarlos a una venta de la cola.</div>
+    </div>`;
+  }
+  // Asigna un pago huérfano a una venta (desde el panel de huérfanos).
+  window.concAsignarHuerfano = function(pagoIdx, ventaId){
+    if(!ventaId) return;
+    if(typeof concReasignar==='function') concReasignar(ventaId, pagoIdx);
+  };
+  // Reconstruye la cola leyendo el Google Sheet de nuevo y aplicando ediciones
+  // (ej: Ad ID agregado, nombre/teléfono corregido) a las ventas ya en crm_ventas.
+  window.concReconstruirDesdeSheet = async function(){
+    if(!confirm('Volver a leer el Google Sheet y aplicar ediciones (Ad ID, cliente, etc.) a la cola.\n\n¿Continuar?')) return;
+    try{
+      CONC._sheetAll = null;
+      const sheetV = await concLeerVentas(CONC.desde, CONC.hasta);   // ventas frescas del Sheet
+      if(!sheetV.length){ showError('No se pudieron leer ventas del Sheet (¿script/sheets_url configurado?)'); return; }
+      // Indexar ventas del Sheet por clave ESTABLE (no usa ad_id, que es lo que se suele editar):
+      // teléfono + fecha + precio + hora. Así podemos detectar el ad_id agregado.
+      const key = x => `${String(x.telefono||'').replace(/\D/g,'')}|${x.fecha}|${(+x.precio||0).toFixed(2)}`;
+      const idx = {}; sheetV.forEach(s=>{ idx[key(s)] = s; });
+      let cambios = 0;
+      for(const v of CONC.ventas){
+        if(String(v.id).startsWith('sheet|')) continue;          // solo filas reales de crm_ventas
+        const s = idx[key(v)]; if(!s) continue;
+        const patch = {};
+        if((s.ad_id||'') && (s.ad_id||'') !== (v.ad_id||'')) patch.ad_id = s.ad_id;
+        if((s.cliente||'') && (s.cliente||'') !== (v.cliente||'')) patch.cliente = s.cliente;
+        if((s.producto||'') && (s.producto||'') !== (v.producto||'')) patch.producto = s.producto;
+        if(Object.keys(patch).length){
+          await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas?id=eq.${v.id}`, {
+            method:'PATCH', headers:{...api._h(),'Prefer':'return=minimal'}, body: JSON.stringify(patch)
+          }).then(()=>cambios++).catch(()=>{});
+        }
+      }
+      await concRefrescar();
+      showSuccess(cambios ? `🔁 ${cambios} venta(s) actualizada(s) desde el Sheet` : 'La cola ya estaba al día con el Sheet');
+    }catch(e){ showError('Error reconstruyendo: '+e.message); }
+  };
 
   function concRenderAvisos(){
     const el = document.getElementById('conc-avisos'); el.innerHTML='';
