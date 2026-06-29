@@ -647,6 +647,14 @@ async function reportData(userId: string, desde: string, hasta: string) {
   const rpc = await sb("POST", "rpc/ingresos_ciclo", { p_desde: desde, p_hasta: hasta }).catch(() => []);
   const ingMap: Record<string, any> = {};
   (rpc || []).forEach((r: any) => { ingMap[r.workspace_id] = r; });
+  // Order Bump por producto (proyectado/confirmado) vía RPC metricas_ciclo_por_ad.
+  const rpcBump = await sb("POST", "rpc/metricas_ciclo_por_ad", { p_desde: desde, p_hasta: hasta }).catch(() => []);
+  const bumpMap: Record<string, any> = {};
+  (rpcBump || []).forEach((r: any) => {
+    const b = bumpMap[r.workspace_id] || (bumpMap[r.workspace_id] = { valProy: 0, nProy: 0, valConf: 0, nConf: 0 });
+    b.valProy += +r.bump_val_proy || 0; b.nProy += +r.bump_n_proy || 0;
+    b.valConf += +r.bump_val_conf || 0; b.nConf += +r.bump_n_conf || 0;
+  });
   const perWs: any[] = [];
   for (const ws of (workspaces || [])) {
     const cfg = (await sb("GET", `config?workspace_id=eq.${ws.id}&select=p1,p2,p3,p4&limit=1`))?.[0] || { p1: 10, p2: 7, p3: 5, p4: 3 };
@@ -663,7 +671,9 @@ async function reportData(userId: string, desde: string, hasta: string) {
     const consMap: Record<string, boolean> = {}; estados.forEach((e: any) => { consMap[e.fecha] = e.consolidado; });
     const diasData = [...new Set(regs.map((r: any) => r.fecha))] as string[];
     let prov = 0; diasData.forEach((f) => { const c = consMap[f] !== undefined ? consMap[f] : (f < diaPeru(-2)); if (!c) prov++; });
-    perWs.push({ ws, inv, ingProy, ingConf, v1, v2, v3, v4, ventas: v1 + v2 + v3 + v4, rate, prov, nTotal, nConf, dias: diasData.length });
+    const bmp = bumpMap[ws.id] || { valProy: 0, nProy: 0, valConf: 0, nConf: 0 };
+    perWs.push({ ws, inv, ingProy, ingConf, v1, v2, v3, v4, ventas: v1 + v2 + v3 + v4, rate, prov, nTotal, nConf, dias: diasData.length,
+      bumpValProy: bmp.valProy, bumpNProy: bmp.nProy, bumpValConf: bmp.valConf, bumpNConf: bmp.nConf });
   }
   return { perWs, fuenteName };
 }
@@ -682,12 +692,16 @@ function dispCurrency(perWs: any[]): { code: string; rate: number } | null {
 function formatReport(titulo: string, periodoTxt: string, data: any) {
   const { perWs } = data;
   let gInv = 0, gProy = 0, gConf = 0, gVen = 0, gNTotal = 0, gNConf = 0, prov = 0;
+  let gBumpProy = 0, gBumpConf = 0, gBumpNProy = 0, gBumpNConf = 0;
   perWs.forEach((w: any) => {
     gInv += w.inv / w.rate; gProy += w.ingProy / w.rate; gConf += w.ingConf / w.rate;
     gVen += w.ventas; gNTotal += w.nTotal; gNConf += w.nConf; prov += w.prov;
+    gBumpProy += (w.bumpValProy || 0) / w.rate; gBumpConf += (w.bumpValConf || 0) / w.rate;
+    gBumpNProy += w.bumpNProy || 0; gBumpNConf += w.bumpNConf || 0;
   });
   const profProy = gProy - gInv, profConf = gConf - gInv;
   const roasProy = gInv > 0 ? gProy / gInv : 0, roasConf = gInv > 0 ? gConf / gInv : 0;
+  const roasProyB = gInv > 0 ? (gProy + gBumpProy) / gInv : 0, roasConfB = gInv > 0 ? (gConf + gBumpConf) / gInv : 0;
   const pend = Math.max(gNTotal - gNConf, 0);
   const dc = dispCurrency(perWs);
   const dShow = (usd: number) => dc ? fMoney(usd * dc.rate, dc.code) : fUsd(usd);
@@ -704,6 +718,9 @@ function formatReport(titulo: string, periodoTxt: string, data: any) {
   msg += `\n📈 *ROAS* ${fRoas(roasProy)}`;
   msg += `\n🚀 *ROI* ${fRoi(profProy, gInv)}`;
   msg += `\n🛒 *Ventas* ${gVen}`;
+  msg += `\n🛒 *Order Bumps* ${fUsd(gBumpProy)} (${gBumpNProy})`;
+  msg += `\n💰 *Profit + Bump* ${fUsd(profProy + gBumpProy)}`;
+  msg += `\n📈 *ROAS + Bump* ${fRoas(roasProyB)}`;
   if (dc) {
     msg += `\n${FLAG[dc.code] || "🏳️"} *${PAIS[dc.code] || dc.code} (${dc.code})*`;
     msg += `\n💰 *Ingresos* ${fMoney(gProy * dc.rate, dc.code)}`;
@@ -719,6 +736,9 @@ function formatReport(titulo: string, periodoTxt: string, data: any) {
   msg += `\n🟢 *Profit* ${dShow(profConf)}`;
   msg += `\n📈 *ROAS* ${fRoas(roasConf)}`;
   msg += `\n🚀 *ROI* ${fRoi(profConf, gInv)}`;
+  msg += `\n🛒 *Order Bumps* ${dShow(gBumpConf)} (${gBumpNConf})`;
+  msg += `\n💰 *Profit + Bump* ${dShow(profConf + gBumpConf)}`;
+  msg += `\n📈 *ROAS + Bump* ${fRoas(roasConfB)}`;
   msg += `\n🟢 Solo incluye pagos verificados.`;
   msg += `\n✅ *${gNConf} verificadas*`;
 
@@ -738,6 +758,11 @@ function formatReport(titulo: string, periodoTxt: string, data: any) {
     msg += `\n${ps} *Profit:* ${fMoney(profL, code)}`;
     msg += `\n📈 *ROAS:* ${fRoas(roas)}`;
     msg += `\n🛒 *Ventas:* ${w.ventas}`;
+    if ((w.bumpValProy || 0) > 0 || (w.bumpNProy || 0) > 0) {
+      const roasB = w.inv > 0 ? (w.ingProy + w.bumpValProy) / w.inv : 0;
+      msg += `\n🛒 *Order Bumps:* ${fMoney(w.bumpValProy, code)} (${w.bumpNProy})`;
+      msg += `\n💰 *Profit + Bump:* ${fMoney(profL + w.bumpValProy, code)}  ·  📈 ${fRoas(roasB)}`;
+    }
     msg += `\nP1 *${w.v1}* | P2 *${w.v2}*`;
     msg += `\nP3 *${w.v3}* | P4 *${w.v4}*`;
   });

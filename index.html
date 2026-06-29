@@ -659,6 +659,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
         <div class="hub2-status-title" id="hub-state-title">Todo sincronizado</div>
         <div class="hub2-status-sub" id="hub-state-sub">Sistema operativo</div>
         <div class="hub2-status-date" id="hub-fecha-label">📅 Hoy</div>
+        <div class="hub2-status-date" id="hub-modo-badge" style="font-size:10px;opacity:.85"></div>
         <div class="hub2-divider"></div>
         <div class="hub2-kpis">
           <div class="hub2-kpi">
@@ -685,6 +686,21 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
             <span class="hub2-klabel">📈 ROAS</span>
             <span class="hub2-kval" id="hub-roas">—</span>
             <span class="hub2-kdelta" id="hub-roas-d"></span>
+          </div>
+          <div class="hub2-kpi">
+            <span class="hub2-klabel">🛒 Order Bumps</span>
+            <span class="hub2-kval" id="hub-bump">—</span>
+            <span class="hub2-kdelta" id="hub-bump-d"></span>
+          </div>
+          <div class="hub2-kpi">
+            <span class="hub2-klabel">💰 Profit + Bump</span>
+            <span class="hub2-kval" id="hub-profitbump">—</span>
+            <span class="hub2-kdelta" id="hub-profitbump-d"></span>
+          </div>
+          <div class="hub2-kpi wide">
+            <span class="hub2-klabel">📈 ROAS + Bump</span>
+            <span class="hub2-kval" id="hub-roasbump">—</span>
+            <span class="hub2-kdelta" id="hub-roasbump-d"></span>
           </div>
         </div>
         <button class="hub2-cta" id="hub-cta" onclick="hubCta()">Ver resumen completo →</button>
@@ -892,6 +908,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div style="font-size:16px;font-weight:800;color:var(--text);min-width:160px;text-align:center" id="bita-periodo-label">—</div>
     <button class="btn btn-ghost btn-sm" onclick="bitaNav(1)">▶</button>
     <span id="bita-delta" style="font-size:12px;margin-left:8px"></span>
+    <button class="btn btn-ghost btn-sm" id="bita-bump-btn" onclick="bitaSetBump(!BITA_BUMP)" title="Sumar el valor de los Order Bumps al profit y ROAS" style="margin-left:auto">➕ Order Bumps</button>
   </div>
 
   <!-- KPIs del período -->
@@ -5326,7 +5343,10 @@ async function renderGlobal() {
     const totalProfit = wsData.reduce((s,d) => s + d.usd.profit,    0);
     const totalVentas = wsData.reduce((s,d) => s + d.m.ventas,      0);
     const totalUpsells= wsData.reduce((s,d) => s + d.usd.upsells,   0);
+    const totalBumpN  = wsData.reduce((s,d) => s + (d.usd.bumpVentas||0), 0);
+    const totalProfitBump = wsData.reduce((s,d) => s + (d.usd.profitConBump||0), 0);
     const globalRoas  = totalInv > 0 ? totalIng / totalInv : 0;
+    const globalRoasBump = totalInv > 0 ? (totalIng + totalUpsells) / totalInv : 0;
 
     // Gastos extras (en moneda del producto activo) → USD
     const gastosExtras = getGastos();
@@ -5340,7 +5360,8 @@ async function renderGlobal() {
       gblKpiCard('Inversión Total',  totalInv, 'orange', `ROAS global: ${fmt.roas(globalRoas)}`),
       gblKpiCard('Profit Bruto',     totalProfit, totalProfit>=0?'teal':'red', `${totalVentas} ventas totales`),
       gblKpiCard('Profit Neto',      profitNeto, profitNeto>=0?'green':'red', `Gastos extras: −${_gc==='USD'?fmt.d(totalGastosExtra):fmtMoney(totalGastosExtra*gblRate(),_gc)}`),
-      gblKpiCard('Upsells Totales',  totalUpsells, 'purple', `${(totalUpsells/totalIng*100||0).toFixed(1)}% de ingresos`),
+      gblKpiCard('🛒 Order Bumps',   totalUpsells, 'purple', `${fmt.num(totalBumpN)} vendido${totalBumpN===1?'':'s'}`),
+      gblKpiCard('💰 Profit + Bump',  totalProfitBump, totalProfitBump>=0?'green':'red', `ROAS+Bump: ${fmt.roas(globalRoasBump)}`),
     ].join('');
 
     renderGlobalInsights(wsData, totalProfit, profitDiaUsd);
@@ -5533,8 +5554,8 @@ function globalSelectAll(val) {
 }
 
 // calcMetrics con config externa (para dashboard global)
-function calcMetricsWithConfig(regs, P) {
-  const conf = (typeof DASH_MODE !== 'undefined' && DASH_MODE === 'confirmado');
+function calcMetricsWithConfig(regs, P, modeOverride) {
+  const conf = ((modeOverride || (typeof DASH_MODE !== 'undefined' ? DASH_MODE : 'proyectado')) === 'confirmado');
   let gm=0,gt=0,im=0,it=0,cm=0,ct=0,chm=0,cht=0,v1=0,v2=0,v3=0,v4=0,bumpVal=0,bumpN=0;
   regs.forEach(r => {
     gm+=+r.gasto_meta||0; gt+=+r.gasto_tiktok||0;
@@ -9046,7 +9067,7 @@ function setHubPeriodo(p){ localStorage.setItem('hub_periodo', p); renderHub(); 
 function hubStateAction(){ const a = window._hubAction; if (typeof a === 'function') a(); }
 function hubCta(){ const f = window._hubCta; if (typeof f === 'function') f(); }
 
-function renderHub(){
+async function renderHub(){
   try {
     // Saludo + fecha + tema
     const saved = (localStorage.getItem('tracker_nombre') || '').trim();
@@ -9078,24 +9099,38 @@ function renderHub(){
     // Mientras GLOBAL_DATA aún no carga, cae al producto activo para no mostrar ceros.
     const code = gblCode(), rate = gblRate();
     const fML = usd => fmtMoney(usd * rate, code);
+    // El círculo muestra PROYECTADO por defecto y pasa a CONFIRMADO automáticamente
+    // cuando el período está 100% validado (auto, independiente del toggle global).
+    const hubMode = await hubModoPara(desde, hasta);
+    const badge = document.getElementById('hub-modo-badge');
+    if (badge) badge.textContent = hubMode === 'confirmado' ? '🟢 Datos confirmados (día validado)' : '🟡 Datos proyectados';
     let kI,kV,kP,kN,kR, pI,pV,pP,pN,pR, sI,sV,sP,sN,sR;
+    let kBump,kBumpN,kPB,kRB, sBump,sPB,sRB;
     if (Object.keys(GLOBAL_DATA).length){
-      const G = globalMetricsPeriodo(desde, hasta), Gp = globalMetricsPeriodo(ant.desde, ant.hasta);
+      const G = globalMetricsPeriodo(desde, hasta, hubMode), Gp = globalMetricsPeriodo(ant.desde, ant.hasta, hubMode);
       kI=G.ingresosUSD;kV=G.inversionUSD;kP=G.profitUSD;kN=G.ventas;kR=G.roas;
       pI=Gp.ingresosUSD;pV=Gp.inversionUSD;pP=Gp.profitUSD;pN=Gp.ventas;pR=Gp.roas;
       sI=fML(kI);sV=fML(kV);sP=fML(kP);sN=fmt.num(kN);sR=fmt.roas(kR);
+      kBump=G.bumpUSD;kBumpN=G.bumpVentas;kPB=G.profitConBumpUSD;kRB=G.roasConBump;
+      sBump=fML(kBump);sPB=fML(kPB);sRB=fmt.roas(kRB);
     } else {
       const M=calcMetrics(DB.registros.filter(r=>r.fecha>=desde&&r.fecha<=hasta));
       const Mant=calcMetrics(DB.registros.filter(r=>r.fecha>=ant.desde&&r.fecha<=ant.hasta));
       kI=M.ingresos;kV=M.inversion;kP=M.profit;kN=M.ventas;kR=M.roas;
       pI=Mant.ingresos;pV=Mant.inversion;pP=Mant.profit;pN=Mant.ventas;pR=Mant.roas;
       sI=fmt.s(kI);sV=fmt.s(kV);sP=fmt.s(kP);sN=fmt.num(kN);sR=fmt.roas(kR);
+      kBump=M.bumpValor;kBumpN=M.bumpVentas;kPB=M.profitConBump;kRB=M.roasConBump;
+      sBump=fmt.s(kBump);sPB=fmt.s(kPB);sRB=fmt.roas(kRB);
     }
     setKpi('hub-ingresos',  sI, kI, pI);
     setKpi('hub-inversion', sV, kV, pV, { higherIsBetter:false });
     setKpi('hub-profit',    sP, kP, pP);
     setKpi('hub-ventas',    sN, kN, pN);
     setKpi('hub-roas',      sR, kR, pR);
+    { const v=document.getElementById('hub-bump'); if(v) v.textContent=sBump;
+      const d=document.getElementById('hub-bump-d'); if(d) d.textContent=`${fmt.num(kBumpN)} vendido${kBumpN===1?'':'s'}`; }
+    { const v=document.getElementById('hub-profitbump'); if(v) v.textContent=sPB; }
+    { const v=document.getElementById('hub-roasbump'); if(v) v.textContent=sRB; }
 
     // Alertas GLOBALES (de todos los productos) → badge campana + estado
     const totalAl = notifEnabled() ? (GLOBAL_ALERTS.total || 0) : 0;
@@ -9317,16 +9352,29 @@ function recomputeGlobalAlertas(){
   actualizarNotifBadge();
 }
 // Métricas GLOBALES del período, convertidas a USD (suma de todos los productos).
-function globalMetricsPeriodo(desde, hasta){
-  let ing = 0, inv = 0, ven = 0, count = 0;
+function globalMetricsPeriodo(desde, hasta, modeOverride){
+  let ing = 0, inv = 0, ven = 0, count = 0, bumpUSD = 0, bumpN = 0;
   Object.values(GLOBAL_DATA).forEach(d => {
     const regsP = (d.regs || []).filter(r => r.fecha >= desde && r.fecha <= hasta);
     if (!regsP.length) return;
-    const M = calcMetricsWithConfig(regsP, d.P);
+    const M = calcMetricsWithConfig(regsP, d.P, modeOverride);
     const rate = (d.ws.currency_code === 'USD') ? 1 : (+d.ws.usd_rate || +d.P?.tc || 3.7);
     ing += M.ingresos / rate; inv += M.inversion / rate; ven += M.ventas; count++;
+    bumpUSD += (M.bumpValor || 0) / rate; bumpN += (M.bumpVentas || 0);
   });
-  return { ingresosUSD:ing, inversionUSD:inv, ventas:ven, profitUSD:ing - inv, roas: inv > 0 ? ing / inv : 0, count };
+  const profit = ing - inv;
+  return { ingresosUSD:ing, inversionUSD:inv, ventas:ven, profitUSD:profit, roas: inv > 0 ? ing / inv : 0, count,
+    bumpUSD, bumpVentas:bumpN, profitConBumpUSD: profit + bumpUSD, roasConBump: inv > 0 ? (ing + bumpUSD) / inv : 0 };
+}
+// ¿El período está 100% validado? (todas las ventas capturadas pasaron a finalizado)
+// Determina si el círculo del Hub muestra proyectado (default) o confirmado (auto).
+async function hubModoPara(desde, hasta){
+  try {
+    const rpc = await api.post('rpc/ingresos_ciclo', { p_desde: desde, p_hasta: hasta });
+    let nTotal = 0, nConf = 0;
+    (rpc || []).forEach(r => { nTotal += +r.n_total || 0; nConf += +r.n_confirmado || 0; });
+    return (nTotal > 0 && nConf >= nTotal) ? 'confirmado' : 'proyectado';
+  } catch(e){ return 'proyectado'; }
 }
 
 function actualizarNotifBadge(){
@@ -9823,6 +9871,9 @@ async function renderDashboard() {
     kpiCard('Profit',fmt.s(M.profit),M.profit>=0?'green':'red', deltaSub(M.profit, Mant.profit)),
     kpiCard('Profit Neto',fmt.s(profitNeto),profitNeto>=0?'green':'red', gastosExtra>0?`Gastos extra: −${fmt.s(gastosExtra)}`:'Sin gastos extra'),
     kpiCard('ROAS Global',fmt.roas(M.roas),'teal', deltaSub(M.roas, Mant.roas)),
+    kpiCard('🛒 Order Bumps',fmt.s(M.bumpValor),'purple', `${fmt.num(M.bumpVentas)} order bump${M.bumpVentas===1?'':'s'} vendido${M.bumpVentas===1?'':'s'}`),
+    kpiCard('💰 Profit + Bump',fmt.s(M.profitConBump),M.profitConBump>=0?'green':'red', deltaSub(M.profitConBump, Mant.profitConBump)),
+    kpiCard('📈 ROAS + Bump',fmt.roas(M.roasConBump),'teal', deltaSub(M.roasConBump, Mant.roasConBump)),
   ].join('');
 
   document.getElementById('dash-kpis-dolares').innerHTML=[
@@ -9832,6 +9883,8 @@ async function renderDashboard() {
     kpiCard('Ventas',fmt.num(M.ventas),'teal', deltaSub(M.ventas, Mant.ventas)),
     kpiCard('Conv. Rate',fmt.pct(M.conv),M.conv>=0.2?'green':'orange', deltaSub(M.conv, Mant.conv)),
     kpiCard('CPA',M.ventas>0?fmt.s(M.cpv):'—', M.ventas>0&&M.cpv<(DB.config.p1??10)?'green':'orange', M.ventas>0?deltaSub(M.cpv, Mant.cpv, {higherIsBetter:false}):'Costo por venta real'),
+    kpiCard('🛒 Order Bump $',fmt.d(toUSD(M.bumpValor)),'purple', `${fmt.num(M.bumpVentas)} vendido${M.bumpVentas===1?'':'s'}`),
+    kpiCard('💰 Profit+Bump $',fmt.d(toUSD(M.profitConBump)),toUSD(M.profitConBump)>=0?'green':'red', deltaSub(M.profitConBump, Mant.profitConBump)),
   ].join('');
 
   renderAccionDia(regs, ant);
@@ -9990,8 +10043,17 @@ const BITA_MESES = ['Enero','Febrero','Marzo','Abril','Mayo','Junio','Julio','Ag
 
 function _pad2(n){ return String(n).padStart(2,'0'); }
 // Métricas + ROI de un set de registros
+// Toggle: sumar Order Bumps al profit/ingresos/ROAS de la bitácora (producto y global).
+let BITA_BUMP = false;
+function bitaSetBump(on){
+  BITA_BUMP = !!on;
+  const b = document.getElementById('bita-bump-btn');
+  if (b) b.className = 'btn btn-sm ' + (BITA_BUMP ? 'btn-primary' : 'btn-ghost');
+  renderBitacora();
+}
 function bitaMetrics(regs){
   const M = calcMetrics(regs);
+  if (BITA_BUMP){ M.ingresos = M.ingresosConBump; M.profit = M.profitConBump; M.roas = M.roasConBump; }
   M.roi = M.inversion > 0 ? M.profit / M.inversion * 100 : 0;
   return M;
 }
