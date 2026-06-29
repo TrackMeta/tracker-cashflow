@@ -1453,8 +1453,12 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
         <button class="modal-close" onclick="closeModal('modal-reset-ventas')">×</button>
       </div>
       <div style="font-size:13px;color:var(--text2);margin-bottom:14px">
-        Borra la <b>cola y las ventas</b> (proyectadas y confirmadas) y los Order Bumps del período elegido, y pone en 0 el registro diario de ese período. El gasto de Meta <b>no</b> se toca. Útil para re-sincronizar a mano.<br>
-        <span style="font-size:11px;color:var(--text3)">Solo afecta al producto activo: <b id="reset-ws-nombre">—</b></span>
+        Borra la <b>cola y las ventas</b> (proyectadas y confirmadas) y los Order Bumps del período elegido, y pone en 0 el registro diario. El gasto de Meta <b>no</b> se toca.<br>
+        <span style="font-size:11px;color:var(--text3)">📄 <b>No toca tu Google Sheet.</b> Al re-sincronizar se vuelve a traer todo desde el Sheet.</span>
+      </div>
+      <div class="field" style="margin-bottom:10px">
+        <label>Productos <span style="color:var(--text3);font-weight:400">(uno o más)</span></label>
+        <div id="reset-productos" style="max-height:170px;overflow:auto;border:1px solid var(--border2);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:7px"></div>
       </div>
       <div class="field" style="margin-bottom:10px">
         <label>Período a borrar</label>
@@ -11326,13 +11330,19 @@ function regSetConf(on){
 // El gasto de Meta NO se toca (vive en registros, columnas gasto_*).
 // Abre el modal de borrado con selector de período (Hoy/Ayer/Últimos N/Día/Rango/Total).
 function openResetVentas(){
-  const ws = CURRENT_WORKSPACE;
-  if (!ws?.id){ showError('Selecciona un producto primero.'); return; }
-  const nm = document.getElementById('reset-ws-nombre'); if (nm) nm.textContent = ws.nombre || '—';
+  const wss = DB.workspaces || [];
+  if (!wss.length){ showError('No hay productos.'); return; }
+  const cont = document.getElementById('reset-productos');
+  if (cont){
+    cont.innerHTML =
+      `<label style="display:flex;align-items:center;gap:8px;font-size:12px;font-weight:700;cursor:pointer;border-bottom:1px solid var(--border);padding-bottom:6px"><input type="checkbox" id="reset-all" onchange="resetToggleAll(this.checked)" style="accent-color:var(--accent)"> Todos los productos</label>` +
+      wss.map(w => `<label style="display:flex;align-items:center;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" class="reset-ws" value="${w.id}" ${w.id===CURRENT_WORKSPACE?.id?'checked':''} style="accent-color:var(--accent)"> ${w.emoji||'📦'} ${w.nombre}</label>`).join('');
+  }
   if (typeof unificarPeriodoSelect === 'function') unificarPeriodoSelect('reset-periodo', '30');
   resetPeriodoChange();
   openModal('modal-reset-ventas');
 }
+function resetToggleAll(on){ document.querySelectorAll('#reset-productos .reset-ws').forEach(c => c.checked = on); }
 // Togglea los inputs de fecha según el período elegido.
 function resetPeriodoChange(){
   const v = document.getElementById('reset-periodo')?.value;
@@ -11343,27 +11353,31 @@ function resetPeriodoChange(){
 // para re-sincronizar a mano. Scope: producto activo. Doble confirmación (email).
 // El gasto de Meta NO se toca (vive en registros, columnas gasto_*).
 async function resetVentasRango(){
-  const ws = CURRENT_WORKSPACE; if (!ws?.id){ showError('Selecciona un producto primero.'); return; }
+  const wsIds = [...document.querySelectorAll('#reset-productos .reset-ws:checked')].map(c => c.value);
+  if (!wsIds.length){ showError('Selecciona al menos un producto.'); return; }
+  const nombres = wsIds.map(id => (DB.workspaces||[]).find(w => w.id===id)?.nombre || id);
   const periodo = document.getElementById('reset-periodo')?.value || '30';
   const { desde, hasta } = rangoDe(periodo, 'reset-dia', 'reset-desde', 'reset-hasta');
   const rangoTxt = periodo === '0' ? 'TODO el histórico' : `${desde} → ${hasta}`;
-  if (!confirm(`⚠️ BORRADO IRREVERSIBLE\n\nProducto: ${ws.nombre}\nPeríodo: ${rangoTxt}\n\nSe borrarán TODAS las ventas (cola + proyectadas + confirmadas) y Order Bumps, y el registro diario quedará en 0 (ventas).\nEl gasto de Meta NO se toca.\n\n¿Continuar?`)) return;
+  const prodTxt = nombres.length > 3 ? `${nombres.length} productos` : nombres.join(', ');
+  if (!confirm(`⚠️ BORRADO IRREVERSIBLE\n\nProductos: ${prodTxt}\nPeríodo: ${rangoTxt}\n\nSe borrarán TODAS las ventas (cola + proyectadas + confirmadas) y Order Bumps, y el registro diario quedará en 0 (ventas).\nNo se toca el Google Sheet ni el gasto de Meta.\n\n¿Continuar?`)) return;
   const email = prompt(`🔴 Confirmación final — escribe tu email:\n${CURRENT_USER?.email||''}`);
   if (email !== CURRENT_USER?.email){ showError('El email no coincide. Operación cancelada.'); return; }
+  const inList = wsIds.join(',');
   try {
     setSyncStatus('loading','Borrando ventas...');
     closeModal('modal-reset-ventas');
-    // 1) Borrar la cola/ventas (crm_ventas) del período
-    const rDel = await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}`,
+    // 1) Borrar la cola/ventas (crm_ventas) del período, en los productos elegidos
+    const rDel = await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas?workspace_id=in.(${inList})&fecha=gte.${desde}&fecha=lte.${hasta}`,
       { method:'DELETE', headers: { ...api._h(), 'Prefer':'return=minimal' } });
     if (!rDel.ok) throw new Error(`crm_ventas: HTTP ${rDel.status}`);
     // 2) Poner en 0 las ventas del registro diario (sin tocar el gasto de Meta)
-    const rReg = await fetch(`${SUPABASE_URL}/rest/v1/registros?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}`,
+    const rReg = await fetch(`${SUPABASE_URL}/rest/v1/registros?workspace_id=in.(${inList})&fecha=gte.${desde}&fecha=lte.${hasta}`,
       { method:'PATCH', headers: { ...api._h(), 'Prefer':'return=minimal' }, body: JSON.stringify({ v1:0, v2:0, v3:0, v4:0, upsell_total:0 }) });
     if (!rReg.ok) throw new Error(`registros: HTTP ${rReg.status}`);
     await loadAll();
     setSyncStatus('ok','Sincronizado ✓');
-    showSuccess(`✅ Ventas de ${rangoTxt} borradas. Ahora puedes re-sincronizar a mano.`);
+    showSuccess(`✅ Ventas de ${prodTxt} (${rangoTxt}) borradas. Ahora puedes re-sincronizar a mano.`);
     try { if (typeof concReset === 'function') concReset(); } catch(e){}
   } catch(e){ setSyncStatus('error','Error'); showError('Error al borrar: ' + (e.message||e)); }
 }
