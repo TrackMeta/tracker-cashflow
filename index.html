@@ -181,22 +181,22 @@ body.hub-active .page{padding:16px 28px 22px;}
 .hub2-lines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;overflow:visible;}
 .hub2-node{animation:hubpulse 2.8s ease-in-out infinite;}
 @keyframes hubpulse{0%,100%{opacity:.45}50%{opacity:.95}}
-.hub2-circle{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:430px;height:430px;border-radius:50%;background:var(--bg2);border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 52px;z-index:3;box-shadow:var(--shadow-lg),0 0 55px rgba(5,150,105,0.14);transition:box-shadow .35s;}
+.hub2-circle{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:474px;height:474px;border-radius:50%;background:var(--bg2);border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 56px;z-index:3;box-shadow:var(--shadow-lg),0 0 55px rgba(5,150,105,0.14);transition:box-shadow .35s;}
 .hub2-circle.warn{box-shadow:var(--shadow-lg),0 0 55px rgba(234,124,18,0.20);}
 .hub2-circle.error{box-shadow:var(--shadow-lg),0 0 55px rgba(225,29,72,0.22);}
 .hub2-status-ico{font-size:27px;line-height:1;margin-bottom:5px;}
 .hub2-status-title{font-size:18px;font-weight:800;color:var(--green);letter-spacing:-0.01em;}
 .hub2-status-sub{font-size:11px;color:var(--text3);font-weight:600;margin-top:1px;}
-.hub2-status-date{font-size:12px;color:var(--text2);font-weight:700;margin-top:7px;}
-.hub2-divider{width:150px;height:1px;background:var(--border2);margin:12px 0;}
-.hub2-kpis{display:grid;grid-template-columns:1fr 1fr;gap:11px 22px;width:100%;}
+.hub2-status-date{font-size:12px;color:var(--text2);font-weight:700;margin-top:4px;}
+.hub2-divider{width:150px;height:1px;background:var(--border2);margin:9px 0;}
+.hub2-kpis{display:grid;grid-template-columns:1fr 1fr;gap:8px 20px;width:100%;}
 .hub2-kpi{display:flex;flex-direction:column;align-items:center;line-height:1.15;}
 .hub2-kpi.wide{grid-column:1 / -1;}
 .hub2-klabel{font-size:9px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.04em;}
 .hub2-kval{font-size:18px;font-weight:800;color:var(--text);font-family:var(--mono);margin-top:1px;letter-spacing:-0.01em;}
 .hub2-kpi.wide .hub2-kval{font-size:23px;color:var(--teal);}
 .hub2-kdelta{font-size:9.5px;font-weight:700;white-space:nowrap;margin-top:1px;}
-.hub2-cta{margin-top:14px;background:transparent;border:1px solid var(--border2);color:var(--accent);border-radius:999px;padding:7px 18px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);transition:.15s;}
+.hub2-cta{margin-top:9px;background:transparent;border:1px solid var(--border2);color:var(--accent);border-radius:999px;padding:7px 18px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);transition:.15s;}
 .hub2-cta:hover{background:var(--accent-dim);border-color:var(--accent);}
 .hub2-card{position:absolute;width:212px;background:var(--bg2);border:1px solid var(--border);border-radius:22px;padding:20px 22px;cursor:pointer;transition:transform .2s,box-shadow .2s,border-color .2s;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;z-index:2;box-shadow:var(--shadow);font-family:var(--font);}
 .hub2-card:hover{transform:translateY(-5px);box-shadow:var(--shadow-md);border-color:var(--c,var(--border2));}
@@ -688,20 +688,9 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
             <span class="hub2-kval" id="hub-roas">—</span>
             <span class="hub2-kdelta" id="hub-roas-d"></span>
           </div>
-          <div class="hub2-kpi">
-            <span class="hub2-klabel">🛒 Order Bumps</span>
-            <span class="hub2-kval" id="hub-bump">—</span>
-            <span class="hub2-kdelta" id="hub-bump-d"></span>
-          </div>
-          <div class="hub2-kpi">
-            <span class="hub2-klabel">💰 Profit + Bump</span>
-            <span class="hub2-kval" id="hub-profitbump">—</span>
-            <span class="hub2-kdelta" id="hub-profitbump-d"></span>
-          </div>
           <div class="hub2-kpi wide">
-            <span class="hub2-klabel">📈 ROAS + Bump</span>
-            <span class="hub2-kval" id="hub-roasbump">—</span>
-            <span class="hub2-kdelta" id="hub-roasbump-d"></span>
+            <span class="hub2-klabel">🛒 Order Bumps · Profit+Bump · ROAS+Bump</span>
+            <span class="hub2-kval" id="hub-bumpline" style="font-size:13px">—</span>
           </div>
         </div>
         <button class="hub2-cta" id="hub-cta" onclick="hubCta()">Ver resumen completo →</button>
@@ -1399,6 +1388,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <button class="btn btn-primary" onclick="openNuevoRegistro()">+ Agregar registro</button>
       <button class="btn btn-ghost" onclick="repararCampanas()" title="Asigna campaña a registros vacíos">🔧 Asignar campañas</button>
       <button class="btn btn-ghost" onclick="reconstruirRegistros()" id="btn-rebuild-regs" title="Reconstruye todos los registros desde el CSV del CRM" style="color:var(--orange);border-color:var(--orange)">📊 Reconstruir desde CSV</button>
+      <button class="btn btn-ghost" onclick="resetVentasRango()" title="Borra cola + ventas (proyectadas y confirmadas) de un rango para re-sincronizar a mano" style="color:var(--red);border-color:var(--red)">🧨 Borrar ventas (rango)</button>
     </div>
   </div>
   <div class="filters">
@@ -8996,7 +8986,7 @@ function showSuccess(msg) {
 // NAVEGACIÓN
 // ════════════════════════════════════════════════
 // Páginas que SÍ muestran el sidebar (secciones internas de un producto).
-const SIDEBAR_PAGES = new Set(['dashboard','bitacora','comparar','alertas','analyzer','kpis','por-anuncio','por-campana','remarketing','horarios','registro','catalogo','chats-ventas','mejor-anuncio','vida-util']);
+const SIDEBAR_PAGES = new Set(['dashboard','bitacora','comparar','alertas','analyzer','kpis','por-anuncio','por-campana','order-bumps','remarketing','horarios','registro','catalogo','chats-ventas','mejor-anuncio','vida-util']);
 // Jerarquía para el botón "Volver" (solo pantallas sin sidebar).
 const PAGE_PARENT = { global:'hub', productos:'hub', importar:'hub', configuracion:'hub', leyenda:'configuracion', admin:'configuracion', 'comparar-productos':'productos' };
 const PARENT_LABEL = { hub:'Hub', configuracion:'Configuración', productos:'Productos' };
@@ -9132,7 +9122,7 @@ async function renderHub(){
     // cuando el período está 100% validado (auto, independiente del toggle global).
     const hubMode = await hubModoPara(desde, hasta);
     const badge = document.getElementById('hub-modo-badge');
-    if (badge) badge.textContent = hubMode === 'confirmado' ? '🟢 Datos confirmados (día validado)' : '🟡 Datos proyectados';
+    if (badge) badge.textContent = hubMode === 'confirmado' ? '🟢 Confirmado' : '🟡 Proyectado';
     let kI,kV,kP,kN,kR, pI,pV,pP,pN,pR, sI,sV,sP,sN,sR;
     let kBump,kBumpN,kPB,kRB, sBump,sPB,sRB;
     if (Object.keys(GLOBAL_DATA).length){
@@ -9156,10 +9146,8 @@ async function renderHub(){
     setKpi('hub-profit',    sP, kP, pP);
     setKpi('hub-ventas',    sN, kN, pN);
     setKpi('hub-roas',      sR, kR, pR);
-    { const v=document.getElementById('hub-bump'); if(v) v.textContent=sBump;
-      const d=document.getElementById('hub-bump-d'); if(d) d.textContent=`${fmt.num(kBumpN)} vendido${kBumpN===1?'':'s'}`; }
-    { const v=document.getElementById('hub-profitbump'); if(v) v.textContent=sPB; }
-    { const v=document.getElementById('hub-roasbump'); if(v) v.textContent=sRB; }
+    { const v=document.getElementById('hub-bumpline');
+      if(v) v.innerHTML = `${sBump} <span style="opacity:.45">·</span> ${fmt.num(kBumpN)} bumps <span style="opacity:.45">·</span> P+B ${sPB} <span style="opacity:.45">·</span> ROAS ${sRB}`; }
 
     // Alertas GLOBALES (de todos los productos) → badge campana + estado
     const totalAl = notifEnabled() ? (GLOBAL_ALERTS.total || 0) : 0;
@@ -11451,7 +11439,7 @@ function renderRegistro() {
         </div>
       </div>
       <div class="tbl-wrap"><table>
-        <thead><tr><th style="width:32px"></th><th>Creativo</th><th>Campaña</th><th>Plat.</th><th>Gasto</th><th>Impr.</th><th>Clics</th><th>Chats</th><th>P1</th><th>P2</th><th>P3</th><th>P4</th><th>Upsells</th><th>Ingresos</th><th>Profit</th><th>ROAS</th><th>Estado</th><th>Acciones</th></tr></thead>
+        <thead><tr><th style="width:32px"></th><th>Creativo</th><th>Campaña</th><th>Plat.</th><th>Gasto</th><th>Impr.</th><th>Clics</th><th>Chats</th><th>P1</th><th>P2</th><th>P3</th><th>P4</th><th>Order Bump</th><th>Ingresos</th><th>Profit</th><th>ROAS</th><th>Estado</th><th>Acciones</th></tr></thead>
         <tbody>${dr.map(r=>{
           const g=(+r.gasto_meta||0)+(+r.gasto_tiktok||0);
           const impr=(+r.impr_meta||0)+(+r.impr_tiktok||0);
