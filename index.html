@@ -1445,36 +1445,6 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     </div>
   </div>
 
-  <!-- MODAL: Borrar ventas (rango) -->
-  <div class="modal-overlay" id="modal-reset-ventas">
-    <div class="modal" style="max-width:460px;width:100%">
-      <div class="modal-header">
-        <span class="modal-title">🧨 Borrar ventas</span>
-        <button class="modal-close" onclick="closeModal('modal-reset-ventas')">×</button>
-      </div>
-      <div style="font-size:13px;color:var(--text2);margin-bottom:14px">
-        Borra la <b>cola y las ventas</b> (proyectadas y confirmadas) y los Order Bumps del período elegido, y pone en 0 el registro diario. El gasto de Meta <b>no</b> se toca.<br>
-        <span style="font-size:11px;color:var(--text3)">📄 <b>No toca tu Google Sheet.</b> Al re-sincronizar se vuelve a traer todo desde el Sheet.</span>
-      </div>
-      <div class="field" style="margin-bottom:10px">
-        <label>Productos <span style="color:var(--text3);font-weight:400">(uno o más)</span></label>
-        <div id="reset-productos" style="max-height:170px;overflow:auto;border:1px solid var(--border2);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:7px"></div>
-      </div>
-      <div class="field" style="margin-bottom:10px">
-        <label>Período a borrar</label>
-        <select id="reset-periodo" onchange="resetPeriodoChange()" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;font-family:var(--font);width:100%"></select>
-      </div>
-      <div class="field" id="reset-dia-div" style="display:none;margin-bottom:10px"><label>Día</label><input type="date" id="reset-dia"></div>
-      <div id="reset-custom-div" style="display:none;gap:10px;margin-bottom:10px">
-        <div class="field" style="flex:1"><label>Desde</label><input type="date" id="reset-desde"></div>
-        <div class="field" style="flex:1"><label>Hasta</label><input type="date" id="reset-hasta"></div>
-      </div>
-      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
-        <button class="btn btn-ghost" onclick="closeModal('modal-reset-ventas')">Cancelar</button>
-        <button class="btn" style="background:var(--red);color:#fff;border-color:var(--red)" onclick="resetVentasRango()">🧨 Borrar ventas</button>
-      </div>
-    </div>
-  </div>
   <button id="imp-back" class="volver-btn" style="display:none" onclick="impHome()">← Volver a Importar Datos</button>
 
   <!-- ════════ TAB CONCILIACIÓN ════════ -->
@@ -3334,6 +3304,37 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
         <button class="btn btn-ghost" style="flex:1;justify-content:center" onclick="sheetsNextStep(1)">← Atrás</button>
         <button class="btn btn-primary" style="flex:1;justify-content:center" onclick="sheetsFinish()">✅ Finalizar configuración</button>
       </div>
+    </div>
+  </div>
+</div>
+
+<!-- MODAL: Borrar ventas (período + multi-producto) — a nivel raíz para que abra desde cualquier sección -->
+<div class="modal-overlay" id="modal-reset-ventas">
+  <div class="modal" style="max-width:460px;width:100%">
+    <div class="modal-header">
+      <span class="modal-title">🧨 Borrar ventas</span>
+      <button class="modal-close" onclick="closeModal('modal-reset-ventas')">×</button>
+    </div>
+    <div style="font-size:13px;color:var(--text2);margin-bottom:14px">
+      Borra la <b>cola y las ventas</b> (proyectadas y confirmadas) y los Order Bumps del período elegido, y pone en 0 el registro diario. El gasto de Meta <b>no</b> se toca.<br>
+      <span style="font-size:11px;color:var(--text3)">📄 <b>No toca tu Google Sheet.</b> Al re-sincronizar se vuelve a traer todo desde el Sheet.</span>
+    </div>
+    <div class="field" style="margin-bottom:10px">
+      <label>Productos <span style="color:var(--text3);font-weight:400">(uno o más)</span></label>
+      <div id="reset-productos" style="max-height:170px;overflow:auto;border:1px solid var(--border2);border-radius:8px;padding:8px;display:flex;flex-direction:column;gap:7px"></div>
+    </div>
+    <div class="field" style="margin-bottom:10px">
+      <label>Período a borrar</label>
+      <select id="reset-periodo" onchange="resetPeriodoChange()" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;font-family:var(--font);width:100%"></select>
+    </div>
+    <div class="field" id="reset-dia-div" style="display:none;margin-bottom:10px"><label>Día</label><input type="date" id="reset-dia"></div>
+    <div id="reset-custom-div" style="display:none;gap:10px;margin-bottom:10px">
+      <div class="field" style="flex:1"><label>Desde</label><input type="date" id="reset-desde"></div>
+      <div class="field" style="flex:1"><label>Hasta</label><input type="date" id="reset-hasta"></div>
+    </div>
+    <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
+      <button class="btn btn-ghost" onclick="closeModal('modal-reset-ventas')">Cancelar</button>
+      <button class="btn" style="background:var(--red);color:#fff;border-color:var(--red)" onclick="resetVentasRango()">🧨 Borrar ventas</button>
     </div>
   </div>
 </div>
