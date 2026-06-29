@@ -1388,7 +1388,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <button class="btn btn-primary" onclick="openNuevoRegistro()">+ Agregar registro</button>
       <button class="btn btn-ghost" onclick="repararCampanas()" title="Asigna campaña a registros vacíos">🔧 Asignar campañas</button>
       <button class="btn btn-ghost" onclick="reconstruirRegistros()" id="btn-rebuild-regs" title="Reconstruye todos los registros desde el CSV del CRM" style="color:var(--orange);border-color:var(--orange)">📊 Reconstruir desde CSV</button>
-      <button class="btn btn-ghost" onclick="resetVentasRango()" title="Borra cola + ventas (proyectadas y confirmadas) de un rango para re-sincronizar a mano" style="color:var(--red);border-color:var(--red)">🧨 Borrar ventas (rango)</button>
+      <button class="btn btn-ghost" onclick="openResetVentas()" title="Borra cola + ventas (proyectadas y confirmadas) de un período para re-sincronizar a mano" style="color:var(--red);border-color:var(--red)">🧨 Borrar ventas</button>
     </div>
   </div>
   <div class="filters">
@@ -1430,11 +1430,44 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
         <div class="prod-meta">Cuadra ventas registradas con pagos reales</div>
         <div class="prod-actions"><span></span><span class="prod-open">Abrir →</span></div>
       </div>
+      <div class="prod-card" onclick="openResetVentas()">
+        <div class="prod-ico" style="background:rgba(225,29,72,0.12);color:var(--red)">🧨</div>
+        <div class="prod-name">Borrar ventas</div>
+        <div class="prod-meta">Vacía la cola y las ventas de un período para re-sincronizar</div>
+        <div class="prod-actions"><span></span><span class="prod-open">Abrir →</span></div>
+      </div>
       <div class="prod-card" onclick="impTab('ajustes')">
         <div class="prod-ico" style="background:var(--orange-dim);color:var(--orange)">⚙️</div>
         <div class="prod-name">Ajustes</div>
         <div class="prod-meta">Fuentes, Google Sheets, Telegram y auto-sync</div>
         <div class="prod-actions"><span></span><span class="prod-open">Abrir →</span></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL: Borrar ventas (rango) -->
+  <div class="modal-overlay" id="modal-reset-ventas">
+    <div class="modal" style="max-width:460px;width:100%">
+      <div class="modal-header">
+        <span class="modal-title">🧨 Borrar ventas</span>
+        <button class="modal-close" onclick="closeModal('modal-reset-ventas')">×</button>
+      </div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:14px">
+        Borra la <b>cola y las ventas</b> (proyectadas y confirmadas) y los Order Bumps del período elegido, y pone en 0 el registro diario de ese período. El gasto de Meta <b>no</b> se toca. Útil para re-sincronizar a mano.<br>
+        <span style="font-size:11px;color:var(--text3)">Solo afecta al producto activo: <b id="reset-ws-nombre">—</b></span>
+      </div>
+      <div class="field" style="margin-bottom:10px">
+        <label>Período a borrar</label>
+        <select id="reset-periodo" onchange="resetPeriodoChange()" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:8px 10px;color:var(--text);font-size:13px;font-family:var(--font);width:100%"></select>
+      </div>
+      <div class="field" id="reset-dia-div" style="display:none;margin-bottom:10px"><label>Día</label><input type="date" id="reset-dia"></div>
+      <div id="reset-custom-div" style="display:none;gap:10px;margin-bottom:10px">
+        <div class="field" style="flex:1"><label>Desde</label><input type="date" id="reset-desde"></div>
+        <div class="field" style="flex:1"><label>Hasta</label><input type="date" id="reset-hasta"></div>
+      </div>
+      <div style="display:flex;gap:8px;justify-content:flex-end;margin-top:6px">
+        <button class="btn btn-ghost" onclick="closeModal('modal-reset-ventas')">Cancelar</button>
+        <button class="btn" style="background:var(--red);color:#fff;border-color:var(--red)" onclick="resetVentasRango()">🧨 Borrar ventas</button>
       </div>
     </div>
   </div>
@@ -2298,7 +2331,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     </div>
     <div style="display:flex;gap:8px">
       <button class="btn btn-ghost btn-sm" onclick="concReset()">🗑️ Reiniciar vista</button>
-      <button class="btn btn-sm" onclick="resetVentasRango()" style="color:var(--red);border-color:var(--red)" title="Borra cola + ventas (proyectadas y confirmadas) de un rango para re-sincronizar a mano">🧨 Borrar ventas (rango)</button>
+      <button class="btn btn-sm" onclick="openResetVentas()" style="color:var(--red);border-color:var(--red)" title="Borra cola + ventas (proyectadas y confirmadas) de un período para re-sincronizar a mano">🧨 Borrar ventas</button>
     </div>
   </div>
 
@@ -11291,17 +11324,36 @@ function regSetConf(on){
 // Borra cola + ventas (proyectadas Y confirmadas) y Order Bumps de un rango, para
 // re-sincronizar a mano desde cero. Scope: producto activo. Doble confirmación.
 // El gasto de Meta NO se toca (vive en registros, columnas gasto_*).
+// Abre el modal de borrado con selector de período (Hoy/Ayer/Últimos N/Día/Rango/Total).
+function openResetVentas(){
+  const ws = CURRENT_WORKSPACE;
+  if (!ws?.id){ showError('Selecciona un producto primero.'); return; }
+  const nm = document.getElementById('reset-ws-nombre'); if (nm) nm.textContent = ws.nombre || '—';
+  if (typeof unificarPeriodoSelect === 'function') unificarPeriodoSelect('reset-periodo', '30');
+  resetPeriodoChange();
+  openModal('modal-reset-ventas');
+}
+// Togglea los inputs de fecha según el período elegido.
+function resetPeriodoChange(){
+  const v = document.getElementById('reset-periodo')?.value;
+  const dia = document.getElementById('reset-dia-div'); if (dia) dia.style.display = v==='dia' ? 'block' : 'none';
+  const cus = document.getElementById('reset-custom-div'); if (cus) cus.style.display = v==='custom' ? 'flex' : 'none';
+}
+// Borra cola + ventas (proyectadas Y confirmadas) y Order Bumps del período elegido,
+// para re-sincronizar a mano. Scope: producto activo. Doble confirmación (email).
+// El gasto de Meta NO se toca (vive en registros, columnas gasto_*).
 async function resetVentasRango(){
   const ws = CURRENT_WORKSPACE; if (!ws?.id){ showError('Selecciona un producto primero.'); return; }
-  const desde = prompt(`Borrar ventas de "${ws.nombre}" DESDE (YYYY-MM-DD):`, ''); if (!desde) return;
-  const hasta = prompt('…HASTA (YYYY-MM-DD):', desde); if (!hasta) return;
-  if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta)){ showError('Formato de fecha inválido (usa YYYY-MM-DD).'); return; }
-  if (!confirm(`⚠️ BORRADO IRREVERSIBLE\n\nProducto: ${ws.nombre}\nRango: ${desde} → ${hasta}\n\nSe borrarán TODAS las ventas (cola + proyectadas + confirmadas) y Order Bumps de ese rango, y el registro diario quedará en 0 (ventas).\nEl gasto de Meta NO se toca.\n\n¿Continuar?`)) return;
+  const periodo = document.getElementById('reset-periodo')?.value || '30';
+  const { desde, hasta } = rangoDe(periodo, 'reset-dia', 'reset-desde', 'reset-hasta');
+  const rangoTxt = periodo === '0' ? 'TODO el histórico' : `${desde} → ${hasta}`;
+  if (!confirm(`⚠️ BORRADO IRREVERSIBLE\n\nProducto: ${ws.nombre}\nPeríodo: ${rangoTxt}\n\nSe borrarán TODAS las ventas (cola + proyectadas + confirmadas) y Order Bumps, y el registro diario quedará en 0 (ventas).\nEl gasto de Meta NO se toca.\n\n¿Continuar?`)) return;
   const email = prompt(`🔴 Confirmación final — escribe tu email:\n${CURRENT_USER?.email||''}`);
   if (email !== CURRENT_USER?.email){ showError('El email no coincide. Operación cancelada.'); return; }
   try {
     setSyncStatus('loading','Borrando ventas...');
-    // 1) Borrar la cola/ventas (crm_ventas) del rango
+    closeModal('modal-reset-ventas');
+    // 1) Borrar la cola/ventas (crm_ventas) del período
     const rDel = await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}`,
       { method:'DELETE', headers: { ...api._h(), 'Prefer':'return=minimal' } });
     if (!rDel.ok) throw new Error(`crm_ventas: HTTP ${rDel.status}`);
@@ -11311,7 +11363,7 @@ async function resetVentasRango(){
     if (!rReg.ok) throw new Error(`registros: HTTP ${rReg.status}`);
     await loadAll();
     setSyncStatus('ok','Sincronizado ✓');
-    showSuccess(`✅ Ventas de ${desde} → ${hasta} borradas. Ahora puedes re-sincronizar a mano.`);
+    showSuccess(`✅ Ventas de ${rangoTxt} borradas. Ahora puedes re-sincronizar a mano.`);
     try { if (typeof concReset === 'function') concReset(); } catch(e){}
   } catch(e){ setSyncStatus('error','Error'); showError('Error al borrar: ' + (e.message||e)); }
 }
