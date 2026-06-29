@@ -1382,6 +1382,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div class="field"><label>Campaña</label><select id="reg-filtro-camp" onchange="renderRegistro()"><option value="">Todas</option></select></div>
     <div class="field"><label>Anuncio</label><select id="reg-filtro-anuncio" onchange="renderRegistro()"><option value="">Todos</option></select></div>
     <button class="btn btn-ghost btn-sm" onclick="clearRegFiltros()">Limpiar</button>
+    <button class="btn btn-ghost btn-sm" id="reg-conf-btn" onclick="regSetConf(!REG_CONF)" title="Ver el registro con ventas confirmadas (validadas) en vez de proyectadas" style="margin-left:auto">🟢 Ver confirmado</button>
   </div>
 
   <!-- Barra de acciones masivas -->
@@ -2281,7 +2282,10 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <div class="page-title">🔎 Conciliación de Pagos</div>
       <div class="page-sub">Conciliación global — todas tus ventas del periodo contra el reporte del banco</div>
     </div>
-    <button class="btn btn-ghost btn-sm" onclick="concReset()">🗑️ Reiniciar</button>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-ghost btn-sm" onclick="concReset()">🗑️ Reiniciar vista</button>
+      <button class="btn btn-sm" onclick="resetVentasRango()" style="color:var(--red);border-color:var(--red)" title="Borra cola + ventas (proyectadas y confirmadas) de un rango para re-sincronizar a mano">🧨 Borrar ventas (rango)</button>
+    </div>
   </div>
 
   <div id="conc-root">
@@ -11263,6 +11267,42 @@ async function deleteSeleccionados() {
   } catch(e){ setSyncStatus('error','Error'); showError('Error: '+e.message); }
 }
 
+// Toggle del Registro Diario: mostrar ventas confirmadas (validadas) en vez de proyectadas.
+let REG_CONF = false;
+function regSetConf(on){
+  REG_CONF = !!on;
+  const b = document.getElementById('reg-conf-btn');
+  if (b){ b.className = 'btn btn-sm ' + (REG_CONF ? 'btn-primary' : 'btn-ghost'); b.textContent = REG_CONF ? '🟢 Confirmado' : '🟡 Ver confirmado'; }
+  renderRegistro();
+}
+// Borra cola + ventas (proyectadas Y confirmadas) y Order Bumps de un rango, para
+// re-sincronizar a mano desde cero. Scope: producto activo. Doble confirmación.
+// El gasto de Meta NO se toca (vive en registros, columnas gasto_*).
+async function resetVentasRango(){
+  const ws = CURRENT_WORKSPACE; if (!ws?.id){ showError('Selecciona un producto primero.'); return; }
+  const desde = prompt(`Borrar ventas de "${ws.nombre}" DESDE (YYYY-MM-DD):`, ''); if (!desde) return;
+  const hasta = prompt('…HASTA (YYYY-MM-DD):', desde); if (!hasta) return;
+  if (!/^\d{4}-\d{2}-\d{2}$/.test(desde) || !/^\d{4}-\d{2}-\d{2}$/.test(hasta)){ showError('Formato de fecha inválido (usa YYYY-MM-DD).'); return; }
+  if (!confirm(`⚠️ BORRADO IRREVERSIBLE\n\nProducto: ${ws.nombre}\nRango: ${desde} → ${hasta}\n\nSe borrarán TODAS las ventas (cola + proyectadas + confirmadas) y Order Bumps de ese rango, y el registro diario quedará en 0 (ventas).\nEl gasto de Meta NO se toca.\n\n¿Continuar?`)) return;
+  const email = prompt(`🔴 Confirmación final — escribe tu email:\n${CURRENT_USER?.email||''}`);
+  if (email !== CURRENT_USER?.email){ showError('El email no coincide. Operación cancelada.'); return; }
+  try {
+    setSyncStatus('loading','Borrando ventas...');
+    // 1) Borrar la cola/ventas (crm_ventas) del rango
+    const rDel = await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}`,
+      { method:'DELETE', headers: { ...api._h(), 'Prefer':'return=minimal' } });
+    if (!rDel.ok) throw new Error(`crm_ventas: HTTP ${rDel.status}`);
+    // 2) Poner en 0 las ventas del registro diario (sin tocar el gasto de Meta)
+    const rReg = await fetch(`${SUPABASE_URL}/rest/v1/registros?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}`,
+      { method:'PATCH', headers: { ...api._h(), 'Prefer':'return=minimal' }, body: JSON.stringify({ v1:0, v2:0, v3:0, v4:0, upsell_total:0 }) });
+    if (!rReg.ok) throw new Error(`registros: HTTP ${rReg.status}`);
+    await loadAll();
+    setSyncStatus('ok','Sincronizado ✓');
+    showSuccess(`✅ Ventas de ${desde} → ${hasta} borradas. Ahora puedes re-sincronizar a mano.`);
+    try { if (typeof concReset === 'function') concReset(); } catch(e){}
+  } catch(e){ setSyncStatus('error','Error'); showError('Error al borrar: ' + (e.message||e)); }
+}
+
 function renderRegistro() {
   const fecha=document.getElementById('reg-filtro-fecha').value;
   const camp=document.getElementById('reg-filtro-camp').value;
@@ -11272,7 +11312,15 @@ function renderRegistro() {
     if(camp&&r.campana!==camp) return false;
     if(anuncioFiltro&&r.ad_id!==anuncioFiltro) return false;
     return true;
-  }).sort((a,b)=>{
+  });
+  // Vista confirmada: overlay de v1-v4 y Order Bump desde CICLO_MAP (solo display, no muta DB).
+  if (REG_CONF){
+    regs = regs.map(r => {
+      const c = CICLO_MAP.get(cicloKey(r.workspace_id, r.ad_id, r.fecha));
+      return { ...r, v1: c?+c.v1c:0, v2: c?+c.v2c:0, v3: c?+c.v3c:0, v4: c?+c.v4c:0, upsell_total: c?+c.bump_val_conf:0 };
+    });
+  }
+  regs = regs.sort((a,b)=>{
     // Primero por fecha (más reciente primero)
     const fc = b.fecha.localeCompare(a.fecha);
     if (fc !== 0) return fc;
