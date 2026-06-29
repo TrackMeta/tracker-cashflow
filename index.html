@@ -568,6 +568,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div class="nav-item" onclick="navTo('kpis',this)"><span class="icon">🗓️</span> KPIs del Día</div>
     <div class="nav-item" onclick="navTo('por-anuncio',this)"><span class="icon">🔍</span> Por Anuncio</div>
     <div class="nav-item" onclick="navTo('por-campana',this)"><span class="icon">📊</span> Por Campaña</div>
+    <div class="nav-item" onclick="navTo('order-bumps',this)"><span class="icon">🛒</span> Order Bumps</div>
     <div class="nav-item" onclick="navTo('remarketing',this)"><span class="icon">🔁</span> Remarketing</div>
     <div class="nav-item" onclick="navTo('horarios',this)"><span class="icon">🕐</span> Horarios</div>
     <div class="nav-section">Datos</div>
@@ -1364,6 +1365,29 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
         <tbody id="campana-tbody"></tbody>
       </table>
     </div>
+  </div>
+</div>
+
+<!-- ORDER BUMPS -->
+<div class="page" id="page-order-bumps">
+  <div class="page-header">
+    <div><div class="page-title">🛒 Order Bumps</div><div class="page-sub">Medición aparte — los Order Bumps NO afectan las métricas de anuncios/campañas</div></div>
+    <button class="btn btn-ghost btn-sm" onclick="renderOrderBumps()">🔄 Actualizar</button>
+  </div>
+  <div class="cards-row cards-4" id="ob-kpis" style="margin-bottom:16px"></div>
+  <div class="panel" style="margin-bottom:16px">
+    <div class="panel-header"><span class="panel-title">🏆 Ranking por anuncio</span></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th class="left">Creativo</th><th>Order Bumps</th><th>Valor confirmado</th><th>Valor proyectado</th></tr></thead>
+      <tbody id="ob-ranking"></tbody>
+    </table></div>
+  </div>
+  <div class="panel">
+    <div class="panel-header"><span class="panel-title">⏳ Order Bumps por validar</span><span style="font-size:11px;color:var(--text3)">validación independiente de la venta</span></div>
+    <div class="tbl-wrap"><table>
+      <thead><tr><th>Fecha</th><th class="left">Creativo</th><th class="left">Cliente</th><th>Monto</th><th>Acciones</th></tr></thead>
+      <tbody id="ob-pendientes"></tbody>
+    </table></div>
   </div>
 </div>
 
@@ -9047,6 +9071,7 @@ function renderPage(page) {
   if (page==='por-anuncio')  { initFiltros(); renderPorAnuncio(); }
   if (page==='por-campana')  { initFiltrosCamp(); renderPorCampana(); }
   if (page==='registro')     { populateRegFiltros(); renderRegistro(); }
+  if (page==='order-bumps')  renderOrderBumps();
   if (page==='catalogo')     renderCatalogo();
   if (page==='leyenda')      renderLeyenda();
   if (page==='alertas')      renderAlertas();
@@ -11301,6 +11326,48 @@ async function resetVentasRango(){
     showSuccess(`✅ Ventas de ${desde} → ${hasta} borradas. Ahora puedes re-sincronizar a mano.`);
     try { if (typeof concReset === 'function') concReset(); } catch(e){}
   } catch(e){ setSyncStatus('error','Error'); showError('Error al borrar: ' + (e.message||e)); }
+}
+
+// ── Sección Order Bumps: medición aparte + validación independiente ──
+async function renderOrderBumps(){
+  const ws = CURRENT_WORKSPACE;
+  const kpis = document.getElementById('ob-kpis'); if (!kpis) return;
+  if (!ws?.id){ kpis.innerHTML = '<div class="alert alert-info" style="grid-column:1/-1">Selecciona un producto</div>'; return; }
+  let bumps = [];
+  try { bumps = await api.get('crm_ventas', `workspace_id=eq.${ws.id}&bump_monto=gt.0&select=id,fecha,ad_id,bump_monto,bump_ciclo,cliente&order=fecha.desc&limit=5000`); } catch(e){ bumps = []; }
+  const proy = bumps.filter(b => b.bump_ciclo !== 'descartado');
+  const conf = bumps.filter(b => b.bump_ciclo === 'finalizado');
+  const pend = bumps.filter(b => b.bump_ciclo === 'pendiente' || !b.bump_ciclo);
+  const valProy = proy.reduce((s,b)=>s+(+b.bump_monto||0),0);
+  const valConf = conf.reduce((s,b)=>s+(+b.bump_monto||0),0);
+  let ventasConf = 0; CICLO_MAP.forEach((c,k)=>{ if (k.indexOf(ws.id+'||')===0) ventasConf += +c.n_conf||0; });
+  const takeRate = ventasConf>0 ? conf.length/ventasConf : 0;
+  kpis.innerHTML = [
+    kpiCard('🛒 Bumps confirmados', fmt.s(valConf), 'purple', `${conf.length} vendido${conf.length===1?'':'s'}`),
+    kpiCard('📊 Take rate', fmt.pct(takeRate), takeRate>=0.2?'green':'orange', `${conf.length} de ${ventasConf} ventas conf.`),
+    kpiCard('🟡 Proyectado', fmt.s(valProy), 'teal', `${proy.length} order bumps`),
+    kpiCard('⏳ Por validar', fmt.num(pend.length), pend.length>0?'orange':'green', 'pendientes'),
+  ].join('');
+  const byAd = {};
+  proy.forEach(b => { const a = byAd[b.ad_id] || (byAd[b.ad_id] = {n:0,conf:0,proy:0}); a.proy += +b.bump_monto||0; if (b.bump_ciclo==='finalizado'){ a.conf += +b.bump_monto||0; a.n++; } });
+  const ranking = Object.entries(byAd).sort((a,b)=>b[1].proy-a[1].proy).slice(0,30);
+  document.getElementById('ob-ranking').innerHTML = ranking.map(([adId,a])=>{
+    const an = DB.anuncios.find(x=>x.ad_id===adId)||{};
+    return `<tr><td class="left">${an.nombre||adId}</td><td>${a.n}</td><td style="color:var(--green)">${fmt.s(a.conf)}</td><td style="color:var(--text2)">${fmt.s(a.proy)}</td></tr>`;
+  }).join('') || `<tr><td colspan="4" class="muted">Sin Order Bumps todavía. Se llenan al sincronizar ventas con la columna "Upsell 1".</td></tr>`;
+  document.getElementById('ob-pendientes').innerHTML = pend.slice(0,200).map(b=>{
+    const an = DB.anuncios.find(x=>x.ad_id===b.ad_id)||{};
+    return `<tr><td>${fmt.date(b.fecha)}</td><td class="left">${an.nombre||b.ad_id}</td><td class="left muted">${b.cliente||'—'}</td><td style="color:var(--purple)">${fmt.s(+b.bump_monto||0)}</td>
+      <td style="white-space:nowrap"><button class="btn btn-sm btn-primary" onclick="obValidar('${b.id}','finalizado')">✅ Validar</button> <button class="btn btn-sm btn-ghost" onclick="obValidar('${b.id}','descartado')">🗑️</button></td></tr>`;
+  }).join('') || `<tr><td colspan="5" class="muted">No hay Order Bumps pendientes de validar.</td></tr>`;
+}
+async function obValidar(id, ciclo){
+  try {
+    await api.patch('crm_ventas', id, { bump_ciclo: ciclo });
+    await cargarCicloMap(true);
+    renderOrderBumps();
+    showSuccess(ciclo==='finalizado' ? '✅ Order Bump validado' : '🗑️ Order Bump descartado');
+  } catch(e){ showError('Error: ' + (e.message||e)); }
 }
 
 function renderRegistro() {
