@@ -178,7 +178,7 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
     const idx = exacto ? exacto[1] : activos.reduce((bi, [p, i]) => Math.abs(r.valor - p) < Math.abs(r.valor - activos[bi][0]) ? i : bi, 0);
     if (idx === 0) g.v1++; else if (idx === 1) g.v2++; else if (idx === 2) g.v3++; else g.v4++;
     g.upsell += r.up1 + r.up2 + r.up3 + r.up4;
-    if (r.hora && r.valor > 0) crmRows.push({ fecha: r.fecha, ad_id: r.adId, hora: r.hora, precio: r.valor, telefono: r.telefono || null, producto: r.producto || null, cliente: r.cliente || null, workspace_id: wsId, user_id: job.userId, fuente_uid: r.uid || null });
+    if (r.hora && r.valor > 0) crmRows.push({ fecha: r.fecha, ad_id: r.adId, hora: r.hora, precio: r.valor, telefono: r.telefono || null, producto: r.producto || null, cliente: r.cliente || null, workspace_id: wsId, user_id: job.userId, fuente_uid: r.uid || null, bump_monto: (+r.up1 || 0), bump_ciclo: ((+r.up1 || 0) > 0 ? "pendiente" : null) });
   }
 
   // Consolidar por wsId+adId+fecha
@@ -285,6 +285,7 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
             telefono: r.telefono, producto: r.producto, cliente: r.cliente,
             workspace_id: r.workspace_id, user_id: job.userId, fuente_uid: r.fuente_uid,
             ciclo: "pendiente", estado_verif: "pendiente", origen: "auto", sincronizado_at: nowISO,
+            bump_monto: (+r.bump_monto || 0), bump_ciclo: (r.bump_ciclo || null),
           }], "return=minimal").catch(() => {});
         }
       }
@@ -313,6 +314,7 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
           telefono: r.telefono, producto: r.producto, cliente: r.cliente,
           workspace_id: r.workspace_id, user_id: job.userId,
           ciclo: "pendiente", estado_verif: "pendiente", origen: "auto", sincronizado_at: nowISO,
+          bump_monto: (+r.bump_monto || 0), bump_ciclo: (r.bump_ciclo || null),
         }));
         await sb("POST", "crm_ventas", lote, "return=minimal").catch(() => {});
       }

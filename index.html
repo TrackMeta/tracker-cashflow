@@ -4126,7 +4126,7 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
       g.upsell += r.up1 + r.up2 + r.up3 + r.up4;
 
       if (r.hora && r.valor > 0) {
-        crmRows.push({ fecha: r.fecha, ad_id: r.adId, hora: r.hora, precio: r.valor, telefono: r.telefono || null, producto: r.producto || null, cliente: r.cliente || null, workspace_id: wsId, user_id: CURRENT_USER?.id, fuente_uid: r.uid || null });
+        crmRows.push({ fecha: r.fecha, ad_id: r.adId, hora: r.hora, precio: r.valor, telefono: r.telefono || null, producto: r.producto || null, cliente: r.cliente || null, workspace_id: wsId, user_id: CURRENT_USER?.id, fuente_uid: r.uid || null, bump_monto: (+r.up1 || 0), bump_ciclo: ((+r.up1 || 0) > 0 ? 'pendiente' : null) });
       }
     }
 
@@ -4259,7 +4259,7 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
             try {
               const res = await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas`, {
                 method: 'POST', headers: { ...api._h(), 'Prefer': 'return=minimal' },
-                body: JSON.stringify([{ fecha:r.fecha, ad_id:r.ad_id, hora:r.hora, precio:r.precio, telefono:r.telefono, producto:r.producto, cliente:r.cliente, workspace_id:r.workspace_id, user_id:CURRENT_USER?.id, fuente_uid:r.fuente_uid, ciclo:'pendiente', estado_verif:'pendiente', origen:'sheets', sincronizado_at:nowISO }])
+                body: JSON.stringify([{ fecha:r.fecha, ad_id:r.ad_id, hora:r.hora, precio:r.precio, telefono:r.telefono, producto:r.producto, cliente:r.cliente, workspace_id:r.workspace_id, user_id:CURRENT_USER?.id, fuente_uid:r.fuente_uid, ciclo:'pendiente', estado_verif:'pendiente', origen:'sheets', sincronizado_at:nowISO, bump_monto:(+r.bump_monto||0), bump_ciclo:(r.bump_ciclo||null) }])
               });
               if (res.ok) _crmOk++; else if (!_crmErr) _crmErr = `HTTP ${res.status}: ${(await res.text()).slice(0,300)}`;
             } catch(e) { if (!_crmErr) _crmErr = String(e.message||e); }
@@ -4287,7 +4287,8 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
         for (let i = 0; i < nuevos.length; i += 100) {
           const lote = nuevos.slice(i, i + 100).map(r => ({
             fecha:r.fecha, ad_id:r.ad_id, hora:r.hora, precio:r.precio, telefono:r.telefono, producto:r.producto, cliente:r.cliente,
-            workspace_id:r.workspace_id, user_id:CURRENT_USER?.id, ciclo:'pendiente', estado_verif:'pendiente', origen:'sheets', sincronizado_at:nowISO
+            workspace_id:r.workspace_id, user_id:CURRENT_USER?.id, ciclo:'pendiente', estado_verif:'pendiente', origen:'sheets', sincronizado_at:nowISO,
+            bump_monto:(+r.bump_monto||0), bump_ciclo:(r.bump_ciclo||null)
           }));
           try {
             const res = await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas`, {
