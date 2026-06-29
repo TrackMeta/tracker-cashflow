@@ -5263,7 +5263,7 @@ async function renderGlobal() {
     for (const ws of DB.workspaces) {
       if (!SELECTED_WS_IDS.has(ws.id)) continue;
       const regs = await api.get('registros',
-        `workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&select=fecha,gasto_meta,gasto_tiktok,impr_meta,impr_tiktok,clics_meta,clics_tiktok,chats_meta,chats_tiktok,v1,v2,v3,v4,upsell_total`
+        `workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&select=fecha,ad_id,workspace_id,gasto_meta,gasto_tiktok,impr_meta,impr_tiktok,clics_meta,clics_tiktok,chats_meta,chats_tiktok,v1,v2,v3,v4,upsell_total`
       );
       // Necesitamos config de cada workspace para calcular ingresos
       const cfgArr = await api.get('config', `workspace_id=eq.${ws.id}&limit=1`);
@@ -5300,34 +5300,25 @@ async function renderGlobal() {
       return;
     }
 
-    // Toggle: PROYECTADO = registros (todo lo capturado); CONFIRMADO = validadas (RPC).
+    // Toggle Proyectado/Confirmado: d.m ya viene en el modo activo (calcMetricsWithConfig
+    // usa CICLO_MAP). El gasto/inversión siempre es real (Meta).
     _syncModoBtns();
     const _gh = document.getElementById('global-modo-hint');
     if (_gh) _gh.textContent = DASH_MODE==='confirmado' ? '· solo validadas' : '· incluye pendientes (todo lo capturado)';
-    let _ingMap = {};
-    if (DASH_MODE === 'confirmado') {
-      try {
-        const rpc = await api.post('rpc/ingresos_ciclo', { p_desde: desde, p_hasta: hasta });
-        (rpc||[]).forEach(r => { _ingMap[r.workspace_id] = r; });
-      } catch(e) { /* RPC no disponible → confirmadas en 0 */ }
-    }
 
     // Totales globales — consolidados en USD (cada producto con su propia tasa)
     wsData.forEach(d => {
       const rate = wsUsdRate(d.ws);
-      let ingLocal;
-      if (DASH_MODE === 'confirmado') {
-        const row = _ingMap[d.ws.id];
-        ingLocal = row ? +row.ing_confirmado : 0;
-        d.m.ventas = row ? +row.n_confirmado : 0;
-      } else {
-        ingLocal = d.m.ingresos; // proyectado = registros (completo)
-      }
+      const ingLocal = d.m.ingresos;
       d.usd = {
         inversion: d.m.inversion / rate,
         ingresos:  ingLocal / rate,
         profit:    (ingLocal - d.m.inversion) / rate,
-        upsells:   (d.m.upsells || 0) / rate,
+        upsells:   (d.m.bumpValor || 0) / rate,
+        bumpValor: (d.m.bumpValor || 0) / rate,
+        bumpVentas: (d.m.bumpVentas || 0),
+        profitConBump: (d.m.profitConBump || d.m.profit) / rate,
+        roasConBump: (d.m.roasConBump || d.m.roas),
       };
     });
     const totalInv    = wsData.reduce((s,d) => s + d.usd.inversion, 0);
@@ -5543,24 +5534,31 @@ function globalSelectAll(val) {
 
 // calcMetrics con config externa (para dashboard global)
 function calcMetricsWithConfig(regs, P) {
-  let gm=0,gt=0,im=0,it=0,cm=0,ct=0,chm=0,cht=0,v1=0,v2=0,v3=0,v4=0,upsells=0;
+  const conf = (typeof DASH_MODE !== 'undefined' && DASH_MODE === 'confirmado');
+  let gm=0,gt=0,im=0,it=0,cm=0,ct=0,chm=0,cht=0,v1=0,v2=0,v3=0,v4=0,bumpVal=0,bumpN=0;
   regs.forEach(r => {
     gm+=+r.gasto_meta||0; gt+=+r.gasto_tiktok||0;
     im+=+r.impr_meta||0; it+=+r.impr_tiktok||0;
     cm+=+r.clics_meta||0; ct+=+r.clics_tiktok||0;
     chm+=+r.chats_meta||0; cht+=+r.chats_tiktok||0;
-    v1+=+r.v1||0; v2+=+r.v2||0; v3+=+r.v3||0; v4+=+r.v4||0;
-    upsells+=+r.upsell_total||0;
+    const c = CICLO_MAP.get(cicloKey(r.workspace_id, r.ad_id, r.fecha));
+    if (conf) { v1+=c?+c.v1c:0; v2+=c?+c.v2c:0; v3+=c?+c.v3c:0; v4+=c?+c.v4c:0; }
+    else      { v1+=+r.v1||0;  v2+=+r.v2||0;  v3+=+r.v3||0;  v4+=+r.v4||0; }
+    bumpVal += conf ? (c?+c.bump_val_conf:0) : (c?+c.bump_val_proy:(+r.upsell_total||0));
+    bumpN   += conf ? (c?+c.bump_n_conf:0)   : (c?+c.bump_n_proy:0);
   });
   const inversion=gm+gt;
-  const ingresosBase = v1*(P.p1??10)+v2*(P.p2??7)+v3*(P.p3??5)+v4*(P.p4??3);
-  const ingresos = ingresosBase + upsells;
+  const ingresos = v1*(P.p1??10)+v2*(P.p2??7)+v3*(P.p3??5)+v4*(P.p4??3);
   const ventas=v1+v2+v3+v4, chats=chm+cht, impr=im+it, clics=cm+ct;
   const profit=ingresos-inversion;
   const roasGastoMin = P.roas_gasto_min || 1;
   const roas = inversion >= roasGastoMin ? ingresos/inversion : 0;
   const conv=chats>0?ventas/chats:0;
-  return {inversion,invIGV:inversion,ingresos,ingresosBase,upsells,ventas,chats,impr,clics,profit,roas,conv,v1,v2,v3,v4,
+  const ingresosConBump=ingresos+bumpVal, profitConBump=profit+bumpVal;
+  const roasConBump = inversion >= roasGastoMin ? ingresosConBump/inversion : 0;
+  return {inversion,invIGV:inversion,ingresos,ingresosBase:ingresos,upsells:bumpVal,bumpValor:bumpVal,bumpVentas:bumpN,
+    ingresosConBump,profitConBump,roasConBump,
+    ventas,chats,impr,clics,profit,roas,conv,v1,v2,v3,v4,
     cpv:ventas>0?inversion/ventas:0, ctr:impr>0?clics/impr:0, cpm:impr>0?inversion/impr*1000:0, cpr:chats>0?inversion/chats:0};
 }
 
@@ -8901,6 +8899,7 @@ async function loadAll() {
   DB.campanas       = camps;
   DB.anuncios       = ads;
   DB.registros      = regs;
+  await cargarCicloMap(true);   // capa Proyectado/Confirmado por (ws,ad,fecha)
   DB.notas          = nts;
   DB.notasCampanas  = ntsCamp;
   DB.bms            = bms;
@@ -9283,11 +9282,12 @@ async function loadGlobalData(){
   const wss = DB.workspaces || [];
   if (!wss.length){ actualizarNotifBadge(); try{ renderHub(); }catch(e){} return; }
   const desde = nDaysAgo(35);
+  await cargarCicloMap();   // capa Proyectado/Confirmado (cacheada 30s)
   try {
     await Promise.all(wss.map(async w => {
       const [regs, cfgArr] = await Promise.all([
         // Solo los campos que usan los KPIs globales y el conteo de alertas (payload menor → más rápido)
-        api.getAll('registros', `select=fecha,ad_id,gasto_meta,gasto_tiktok,v1,v2,v3,v4,upsell_total&workspace_id=eq.${w.id}&fecha=gte.${desde}&order=fecha.asc`).catch(()=>[]),
+        api.getAll('registros', `select=fecha,ad_id,workspace_id,gasto_meta,gasto_tiktok,v1,v2,v3,v4,upsell_total&workspace_id=eq.${w.id}&fecha=gte.${desde}&order=fecha.asc`).catch(()=>[]),
         api.get('config', `limit=1&workspace_id=eq.${w.id}`).catch(()=>[])
       ]);
       const P = cfgArr[0] || {};
@@ -9473,26 +9473,53 @@ function gblKpiCard(label, usd, cls, extraSub = '') {
   return kpiCard(label, fmtMoney((+usd||0) * gblRate(), c), cls, sub);
 }
 
+// ════════════════════════════════════════════════
+// CAPA DE MODO — Proyectado / Confirmado por (ws,ad,fecha)
+//   CICLO_MAP se llena con la RPC metricas_ciclo_por_ad y la consultan calcMetrics
+//   y calcMetricsWithConfig según DASH_MODE. Confirmado = solo crm_ventas finalizadas;
+//   el gasto/impresiones/clics/chats SIEMPRE son reales (de registros).
+//   Order Bump (bumpValor/bumpVentas) se mide aparte y NO entra a las métricas base.
+// ════════════════════════════════════════════════
+let CICLO_MAP = new Map();
+let _cicloAt = 0;
+function cicloKey(wsId, adId, fecha){ return `${wsId}||${adId}||${fecha}`; }
+async function cargarCicloMap(force){
+  if (!force && CICLO_MAP.size && Date.now()-_cicloAt < 30000) return;
+  try {
+    const rows = await api.post('rpc/metricas_ciclo_por_ad', { p_desde: '2000-01-01', p_hasta: '2999-12-31' });
+    const m = new Map();
+    (rows||[]).forEach(r => m.set(cicloKey(r.workspace_id, r.ad_id, r.fecha), r));
+    CICLO_MAP = m; _cicloAt = Date.now();
+  } catch(e){ console.warn('cargarCicloMap (RPC metricas_ciclo_por_ad):', e); }
+}
+
 function calcMetrics(regs) {
   const P = DB.config;
-  let gm=0,gt=0,im=0,it=0,cm=0,ct=0,chm=0,cht=0,v1=0,v2=0,v3=0,v4=0,upsells=0;
+  const conf = (typeof DASH_MODE !== 'undefined' && DASH_MODE === 'confirmado');
+  let gm=0,gt=0,im=0,it=0,cm=0,ct=0,chm=0,cht=0,v1=0,v2=0,v3=0,v4=0,bumpVal=0,bumpN=0;
   regs.forEach(r => {
     gm+=+r.gasto_meta||0; gt+=+r.gasto_tiktok||0;
     im+=+r.impr_meta||0; it+=+r.impr_tiktok||0;
     cm+=+r.clics_meta||0; ct+=+r.clics_tiktok||0;
     chm+=+r.chats_meta||0; cht+=+r.chats_tiktok||0;
-    v1+=+r.v1||0; v2+=+r.v2||0; v3+=+r.v3||0; v4+=+r.v4||0;
-    upsells+=+r.upsell_total||0;
+    const c = CICLO_MAP.get(cicloKey(r.workspace_id, r.ad_id, r.fecha));
+    if (conf) { v1+=c?+c.v1c:0; v2+=c?+c.v2c:0; v3+=c?+c.v3c:0; v4+=c?+c.v4c:0; }
+    else      { v1+=+r.v1||0;  v2+=+r.v2||0;  v3+=+r.v3||0;  v4+=+r.v4||0; }
+    bumpVal += conf ? (c?+c.bump_val_conf:0) : (c?+c.bump_val_proy:(+r.upsell_total||0));
+    bumpN   += conf ? (c?+c.bump_n_conf:0)   : (c?+c.bump_n_proy:0);
   });
   const inversion=gm+gt;
-  const ingresosBase=v1*(P.p1??10)+v2*(P.p2??7)+v3*(P.p3??5)+v4*(P.p4??3);
-  const ingresos=ingresosBase+upsells;
+  const ingresos=v1*(P.p1??10)+v2*(P.p2??7)+v3*(P.p3??5)+v4*(P.p4??3);
   const ventas=v1+v2+v3+v4, chats=chm+cht, impr=im+it, clics=cm+ct;
   const profit=ingresos-inversion;
   const roasGastoMin = P.roas_gasto_min || 1;
   const roas = inversion >= roasGastoMin ? ingresos/inversion : 0;
   const conv=chats>0?ventas/chats:0;
-  return {inversion,invIGV:inversion,ingresos,ingresosBase,upsells,ventas,chats,impr,clics,profit,roas,roasIGV:roas,conv,v1,v2,v3,v4,
+  const ingresosConBump=ingresos+bumpVal, profitConBump=profit+bumpVal;
+  const roasConBump = inversion >= roasGastoMin ? ingresosConBump/inversion : 0;
+  return {inversion,invIGV:inversion,ingresos,ingresosBase:ingresos,upsells:bumpVal,bumpValor:bumpVal,bumpVentas:bumpN,
+    ingresosConBump,profitConBump,roasConBump,
+    ventas,chats,impr,clics,profit,roas,roasIGV:roas,conv,v1,v2,v3,v4,
     cpv:ventas>0?inversion/ventas:0, ctr:impr>0?clics/impr:0, cpm:impr>0?inversion/impr*1000:0, cpr:chats>0?inversion/chats:0};
 }
 
@@ -9738,7 +9765,8 @@ function onDashPeriodo() {
 }
 
 // Modo de ingresos (compartido Dashboard ↔ Global): 🟡 proyectado / 🟢 confirmado
-let DASH_MODE = 'proyectado';
+// Default CONFIRMADO: la finalidad de la app es analizar ventas confirmadas (auditadas).
+let DASH_MODE = 'confirmado';
 function _syncModoBtns(){
   [['dash-modo-proy','dash-modo-conf'],['global-modo-proy','global-modo-conf']].forEach(([pid,cid])=>{
     const p=document.getElementById(pid), c=document.getElementById(cid);
@@ -9771,29 +9799,9 @@ async function renderDashboard() {
   // Toggle de ingresos. PROYECTADO = registros (todo lo capturado, completo).
   // CONFIRMADO = solo validadas (suma crm_ventas finalizado vía RPC).
   // El gasto/inversión siempre es real (Meta).
-  const _wsId = CURRENT_WORKSPACE?.id;
+  // M y Mant ya vienen en el modo activo (calcMetrics usa CICLO_MAP). El gasto es real.
   const _hint = document.getElementById('dash-modo-hint');
   if (_hint) _hint.textContent = DASH_MODE==='confirmado' ? '· solo ventas validadas (dinero auditado)' : '· incluye pendientes (todo lo capturado)';
-  if (_wsId && DASH_MODE === 'confirmado') {
-    const aplicar = (m, row) => {
-      const ing = row ? +row.ing_confirmado : 0;
-      m.ingresos = ing; m.profit = ing - m.inversion; m.roas = m.inversion>0 ? ing/m.inversion : 0;
-      m.ventas = row ? +row.n_confirmado : 0;
-      m.cpv = m.ventas>0 ? m.inversion/m.ventas : 0;
-    };
-    try {
-      const [rpc, rpcA] = await Promise.all([
-        api.post('rpc/ingresos_ciclo', { p_desde: desde, p_hasta: hasta }),
-        api.post('rpc/ingresos_ciclo', { p_desde: ant.desde, p_hasta: ant.hasta }).catch(()=>[]),
-      ]);
-      aplicar(M,    (rpc ||[]).find(r => r.workspace_id === _wsId));
-      aplicar(Mant, (rpcA||[]).find(r => r.workspace_id === _wsId));
-    } catch(e) {
-      aplicar(M, null); aplicar(Mant, null);
-      if (_hint) _hint.textContent = '· ⚠️ corre la RPC ingresos_ciclo en Supabase para ver confirmadas';
-    }
-  }
-  // PROYECTADO: M queda con los ingresos de registros (completo) — sin tocar.
 
   // Profit neto: descuenta gastos extra (comisiones, impuestos) del período.
   // Gastos puntuales se cuentan si su fecha cae en el rango; los mensuales recurrentes siempre.
