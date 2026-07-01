@@ -480,8 +480,10 @@ async function procesarUsuario(userId: string, conMeta: boolean, sheetDays = 5) 
     if (ws) { const al = await consolidar(wsId, ws).catch(() => [] as string[]); alertas.push(...al); }
   }
 
-  // ⏰ Recordatorios diarios por fuente: token de Meta (≤30 días) y pago del bot (≤7 días).
-  // La gravedad aumenta conforme se acerca la fecha.
+  // ⏰ Recordatorios por fuente: token de Meta (≤30 días) y pago del bot (≤7 días).
+  // Van SEPARADOS de las alertas de eventos: se envían UNA sola vez al día (slot de la
+  // mañana), NO en cada sync por intervalo — así no spamean cada hora.
+  const recordatorios: string[] = [];
   for (const f of (fuentes || [])) {
     // Token de Meta por caducar
     if (conMeta && f.meta_token) {
@@ -493,7 +495,7 @@ async function procesarUsuario(userId: string, conMeta: boolean, sheetDays = 5) 
           const dias = Math.ceil((exp * 1000 - Date.now()) / 86400000);
           if (dias >= 0 && dias <= 30) {
             const urgencia = dias <= 3 ? "🔴 *URGENTE*" : dias <= 7 ? "🟡 *ATENCIÓN*" : "⏰ *Aviso*";
-            alertas.push(`${urgencia} — El *token de Meta* de ${f.emoji || "🤖"} ${f.nombre} caduca en *${dias} día(s)*.\nGenera uno nuevo en Meta Business → Sistema → Usuarios → Token, y actualízalo en Ajustes → Fuentes antes de que venza, o el gasto dejará de sincronizar.`);
+            recordatorios.push(`${urgencia} — El *token de Meta* de ${f.emoji || "🤖"} ${f.nombre} caduca en *${dias} día(s)*.\nGenera uno nuevo en Meta Business → Sistema → Usuarios → Token, y actualízalo en Ajustes → Fuentes antes de que venza, o el gasto dejará de sincronizar.`);
           }
         }
       } catch (_) { /* */ }
@@ -502,10 +504,10 @@ async function procesarUsuario(userId: string, conMeta: boolean, sheetDays = 5) 
     const pago = nextDueDate(f.pago_vence);
     if (pago && pago.dias >= 0 && pago.dias <= 7) {
       const urgencia = pago.dias <= 2 ? "🔴 *URGENTE*" : pago.dias <= 5 ? "🟡 *ATENCIÓN*" : "⏰ *Aviso*";
-      alertas.push(`${urgencia} — El *pago del bot* ${f.emoji || "🤖"} ${f.nombre} vence en *${pago.dias} día(s)* (${pago.date}).\nRenuévalo antes para no perder el servicio del bot.`);
+      recordatorios.push(`${urgencia} — El *pago del bot* ${f.emoji || "🤖"} ${f.nombre} vence en *${pago.dias} día(s)* (${pago.date}).\nRenuévalo antes para no perder el servicio del bot.`);
     }
   }
-  return { userId, ventas: totVentas, workspaces: wsTouched.size, alertas };
+  return { userId, ventas: totVentas, workspaces: wsTouched.size, alertas, recordatorios };
 }
 
 // Modo programado: lee sync_config de cada usuario y dispara según sus horas (Perú UTC-5)
@@ -523,6 +525,11 @@ async function runScheduled() {
       if (cfg.tg_token && cfg.tg_chat_id && cfg.tg_activo !== false && cfg.tg_alertas !== false)
         for (const a of (r.alertas || [])) await tgSend(cfg.tg_token, cfg.tg_chat_id, a).catch(() => {});
     };
+    // Recordatorios (token/pago): solo 1 vez al día (slot de la mañana), no por intervalo.
+    const enviarRecordatorios = async (r: any) => {
+      if (cfg.tg_token && cfg.tg_chat_id && cfg.tg_activo !== false && cfg.tg_alertas !== false)
+        for (const a of (r.recordatorios || [])) await tgSend(cfg.tg_token, cfg.tg_chat_id, a).catch(() => {});
+    };
     // Cada slot va protegido: un fallo en un usuario/workspace no debe abortar la corrida
     // completa (eso dejaba ultima_* sin marcar y bloqueaba el Telegram de todos).
     const correrSlot = async (slot: "noche" | "manana", marca: Record<string, string>) => {
@@ -531,6 +538,7 @@ async function runScheduled() {
         // Marcar PRIMERO para no reintentar en loop cada 15 min si Telegram/alertas fallan
         await sb("PATCH", `sync_config?user_id=eq.${cfg.user_id}`, marca, "return=minimal").catch(() => {});
         await enviarAlertas(r);
+        if (slot === "manana") await enviarRecordatorios(r);   // token/pago: 1 vez al día
         await enviarReporteSlot(cfg, slot).catch((e) => console.error("reporte " + slot, e));
         ejecutados.push({ ...r, slot });
       } catch (e) {
