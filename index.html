@@ -181,7 +181,7 @@ body.hub-active .page{padding:16px 28px 22px;}
 .hub2-lines{position:absolute;inset:0;width:100%;height:100%;pointer-events:none;z-index:1;overflow:visible;}
 .hub2-node{animation:hubpulse 2.8s ease-in-out infinite;}
 @keyframes hubpulse{0%,100%{opacity:.45}50%{opacity:.95}}
-.hub2-circle{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:474px;height:474px;border-radius:50%;background:var(--bg2);border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 56px;z-index:3;box-shadow:var(--shadow-lg),0 0 55px rgba(5,150,105,0.14);transition:box-shadow .35s;}
+.hub2-circle{position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);width:508px;height:508px;border-radius:50%;background:var(--bg2);border:1px solid var(--border);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:0 56px;z-index:3;box-shadow:var(--shadow-lg),0 0 55px rgba(5,150,105,0.14);transition:box-shadow .35s;}
 .hub2-circle.warn{box-shadow:var(--shadow-lg),0 0 55px rgba(234,124,18,0.20);}
 .hub2-circle.error{box-shadow:var(--shadow-lg),0 0 55px rgba(225,29,72,0.22);}
 .hub2-status-ico{font-size:27px;line-height:1;margin-bottom:5px;}
@@ -196,6 +196,11 @@ body.hub-active .page{padding:16px 28px 22px;}
 .hub2-kval{font-size:18px;font-weight:800;color:var(--text);font-family:var(--mono);margin-top:1px;letter-spacing:-0.01em;}
 .hub2-kpi.wide .hub2-kval{font-size:23px;color:var(--teal);}
 .hub2-kdelta{font-size:9.5px;font-weight:700;white-space:nowrap;margin-top:1px;}
+.hub2-bumprow{display:grid;grid-template-columns:1fr 1fr 1fr;gap:12px;width:100%;}
+.hub2-bumpitem{display:flex;flex-direction:column;align-items:center;line-height:1.18;text-align:center;}
+.hub2-bumplbl{font-size:8.5px;color:var(--text3);font-weight:700;text-transform:uppercase;letter-spacing:.03em;white-space:nowrap;}
+.hub2-bumpval{font-size:15.5px;font-weight:800;color:var(--purple);font-family:var(--mono);margin-top:2px;letter-spacing:-0.01em;}
+.hub2-bumpsub{font-size:9px;color:var(--text3);font-weight:600;margin-top:1px;}
 .hub2-cta{margin-top:9px;background:transparent;border:1px solid var(--border2);color:var(--accent);border-radius:999px;padding:7px 18px;font-size:12px;font-weight:700;cursor:pointer;font-family:var(--font);transition:.15s;}
 .hub2-cta:hover{background:var(--accent-dim);border-color:var(--accent);}
 .hub2-card{position:absolute;width:212px;background:var(--bg2);border:1px solid var(--border);border-radius:22px;padding:20px 22px;cursor:pointer;transition:transform .2s,box-shadow .2s,border-color .2s;display:flex;flex-direction:column;align-items:center;gap:10px;text-align:center;z-index:2;box-shadow:var(--shadow);font-family:var(--font);}
@@ -688,9 +693,21 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
             <span class="hub2-kval" id="hub-roas">—</span>
             <span class="hub2-kdelta" id="hub-roas-d"></span>
           </div>
-          <div class="hub2-kpi wide">
-            <span class="hub2-klabel">🛒 Order Bumps · Profit+Bump · ROAS+Bump</span>
-            <span class="hub2-kval" id="hub-bumpline" style="font-size:13px">—</span>
+        </div>
+        <div class="hub2-divider" style="margin:9px 0 7px"></div>
+        <div class="hub2-bumprow">
+          <div class="hub2-bumpitem">
+            <span class="hub2-bumplbl">🛒 Order Bumps</span>
+            <span class="hub2-bumpval" id="hub-bump">—</span>
+            <span class="hub2-bumpsub" id="hub-bump-n"></span>
+          </div>
+          <div class="hub2-bumpitem">
+            <span class="hub2-bumplbl">💰 Profit + Bump</span>
+            <span class="hub2-bumpval" id="hub-profitbump">—</span>
+          </div>
+          <div class="hub2-bumpitem">
+            <span class="hub2-bumplbl">📈 ROAS + Bump</span>
+            <span class="hub2-bumpval" id="hub-roasbump">—</span>
           </div>
         </div>
         <button class="hub2-cta" id="hub-cta" onclick="hubCta()">Ver resumen completo →</button>
@@ -9184,8 +9201,10 @@ async function renderHub(){
     setKpi('hub-profit',    sP, kP, pP);
     setKpi('hub-ventas',    sN, kN, pN);
     setKpi('hub-roas',      sR, kR, pR);
-    { const v=document.getElementById('hub-bumpline');
-      if(v) v.innerHTML = `${sBump} <span style="opacity:.45">·</span> ${fmt.num(kBumpN)} bumps <span style="opacity:.45">·</span> P+B ${sPB} <span style="opacity:.45">·</span> ROAS ${sRB}`; }
+    { const v=document.getElementById('hub-bump'); if(v) v.textContent=sBump;
+      const n=document.getElementById('hub-bump-n'); if(n) n.textContent=`${fmt.num(kBumpN)} vendido${kBumpN===1?'':'s'}`;
+      const pb=document.getElementById('hub-profitbump'); if(pb) pb.textContent=sPB;
+      const rb=document.getElementById('hub-roasbump'); if(rb) rb.textContent=sRB; }
 
     // Alertas GLOBALES (de todos los productos) → badge campana + estado
     const totalAl = notifEnabled() ? (GLOBAL_ALERTS.total || 0) : 0;
