@@ -571,6 +571,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div class="nav-section">Detalle</div>
     <div class="nav-item" onclick="navTo('analyzer',this)" style="border-left:3px solid var(--green)"><span class="icon">🧠</span> Analyzer Pro</div>
     <div class="nav-item" onclick="navTo('kpis',this)"><span class="icon">🗓️</span> KPIs del Día</div>
+    <div class="nav-item" onclick="navTo('metricas',this)"><span class="icon">📋</span> Métricas</div>
     <div class="nav-item" onclick="navTo('por-anuncio',this)"><span class="icon">🔍</span> Por Anuncio</div>
     <div class="nav-item" onclick="navTo('por-campana',this)"><span class="icon">📊</span> Por Campaña</div>
     <div class="nav-item" onclick="navTo('order-bumps',this)"><span class="icon">🛒</span> Order Bumps</div>
@@ -665,7 +666,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
         <div class="hub2-status-title" id="hub-state-title">Todo sincronizado</div>
         <div class="hub2-status-sub" id="hub-state-sub">Sistema operativo</div>
         <div class="hub2-status-date" id="hub-fecha-label">📅 Hoy</div>
-        <div class="hub2-status-date" id="hub-modo-badge" style="font-size:10px;opacity:.85;cursor:pointer;user-select:none" onclick="toggleHubModo()" title="Cambiar entre Proyectado (todo lo capturado) y Confirmado (solo ventas validadas)"></div>
+        <div style="margin-top:4px"><span id="hub-modo-badge" onclick="toggleHubModo()" title="Cambiar entre Proyectado (todo lo capturado) y Confirmado (solo ventas validadas)" style="display:inline-flex;align-items:center;gap:5px;padding:4px 14px;border:1px solid var(--border);border-radius:999px;background:var(--bg2);cursor:pointer;font-size:11px;font-weight:700;user-select:none;transition:all .15s;box-shadow:0 1px 3px rgba(0,0,0,.06)" onmouseover="this.style.borderColor='var(--accent)'" onmouseout="this.style.borderColor='var(--border)'"></span></div>
         <div class="hub2-divider"></div>
         <div class="hub2-kpis">
           <div class="hub2-kpi">
@@ -1275,6 +1276,54 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 </div>
 
 <!-- POR ANUNCIO -->
+<div class="page" id="page-metricas">
+  <div class="page-header">
+    <div><div class="page-title">📋 Métricas</div><div class="page-sub">Todos tus anuncios en una tabla, estilo administrador de anuncios de Meta</div></div>
+    <div style="display:flex;gap:8px">
+      <button class="btn btn-sm btn-primary" id="met-modo-proy" onclick="metSetModo('proyectado')">🟡 Proyectado</button>
+      <button class="btn btn-sm btn-ghost" id="met-modo-conf" onclick="metSetModo('confirmado')">🟢 Confirmado</button>
+    </div>
+  </div>
+  <div class="filters">
+    <div class="field"><label>Período</label>
+      <select id="met-periodo" onchange="metOnPeriodo()">
+        <option value="hoy">📍 Hoy</option><option value="ayer">📌 Ayer</option>
+        <option value="3">📅 Últimos 3 días</option><option value="7" selected>📅 Últimos 7 días</option>
+        <option value="30">📅 Últimos 30 días</option><option value="60">📅 Últimos 60 días</option>
+        <option value="90">📅 Últimos 90 días</option><option value="dia">🚩 Día específico</option>
+        <option value="custom">↔️ Rango personalizado</option><option value="0">⏹️ Total</option>
+      </select>
+    </div>
+    <div class="field" id="met-dia-box" style="display:none"><label>Día</label><input type="date" id="met-dia" onchange="renderMetricas()"></div>
+    <div id="met-custom-box" style="display:none;gap:8px;align-items:flex-end">
+      <div class="field"><label>Desde</label><input type="date" id="met-desde" onchange="renderMetricas()"></div>
+      <div class="field"><label>Hasta</label><input type="date" id="met-hasta" onchange="renderMetricas()"></div>
+    </div>
+    <div class="field"><label>Columnas</label>
+      <select id="met-preset" onchange="renderMetricas()">
+        <option value="rendimiento" selected>🏁 Rendimiento</option>
+        <option value="entrega">📡 Entrega</option>
+        <option value="interaccion">💬 Interacción (funnel)</option>
+        <option value="todas">🧾 Todas las columnas</option>
+      </select>
+    </div>
+    <div class="field"><label>Buscar</label><input type="text" id="met-buscar" placeholder="🔎 nombre o Ad ID..." oninput="renderMetricas()" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px;min-width:170px"></div>
+    <button class="btn btn-ghost btn-sm" onclick="metExportCSV()">📤 Exportar CSV</button>
+  </div>
+  <div class="cards-row cards-5" id="met-kpis" style="margin-bottom:14px"></div>
+  <div class="panel">
+    <div class="panel-header"><span class="panel-title">Anuncios</span><span id="met-hint" style="font-size:11px;color:var(--text3);margin-left:auto"></span></div>
+    <div class="tbl-wrap" style="max-height:66vh;overflow:auto">
+      <table id="met-table">
+        <thead id="met-thead"></thead>
+        <tbody id="met-tbody"></tbody>
+        <tfoot id="met-tfoot"></tfoot>
+      </table>
+    </div>
+    <div style="font-size:10px;color:var(--text3);padding:8px 16px">Clic en cualquier encabezado para ordenar · Clic en una fila para ver su evolución día a día en 🔍 Por Anuncio</div>
+  </div>
+</div>
+
 <div class="page" id="page-por-anuncio">
   <div class="page-header"><div><div class="page-title">🔍 Por Anuncio</div><div class="page-sub">Evolución diaria de un anuncio</div></div></div>
   <div class="filters">
@@ -9257,6 +9306,7 @@ function renderPage(page) {
   if (page==='bitacora')     renderBitacora();
   if (page==='global')       renderGlobal();
   if (page==='kpis')         { initKPIDate(); renderKPIs(); }
+  if (page==='metricas')     renderMetricas();
   if (page==='por-anuncio')  { initFiltros(); renderPorAnuncio(); }
   if (page==='por-campana')  { initFiltrosCamp(); renderPorCampana(); }
   if (page==='registro')     { populateRegFiltros(); renderRegistro(); }
@@ -9323,7 +9373,7 @@ async function renderHub(){
     const hubMode = hubModo();
     if (hubMode === 'confirmado') await cargarCicloMap();   // asegura la capa de validadas (cache 30s)
     const badge = document.getElementById('hub-modo-badge');
-    if (badge) badge.innerHTML = hubMode === 'confirmado' ? '🟢 Confirmado · solo validadas <span style="opacity:.7">⇄</span>' : '🟡 Proyectado · todo lo capturado <span style="opacity:.7">⇄</span>';
+    if (badge) badge.textContent = hubMode === 'confirmado' ? '🟢 Confirmado' : '🟡 Proyectado';
     let kI,kV,kP,kN,kR, pI,pV,pP,pN,pR, sI,sV,sP,sN,sR;
     let kBump,kBumpN,kPB,kRB, sBump,sPB,sRB;
     if (Object.keys(GLOBAL_DATA).length){
@@ -9629,6 +9679,7 @@ const CMDK_DEST = [
   { i:'🚨', t:'Alertas',            s:'Análisis', f:()=>navTo('alertas',null) },
   { i:'🧠', t:'Analyzer Pro',       s:'Detalle',  f:()=>navTo('analyzer',null) },
   { i:'🗓️', t:'KPIs del Día',       s:'Detalle',  f:()=>navTo('kpis',null) },
+  { i:'📋', t:'Métricas',           s:'Detalle',  f:()=>navTo('metricas',null) },
   { i:'🔍', t:'Por Anuncio',        s:'Detalle',  f:()=>navTo('por-anuncio',null) },
   { i:'📊', t:'Por Campaña',        s:'Detalle',  f:()=>navTo('por-campana',null) },
   { i:'🔁', t:'Remarketing',        s:'Detalle',  f:()=>navTo('remarketing',null) },
@@ -10034,13 +10085,150 @@ function onDashPeriodo() {
 // Default CONFIRMADO: la finalidad de la app es analizar ventas confirmadas (auditadas).
 let DASH_MODE = 'confirmado';
 function _syncModoBtns(){
-  [['dash-modo-proy','dash-modo-conf'],['global-modo-proy','global-modo-conf']].forEach(([pid,cid])=>{
+  [['dash-modo-proy','dash-modo-conf'],['global-modo-proy','global-modo-conf'],['met-modo-proy','met-modo-conf']].forEach(([pid,cid])=>{
     const p=document.getElementById(pid), c=document.getElementById(cid);
     if(p&&c){ p.className='btn btn-sm '+(DASH_MODE==='proyectado'?'btn-primary':'btn-ghost'); c.className='btn btn-sm '+(DASH_MODE==='confirmado'?'btn-primary':'btn-ghost'); }
   });
 }
 function dashSetModo(m){ DASH_MODE=m; _syncModoBtns(); renderDashboard(); }
 function globalSetModo(m){ DASH_MODE=m; _syncModoBtns(); if(typeof renderGlobal==='function') renderGlobal(); }
+
+// ════════════════════════════════════════════════
+// MÉTRICAS — tabla tipo administrador de anuncios (una fila por anuncio)
+//   Agrega registros del período por Ad ID, calcula el funnel completo
+//   (impresión → clic → chat → compra) y muestra columnas por preset,
+//   ordenables, con fila TOTAL recalculada desde las sumas.
+// ════════════════════════════════════════════════
+const MET = { sort:'gasto', dir:-1, _last:null };
+const MET_COLS = [
+  { k:'anuncio',  l:'Anuncio',          t:'txt' },
+  { k:'estado',   l:'Estado',           t:'badge' },
+  { k:'gasto',    l:'Importe gastado',  t:'money' },
+  { k:'impr',     l:'Impresiones',      t:'num' },
+  { k:'cpm',      l:'CPM',              t:'money' },
+  { k:'clics',    l:'Clics',            t:'num' },
+  { k:'ctr',      l:'CTR',              t:'pct' },
+  { k:'cpc',      l:'CPC',              t:'money' },
+  { k:'chats',    l:'Chats',            t:'num' },
+  { k:'cpr',      l:'Costo por chat',   t:'money' },
+  { k:'clicChat', l:'Clic→Chat',        t:'pct' },
+  { k:'ventas',   l:'Compras',          t:'num' },
+  { k:'cpv',      l:'Costo por compra', t:'money' },
+  { k:'conv',     l:'Chat→Compra',      t:'pct' },
+  { k:'ingresos', l:'Ingresos',         t:'money' },
+  { k:'bump',     l:'Order Bump',       t:'money' },
+  { k:'roas',     l:'ROAS',             t:'roas' },
+  { k:'roasBump', l:'ROAS + Bump',      t:'roas' },
+  { k:'profit',   l:'Profit',           t:'money+' },
+  { k:'dias',     l:'Días activos',     t:'num' },
+];
+const MET_PRESETS = {
+  rendimiento: ['anuncio','estado','gasto','ventas','cpv','ingresos','roas','profit'],
+  entrega:     ['anuncio','gasto','impr','cpm','clics','ctr','cpc'],
+  interaccion: ['anuncio','clics','chats','cpr','clicChat','conv','ventas'],
+  todas:       MET_COLS.map(c=>c.k),
+};
+async function metSetModo(m){ DASH_MODE=m; _syncModoBtns(); if(m==='confirmado') await cargarCicloMap(); renderMetricas(); }
+function metOnPeriodo(){
+  const v=document.getElementById('met-periodo').value;
+  document.getElementById('met-dia-box').style.display = v==='dia'?'block':'none';
+  document.getElementById('met-custom-box').style.display = v==='custom'?'flex':'none';
+  renderMetricas();
+}
+function metSort(k){ if(MET.sort===k) MET.dir*=-1; else { MET.sort=k; MET.dir=-1; } renderMetricas(); }
+function metAbrirAnuncio(adId){
+  navTo('por-anuncio', null);
+  setTimeout(()=>{ const sel=document.getElementById('filtro-anuncio'); if(sel){ sel.value=adId; renderPorAnuncio(); } }, 60);
+}
+function _metRows(desde, hasta){
+  const regs = (DB.registros||[]).filter(r=>r.fecha>=desde && r.fecha<=hasta);
+  const porAd = {};
+  regs.forEach(r=>{ (porAd[r.ad_id]=porAd[r.ad_id]||[]).push(r); });
+  const nomDe = {}; (DB.anuncios||[]).forEach(a=>{ nomDe[a.ad_id]=a.nombre||''; });
+  return Object.entries(porAd).map(([adId, rs])=>{
+    const M = calcMetrics(rs);   // respeta 🟡/🟢 vía DASH_MODE + CICLO_MAP
+    if(!M.inversion && !M.ventas && !M.impr && !M.chats) return null;   // fila totalmente vacía
+    const dias = new Set(rs.filter(r=>((+r.gasto_meta||0)+(+r.gasto_tiktok||0))>0).map(r=>r.fecha)).size;
+    return {
+      adId, nombre: nomDe[adId]||'', est: getEstado(M.roas, M.conv, M.inversion),
+      gasto:M.inversion, impr:M.impr, cpm:M.cpm, clics:M.clics, ctr:M.ctr,
+      cpc: M.clics>0 ? M.inversion/M.clics : 0,
+      chats:M.chats, cpr:M.cpr, clicChat: M.clics>0 ? M.chats/M.clics : 0,
+      ventas:M.ventas, cpv:M.cpv, conv:M.conv,
+      ingresos:M.ingresos, bump:M.bumpValor||0, roas:M.roas, roasBump:M.roasConBump||0,
+      profit:M.profit, dias
+    };
+  }).filter(Boolean);
+}
+function _metFmt(t, v){
+  if(t==='money+'){ return `<span style="color:${(+v)>=0?'var(--green)':'var(--red)'};font-weight:700">${fmt.s(v)}</span>`; }
+  if(t==='money') return fmt.s(v);
+  if(t==='num')   return fmt.num(v);
+  if(t==='pct')   return ((+v||0)*100).toFixed(1)+'%';
+  if(t==='roas')  return fmt.roas(v);
+  return v;
+}
+function renderMetricas(){
+  const tb=document.getElementById('met-tbody'); if(!tb) return;
+  _syncModoBtns();
+  // Modo confirmado sin la capa de validadas cargada aún → cargarla y re-render (una vez)
+  if (typeof DASH_MODE!=='undefined' && DASH_MODE==='confirmado' && !CICLO_MAP.size && !_cicloAt){
+    cargarCicloMap().then(()=>{ try{ renderMetricas(); }catch(e){} });
+  }
+  const { desde, hasta } = rangoDe(document.getElementById('met-periodo')?.value||'7','met-dia','met-desde','met-hasta');
+  let rows = _metRows(desde, hasta);
+  const q=(document.getElementById('met-buscar')?.value||'').toLowerCase().trim();
+  if(q) rows = rows.filter(r=> (r.nombre||'').toLowerCase().includes(q) || String(r.adId).toLowerCase().includes(q));
+  const preset = MET_PRESETS[document.getElementById('met-preset')?.value||'rendimiento'] || MET_PRESETS.rendimiento;
+  const cols = MET_COLS.filter(c=>preset.includes(c.k));
+  rows.sort((a,b)=>{
+    if(MET.sort==='anuncio') return MET.dir * String(a.nombre||a.adId).localeCompare(String(b.nombre||b.adId));
+    if(MET.sort==='estado')  return MET.dir * ((a.roas||0)-(b.roas||0));
+    return MET.dir * ((+a[MET.sort]||0) - (+b[MET.sort]||0));
+  });
+  // TOTAL: ratios recalculados desde las sumas (no promedio de promedios)
+  const T={gasto:0,impr:0,clics:0,chats:0,ventas:0,ingresos:0,bump:0,profit:0};
+  rows.forEach(r=>{ T.gasto+=r.gasto;T.impr+=r.impr;T.clics+=r.clics;T.chats+=r.chats;T.ventas+=r.ventas;T.ingresos+=r.ingresos;T.bump+=r.bump;T.profit+=r.profit; });
+  T.cpm=T.impr>0?T.gasto/T.impr*1000:0; T.ctr=T.impr>0?T.clics/T.impr:0; T.cpc=T.clics>0?T.gasto/T.clics:0;
+  T.cpr=T.chats>0?T.gasto/T.chats:0; T.clicChat=T.clics>0?T.chats/T.clics:0; T.cpv=T.ventas>0?T.gasto/T.ventas:0;
+  T.conv=T.chats>0?T.ventas/T.chats:0; T.roas=T.gasto>0?T.ingresos/T.gasto:0; T.roasBump=T.gasto>0?(T.ingresos+T.bump)/T.gasto:0;
+  const arrow=k=> MET.sort===k ? (MET.dir<0?' ↓':' ↑') : '';
+  document.getElementById('met-thead').innerHTML = '<tr>'+cols.map(c=>
+    `<th onclick="metSort('${c.k}')" style="cursor:pointer;white-space:nowrap;position:sticky;top:0;background:var(--bg2);z-index:2${c.k==='anuncio'?';left:0;z-index:3':''}" title="Ordenar por ${c.l}">${c.l}${arrow(c.k)}</th>`).join('')+'</tr>';
+  tb.innerHTML = rows.map(r=> `<tr onclick="metAbrirAnuncio('${String(r.adId).replace(/'/g,'')}')" style="cursor:pointer">`+cols.map(c=>{
+    if(c.k==='anuncio') return `<td style="position:sticky;left:0;background:var(--bg2);z-index:1;max-width:230px"><div style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.nombre||'—'}</div><div style="font-size:10px;color:var(--text3);font-family:var(--mono)">${r.adId}</div></td>`;
+    if(c.k==='estado') return `<td>${estadoBadge(r.est)}</td>`;
+    return `<td style="text-align:right;white-space:nowrap">${_metFmt(c.t, r[c.k])}</td>`;
+  }).join('')+'</tr>').join('') || `<tr><td colspan="${cols.length}" style="text-align:center;color:var(--text3);padding:28px">Sin datos en este período</td></tr>`;
+  document.getElementById('met-tfoot').innerHTML = rows.length ? '<tr style="font-weight:800;border-top:2px solid var(--border2)">'+cols.map(c=>{
+    if(c.k==='anuncio') return `<td style="position:sticky;left:0;background:var(--bg2)">TOTAL · ${rows.length} anuncio${rows.length===1?'':'s'}</td>`;
+    if(c.k==='estado'||c.k==='dias') return '<td></td>';
+    return `<td style="text-align:right;white-space:nowrap">${_metFmt(c.t, T[c.k]??0)}</td>`;
+  }).join('')+'</tr>' : '';
+  const kp=document.getElementById('met-kpis');
+  if(kp) kp.innerHTML = [
+    kpiCard('Importe gastado', fmt.s(T.gasto), 'orange', `${fmt.num(T.impr)} impresiones`),
+    kpiCard('Compras', fmt.num(T.ventas), 'blue', T.ventas?`CPA ${fmt.s(T.cpv)}`:''),
+    kpiCard('Ingresos', fmt.s(T.ingresos), 'green', T.bump?`+ ${fmt.s(T.bump)} de bump`:''),
+    kpiCard('ROAS', fmt.roas(T.roas), T.roas>=1?'teal':'red', T.bump?`con bump: ${fmt.roas(T.roasBump)}`:''),
+    kpiCard('Profit', fmt.s(T.profit), T.profit>=0?'green':'red', `${fmt.date(desde)} → ${fmt.date(hasta)}`),
+  ].join('');
+  const hint=document.getElementById('met-hint');
+  if(hint) hint.textContent = `${DASH_MODE==='confirmado'?'🟢 solo validadas':'🟡 incluye pendientes'} · ${fmt.date(desde)} → ${fmt.date(hasta)}`;
+  MET._last = { rows, cols };
+}
+function metExportCSV(){
+  const L=MET._last; if(!L||!L.rows.length){ if(typeof showError==='function') showError('Nada que exportar'); return; }
+  const esc=v=>{ v=String(v??''); return /[",;\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
+  const raw=(t,v)=> t==='pct' ? ((+v||0)*100).toFixed(2) : (t==='money'||t==='money+'||t==='roas') ? (+v||0).toFixed(2) : v;
+  const dataCols = L.cols.filter(c=>c.k!=='anuncio'&&c.k!=='estado');
+  const lines=[['Anuncio','Ad ID',...dataCols.map(c=>c.l)].map(esc).join(',')];
+  L.rows.forEach(r=> lines.push([esc(r.nombre||''), esc(r.adId), ...dataCols.map(c=>raw(c.t, r[c.k]))].join(',')));
+  const blob=new Blob(['﻿'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
+  const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
+  a.download=`metricas_${(CURRENT_WORKSPACE?.nombre||'producto').replace(/\s+/g,'_')}.csv`;
+  a.click(); URL.revokeObjectURL(a.href);
+}
 
 async function renderDashboard() {
   unificarPeriodoSelect('dash-periodo');
