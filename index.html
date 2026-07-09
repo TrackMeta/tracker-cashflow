@@ -665,7 +665,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
         <div class="hub2-status-title" id="hub-state-title">Todo sincronizado</div>
         <div class="hub2-status-sub" id="hub-state-sub">Sistema operativo</div>
         <div class="hub2-status-date" id="hub-fecha-label">📅 Hoy</div>
-        <div class="hub2-status-date" id="hub-modo-badge" style="font-size:10px;opacity:.85"></div>
+        <div class="hub2-status-date" id="hub-modo-badge" style="font-size:10px;opacity:.85;cursor:pointer;user-select:none" onclick="toggleHubModo()" title="Cambiar entre Proyectado (todo lo capturado) y Confirmado (solo ventas validadas)"></div>
         <div class="hub2-divider"></div>
         <div class="hub2-kpis">
           <div class="hub2-kpi">
@@ -9317,11 +9317,13 @@ async function renderHub(){
     // Mientras GLOBAL_DATA aún no carga, cae al producto activo para no mostrar ceros.
     const code = gblCode(), rate = gblRate();
     const fML = usd => fmtMoney(usd * rate, code);
-    // El círculo muestra PROYECTADO por defecto y pasa a CONFIRMADO automáticamente
-    // cuando el período está 100% validado (auto, independiente del toggle global).
-    const hubMode = await hubModoPara(desde, hasta);
+    // Modo del círculo: TOGGLE manual 🟡 Proyectado ⇄ 🟢 Confirmado (persistido).
+    // Proyectado = todo lo capturado (incluye pendientes de conciliar);
+    // Confirmado = solo ventas validadas en Conciliación (usa CICLO_MAP).
+    const hubMode = hubModo();
+    if (hubMode === 'confirmado') await cargarCicloMap();   // asegura la capa de validadas (cache 30s)
     const badge = document.getElementById('hub-modo-badge');
-    if (badge) badge.textContent = hubMode === 'confirmado' ? '🟢 Confirmado' : '🟡 Proyectado';
+    if (badge) badge.innerHTML = hubMode === 'confirmado' ? '🟢 Confirmado · solo validadas <span style="opacity:.7">⇄</span>' : '🟡 Proyectado · todo lo capturado <span style="opacity:.7">⇄</span>';
     let kI,kV,kP,kN,kR, pI,pV,pP,pN,pR, sI,sV,sP,sN,sR;
     let kBump,kBumpN,kPB,kRB, sBump,sPB,sRB;
     if (Object.keys(GLOBAL_DATA).length){
@@ -9332,8 +9334,8 @@ async function renderHub(){
       kBump=G.bumpUSD;kBumpN=G.bumpVentas;kPB=G.profitConBumpUSD;kRB=G.roasConBump;
       sBump=fML(kBump);sPB=fML(kPB);sRB=fmt.roas(kRB);
     } else {
-      const M=calcMetrics(DB.registros.filter(r=>r.fecha>=desde&&r.fecha<=hasta));
-      const Mant=calcMetrics(DB.registros.filter(r=>r.fecha>=ant.desde&&r.fecha<=ant.hasta));
+      const M=calcMetricsWithConfig(DB.registros.filter(r=>r.fecha>=desde&&r.fecha<=hasta), DB.config, hubMode);
+      const Mant=calcMetricsWithConfig(DB.registros.filter(r=>r.fecha>=ant.desde&&r.fecha<=ant.hasta), DB.config, hubMode);
       kI=M.ingresos;kV=M.inversion;kP=M.profit;kN=M.ventas;kR=M.roas;
       pI=Mant.ingresos;pV=Mant.inversion;pP=Mant.profit;pN=Mant.ventas;pR=Mant.roas;
       sI=fmt.s(kI);sV=fmt.s(kV);sP=fmt.s(kP);sN=fmt.num(kN);sR=fmt.roas(kR);
@@ -9534,7 +9536,9 @@ async function loadGlobalData(){
   GLOBAL_ALERTS = { total:0, red:0, byWs:{} };
   const wss = DB.workspaces || [];
   if (!wss.length){ actualizarNotifBadge(); try{ renderHub(); }catch(e){} return; }
-  const desde = nDaysAgo(35);
+  // 65 días: el período "Mes" (30d) compara contra los días 31–61 ("vs previo").
+  // Con solo 35 días el período anterior quedaba casi vacío y los deltas explotaban (+1200%).
+  const desde = nDaysAgo(65);
   await cargarCicloMap();   // capa Proyectado/Confirmado (cacheada 30s)
   try {
     await Promise.all(wss.map(async w => {
@@ -9584,15 +9588,11 @@ function globalMetricsPeriodo(desde, hasta, modeOverride){
   return { ingresosUSD:ing, inversionUSD:inv, ventas:ven, profitUSD:profit, roas: inv > 0 ? ing / inv : 0, count,
     bumpUSD, bumpVentas:bumpN, profitConBumpUSD: profit + bumpUSD, roasConBump: inv > 0 ? (ing + bumpUSD) / inv : 0 };
 }
-// ¿El período está 100% validado? (todas las ventas capturadas pasaron a finalizado)
-// Determina si el círculo del Hub muestra proyectado (default) o confirmado (auto).
-async function hubModoPara(desde, hasta){
-  try {
-    const rpc = await api.post('rpc/ingresos_ciclo', { p_desde: desde, p_hasta: hasta });
-    let nTotal = 0, nConf = 0;
-    (rpc || []).forEach(r => { nTotal += +r.n_total || 0; nConf += +r.n_confirmado || 0; });
-    return (nTotal > 0 && nConf >= nTotal) ? 'confirmado' : 'proyectado';
-  } catch(e){ return 'proyectado'; }
+// Modo del círculo del Hub: toggle manual persistido (🟡 proyectado ⇄ 🟢 confirmado).
+function hubModo(){ return localStorage.getItem('hub_modo') === 'confirmado' ? 'confirmado' : 'proyectado'; }
+function toggleHubModo(){
+  localStorage.setItem('hub_modo', hubModo() === 'confirmado' ? 'proyectado' : 'confirmado');
+  try { renderHub(); } catch(e){}
 }
 
 function actualizarNotifBadge(){
