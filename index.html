@@ -1308,8 +1308,24 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       </select>
     </div>
     <div class="field"><label>Buscar</label><input type="text" id="met-buscar" placeholder="🔎 nombre o Ad ID..." oninput="renderMetricas()" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px;min-width:170px"></div>
+    <button class="btn btn-ghost btn-sm" onclick="metFmtToggle()">🎨 Formato condicional</button>
     <button class="btn btn-ghost btn-sm" onclick="metExportCSV()">📤 Exportar CSV</button>
   </div>
+  <div class="panel" id="met-fmt-panel" style="display:none;margin-bottom:14px">
+    <div class="panel-header"><span class="panel-title">🎨 Formato condicional</span>
+      <div style="margin-left:auto;display:flex;gap:8px">
+        <button class="btn btn-ghost btn-sm" onclick="metFmtAdd()">➕ Crear regla</button>
+        <button class="btn btn-ghost btn-sm" onclick="metFmtReset()">↩️ Restaurar por defecto</button>
+      </div>
+    </div>
+    <div class="panel-body" id="met-fmt-list" style="display:grid;gap:8px"></div>
+    <div style="font-size:10px;color:var(--text3);padding:0 16px 12px">Las reglas se evalúan en orden: la primera que coincide pinta la celda. En columnas de porcentaje el valor es en % (ej. 1.5 = 1.5%). Se guardan por producto.</div>
+  </div>
+  <style>
+    #met-table tbody tr:hover td{ background:var(--bg3) !important; }
+    #met-table th, #met-table td{ padding:8px 12px; }
+    #met-fmt-list select, #met-fmt-list input{ background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:5px 8px;color:var(--text);font-size:12px; }
+  </style>
   <div class="cards-row cards-5" id="met-kpis" style="margin-bottom:14px"></div>
   <div class="panel">
     <div class="panel-header"><span class="panel-title">Anuncios</span><span id="met-hint" style="font-size:11px;color:var(--text3);margin-left:auto"></span></div>
@@ -9234,7 +9250,7 @@ function showSuccess(msg) {
 // NAVEGACIÓN
 // ════════════════════════════════════════════════
 // Páginas que SÍ muestran el sidebar (secciones internas de un producto).
-const SIDEBAR_PAGES = new Set(['dashboard','bitacora','comparar','alertas','analyzer','kpis','por-anuncio','por-campana','order-bumps','remarketing','horarios','registro','catalogo','chats-ventas','mejor-anuncio','vida-util']);
+const SIDEBAR_PAGES = new Set(['dashboard','bitacora','comparar','alertas','analyzer','kpis','metricas','por-anuncio','por-campana','order-bumps','remarketing','horarios','registro','catalogo','chats-ventas','mejor-anuncio','vida-util']);
 // Jerarquía para el botón "Volver" (solo pantallas sin sidebar).
 const PAGE_PARENT = { global:'hub', productos:'hub', importar:'hub', configuracion:'hub', leyenda:'configuracion', admin:'configuracion', 'comparar-productos':'productos' };
 const PARENT_LABEL = { hub:'Hub', configuracion:'Configuración', productos:'Productos' };
@@ -10136,6 +10152,73 @@ function metOnPeriodo(){
   renderMetricas();
 }
 function metSort(k){ if(MET.sort===k) MET.dir*=-1; else { MET.sort=k; MET.dir=-1; } renderMetricas(); }
+
+// ── Formato condicional (como el Ads Manager de Meta) ──
+// Reglas por producto (localStorage). Cada regla: métrica + condición + color.
+// Se evalúan en orden: la primera que coincide pinta la celda.
+const MET_FMT_COLORS = { red:'rgba(239,68,68,.16)', yellow:'rgba(245,158,11,.20)', green:'rgba(16,185,129,.16)', blue:'rgba(59,130,246,.15)' };
+const MET_FMT_DEFAULT = [
+  { k:'roas', op:'<',  v1:1, v2:null, color:'red',    on:true },
+  { k:'roas', op:'<',  v1:2, v2:null, color:'yellow', on:true },
+  { k:'roas', op:'>=', v1:2, v2:null, color:'green',  on:true },
+];
+let MET_FMT_OPEN = false;
+function metFmtKey(){ return 'met_fmt_' + (CURRENT_WORKSPACE?.id || 'global'); }
+function metFmtRules(){
+  try { const r = JSON.parse(localStorage.getItem(metFmtKey()) || 'null'); if (Array.isArray(r)) return r; } catch(e){}
+  return MET_FMT_DEFAULT.map(x => ({ ...x }));
+}
+function metFmtSave(rules){ localStorage.setItem(metFmtKey(), JSON.stringify(rules)); renderMetricas(); }
+function metFmtBg(k, v, t){
+  for (const r of (MET._rules || [])){
+    if (!r.on || r.k !== k) continue;
+    const val = t === 'pct' ? (+v || 0) * 100 : (+v || 0);   // en % el usuario piensa en 1.5 = 1.5%
+    const ok = r.op === '<'     ? val <  (+r.v1)
+             : r.op === '>='    ? val >= (+r.v1)
+             : r.op === 'entre' ? (val >= Math.min(+r.v1, +r.v2) && val <= Math.max(+r.v1, +r.v2))
+             : false;
+    if (ok) return MET_FMT_COLORS[r.color] || '';
+  }
+  return '';
+}
+function metFmtToggle(){
+  MET_FMT_OPEN = !MET_FMT_OPEN;
+  const p = document.getElementById('met-fmt-panel'); if (p) p.style.display = MET_FMT_OPEN ? 'block' : 'none';
+  if (MET_FMT_OPEN) metFmtRender();
+}
+function metFmtRender(){
+  const list = document.getElementById('met-fmt-list'); if (!list) return;
+  const rules = metFmtRules();
+  const numCols = MET_COLS.filter(c => c.k !== 'anuncio' && c.k !== 'estado');
+  const opts = k => numCols.map(c => `<option value="${c.k}" ${c.k===k?'selected':''}>${c.l}</option>`).join('');
+  list.innerHTML = rules.map((r, i) => `
+    <div style="display:flex;gap:8px;align-items:center;flex-wrap:wrap;padding:8px 10px;background:var(--bg3);border:1px solid var(--border);border-radius:8px;opacity:${r.on?1:.45}">
+      <select onchange="metFmtUpd(${i},'k',this.value)">${opts(r.k)}</select>
+      <select onchange="metFmtUpd(${i},'op',this.value)">
+        <option value="<" ${r.op==='<'?'selected':''}>Menor que</option>
+        <option value=">=" ${r.op==='>='?'selected':''}>Mayor o igual que</option>
+        <option value="entre" ${r.op==='entre'?'selected':''}>Entre</option>
+      </select>
+      <input type="number" step="any" value="${r.v1 ?? ''}" onchange="metFmtUpd(${i},'v1',this.value)" style="width:84px">
+      ${r.op==='entre' ? `<span style="font-size:11px;color:var(--text3)">y</span><input type="number" step="any" value="${r.v2 ?? ''}" onchange="metFmtUpd(${i},'v2',this.value)" style="width:84px">` : ''}
+      <div style="display:flex;gap:4px;margin-left:4px">
+        ${['red','yellow','green','blue'].map(c => `<span onclick="metFmtUpd(${i},'color','${c}')" title="${c}" style="width:22px;height:22px;border-radius:6px;cursor:pointer;background:${MET_FMT_COLORS[c]};border:2px solid ${r.color===c?'var(--accent)':'var(--border)'}"></span>`).join('')}
+      </div>
+      <div style="margin-left:auto;display:flex;gap:4px">
+        <button class="btn btn-ghost btn-sm" onclick="metFmtUpd(${i},'on',${!r.on})" title="${r.on?'Desactivar':'Activar'}">${r.on?'👁':'🚫'}</button>
+        <button class="btn btn-ghost btn-sm" onclick="metFmtDel(${i})" title="Eliminar regla">✕</button>
+      </div>
+    </div>`).join('') || '<div style="font-size:12px;color:var(--text3)">Sin reglas — crea la primera con ➕.</div>';
+}
+function metFmtUpd(i, campo, val){
+  const rules = metFmtRules(); if (!rules[i]) return;
+  rules[i][campo] = (campo==='v1'||campo==='v2') ? +val : (campo==='on' ? (val===true||val==='true') : val);
+  metFmtSave(rules); metFmtRender();
+}
+function metFmtDel(i){ const rules = metFmtRules(); rules.splice(i,1); metFmtSave(rules); metFmtRender(); }
+function metFmtAdd(){ const rules = metFmtRules(); rules.push({ k:'roas', op:'>=', v1:2, v2:null, color:'green', on:true }); metFmtSave(rules); metFmtRender(); }
+function metFmtReset(){ localStorage.removeItem(metFmtKey()); renderMetricas(); metFmtRender(); }
+
 function metAbrirAnuncio(adId){
   navTo('por-anuncio', null);
   setTimeout(()=>{ const sel=document.getElementById('filtro-anuncio'); if(sel){ sel.value=adId; renderPorAnuncio(); } }, 60);
@@ -10192,13 +10275,16 @@ function renderMetricas(){
   T.cpm=T.impr>0?T.gasto/T.impr*1000:0; T.ctr=T.impr>0?T.clics/T.impr:0; T.cpc=T.clics>0?T.gasto/T.clics:0;
   T.cpr=T.chats>0?T.gasto/T.chats:0; T.clicChat=T.clics>0?T.chats/T.clics:0; T.cpv=T.ventas>0?T.gasto/T.ventas:0;
   T.conv=T.chats>0?T.ventas/T.chats:0; T.roas=T.gasto>0?T.ingresos/T.gasto:0; T.roasBump=T.gasto>0?(T.ingresos+T.bump)/T.gasto:0;
+  MET._rules = metFmtRules();   // reglas de formato condicional del producto activo
   const arrow=k=> MET.sort===k ? (MET.dir<0?' ↓':' ↑') : '';
+  const alignDe = c => (c.k==='anuncio'||c.k==='estado') ? 'left' : 'right';
   document.getElementById('met-thead').innerHTML = '<tr>'+cols.map(c=>
-    `<th onclick="metSort('${c.k}')" style="cursor:pointer;white-space:nowrap;position:sticky;top:0;background:var(--bg2);z-index:2${c.k==='anuncio'?';left:0;z-index:3':''}" title="Ordenar por ${c.l}">${c.l}${arrow(c.k)}</th>`).join('')+'</tr>';
+    `<th onclick="metSort('${c.k}')" style="cursor:pointer;white-space:nowrap;text-align:${alignDe(c)};position:sticky;top:0;background:var(--bg2);z-index:2${c.k==='anuncio'?';left:0;z-index:3':''}" title="Ordenar por ${c.l}">${c.l}${arrow(c.k)}</th>`).join('')+'</tr>';
   tb.innerHTML = rows.map(r=> `<tr onclick="metAbrirAnuncio('${String(r.adId).replace(/'/g,'')}')" style="cursor:pointer">`+cols.map(c=>{
-    if(c.k==='anuncio') return `<td style="position:sticky;left:0;background:var(--bg2);z-index:1;max-width:230px"><div style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.nombre||'—'}</div><div style="font-size:10px;color:var(--text3);font-family:var(--mono)">${r.adId}</div></td>`;
-    if(c.k==='estado') return `<td>${estadoBadge(r.est)}</td>`;
-    return `<td style="text-align:right;white-space:nowrap">${_metFmt(c.t, r[c.k])}</td>`;
+    if(c.k==='anuncio') return `<td style="position:sticky;left:0;background:var(--bg2);z-index:1;max-width:230px"><div style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.nombre||(r.adId==='SIN_ID'?'Ventas sin Ad ID':'—')}</div><div style="font-size:10px;color:var(--text3);font-family:var(--mono)">${r.adId}</div></td>`;
+    if(c.k==='estado') return `<td style="text-align:left">${estadoBadge(r.est)}</td>`;
+    const bg = metFmtBg(c.k, r[c.k], c.t);
+    return `<td style="text-align:right;white-space:nowrap${bg?';background:'+bg:''}">${_metFmt(c.t, r[c.k])}</td>`;
   }).join('')+'</tr>').join('') || `<tr><td colspan="${cols.length}" style="text-align:center;color:var(--text3);padding:28px">Sin datos en este período</td></tr>`;
   document.getElementById('met-tfoot').innerHTML = rows.length ? '<tr style="font-weight:800;border-top:2px solid var(--border2)">'+cols.map(c=>{
     if(c.k==='anuncio') return `<td style="position:sticky;left:0;background:var(--bg2)">TOTAL · ${rows.length} anuncio${rows.length===1?'':'s'}</td>`;
@@ -10222,8 +10308,8 @@ function metExportCSV(){
   const esc=v=>{ v=String(v??''); return /[",;\n]/.test(v) ? '"'+v.replace(/"/g,'""')+'"' : v; };
   const raw=(t,v)=> t==='pct' ? ((+v||0)*100).toFixed(2) : (t==='money'||t==='money+'||t==='roas') ? (+v||0).toFixed(2) : v;
   const dataCols = L.cols.filter(c=>c.k!=='anuncio'&&c.k!=='estado');
-  const lines=[['Anuncio','Ad ID',...dataCols.map(c=>c.l)].map(esc).join(',')];
-  L.rows.forEach(r=> lines.push([esc(r.nombre||''), esc(r.adId), ...dataCols.map(c=>raw(c.t, r[c.k]))].join(',')));
+  const lines=[['Anuncio','Ad ID','Estado',...dataCols.map(c=>c.l)].map(esc).join(',')];
+  L.rows.forEach(r=> lines.push([esc(r.nombre||''), esc(r.adId), esc(r.est?.nombre||''), ...dataCols.map(c=>raw(c.t, r[c.k]))].join(',')));
   const blob=new Blob(['﻿'+lines.join('\n')],{type:'text/csv;charset=utf-8'});
   const a=document.createElement('a'); a.href=URL.createObjectURL(blob);
   a.download=`metricas_${(CURRENT_WORKSPACE?.nombre||'producto').replace(/\s+/g,'_')}.csv`;
