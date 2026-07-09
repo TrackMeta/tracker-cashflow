@@ -4039,11 +4039,64 @@ async function actualizarConsolidacion(wsIds) {
   }
 }
 
+// Auto-asigna productos SIN bot (fuente_id null) al bot en cuyo Sheet aparecen sus
+// ventas. Solo cuando aparecen en UN único Sheet (sin ambigüedad); nunca reasigna un
+// producto que ya tiene bot. Corre antes de armar los trabajos, así el producto recién
+// enganchado cae en el job correcto y se sincroniza de una. Con 1 sola fuente no hace
+// falta (todo va a ella). Persiste el cambio en la base → el auto-sync del servidor
+// también lo verá asignado.
+async function _autoAsignarHuerfanos() {
+  const fuentesConSheet = (DB.fuentes || []).filter(f => f.sheets_url);
+  if (fuentesConSheet.length < 2) return;
+  const huerfanos = DB.workspaces.filter(w => !w.fuente_id);
+  if (!huerfanos.length) return;
+
+  // Ad IDs registrados por producto (para matchear por Ad ID además de por nombre).
+  const adIdsDeWs = {};
+  (DB.anuncios || []).forEach(a => {
+    if (!a.ad_id) return;
+    (adIdsDeWs[a.workspace_id] = adIdsDeWs[a.workspace_id] || new Set()).add(String(a.ad_id));
+  });
+
+  // Leer cada Sheet UNA vez: nombres de producto + Ad IDs presentes.
+  const porFuente = [];
+  for (const f of fuentesConSheet) {
+    const sheetId = (f.sheets_url.match(/\/d\/([a-zA-Z0-9_-]+)/) || [])[1] || f.sheets_url;
+    let rows = [];
+    try { const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`); if (res.ok) rows = _parseSheetCSV(await res.text()); } catch(e) {}
+    const nombres = new Set(), adIds = new Set();
+    rows.forEach(r => { if (r.producto) nombres.add(r.producto); if (r.adId && r.adId !== 'SIN_ID') adIds.add(String(r.adId)); });
+    porFuente.push({ f, nombres, adIds });
+  }
+
+  const asignados = [];
+  for (const ws of huerfanos) {
+    const misAds = adIdsDeWs[ws.id] || new Set();
+    const bots = porFuente.filter(pf => {
+      for (const ad of misAds) if (pf.adIds.has(ad)) return true;
+      for (const nom of pf.nombres) if (_similitudProducto(nom, ws.nombre || '') >= 0.6) return true;
+      return false;
+    });
+    if (bots.length === 1) {
+      try {
+        await api.patch('workspaces', ws.id, { fuente_id: bots[0].f.id });
+        ws.fuente_id = bots[0].f.id;
+        asignados.push(`${ws.nombre} → ${bots[0].f.emoji || '🤖'} ${bots[0].f.nombre}`);
+      } catch(e) {}
+    }
+    // 2+ bots (ambiguo) o ninguno → sigue huérfano; el aviso de syncGoogleSheets lo listará.
+  }
+  if (asignados.length) showSuccess(`🔗 ${asignados.length} producto(s) auto-asignados a su bot: ${asignados.join(' · ')}`);
+}
+
 async function syncGoogleSheets() {
   const btn    = document.getElementById('btn-sheets-sync');
   const icon   = document.getElementById('sheets-sync-icon');
   const label  = document.getElementById('sheets-sync-label');
   const status = document.getElementById('sheets-sync-status');
+
+  // Auto-asignar productos sin bot ANTES de armar los trabajos (para que caigan en el job correcto).
+  try { await _autoAsignarHuerfanos(); } catch(e) { console.warn('auto-asignar huérfanos:', e); }
 
   // Un trabajo por fuente con Sheet. Sin fuentes → Sheet de config (modo legado).
   const fuentesConSheet = (DB.fuentes || []).filter(f => f.sheets_url);
