@@ -2776,6 +2776,10 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <label>URL del script de borrado (Web App, opcional)</label>
       <input type="url" id="fuente-script" placeholder="https://script.google.com/macros/s/.../exec" style="font-family:var(--mono);font-size:11px">
       <div style="font-size:10px;color:var(--text3);margin-top:3px">Solo si quieres borrar filas de ESTE Sheet desde la Conciliación. Despliega el Apps Script de este Sheet como Web App y pega su URL (/exec).</div>
+      <div style="display:flex;gap:8px;align-items:flex-start;margin-top:6px">
+        <button class="btn btn-ghost btn-sm" type="button" onclick="probarScriptFuente()">🧪 Probar script</button>
+        <span id="fuente-script-estado" style="font-size:11px;color:var(--text3);line-height:1.5"></span>
+      </div>
     </div>
 
     <div class="modal-section" style="margin-top:16px">📘 Meta Ads (publicidad de este bot)</div>
@@ -8689,9 +8693,82 @@ async function probarSheetFuente() {
   } catch (e) { est.textContent = '❌ Error de conexión — revisa la URL'; est.style.color = 'var(--red)'; }
 }
 
+// ── Probar el script de borrado (Web App) de la fuente: 3 chequeos ──
+// 1) GET → ¿el Web App responde JSON? (despliegue + permisos "Cualquier persona")
+// 2) POST delete de una fila imposible → ¿doPost funciona? (inocuo, no borra nada real)
+// 3) IDENTIDAD: toma un _uid real del Sheet de ESTA fuente y hace action:'update' sin
+//    campos (no escribe nada). Si el script responde "uid no encontrado", está
+//    desplegado sobre OTRO Sheet — el error clásico al tener varios bots.
+async function probarScriptFuente() {
+  const url = (document.getElementById('fuente-script').value || '').trim();
+  const sheetUrl = (document.getElementById('fuente-sheet').value || '').trim();
+  const est = document.getElementById('fuente-script-estado');
+  const esc = s => String(s == null ? '' : s).replace(/[<>&]/g, '');
+  if (!url) { est.textContent = 'Pega la URL del script primero'; est.style.color = 'var(--orange)'; return; }
+  const lineas = [];
+  const pinta = () => { est.innerHTML = lineas.join('<br>'); };
+  est.style.color = 'var(--text3)'; est.innerHTML = '⏳ 1/3 probando el Web App...';
+
+  // 1) GET estado del Web App
+  let d;
+  try { d = await (await fetch(url)).json(); }
+  catch(e) {
+    est.innerHTML = '❌ El Web App no responde JSON. Revisa: ¿la URL termina en /exec? ¿Está implementado con acceso "Cualquier persona"? ¿Publicaste "Nueva versión" después de editar el código?';
+    est.style.color = 'var(--red)'; return;
+  }
+  lineas.push(`✅ 1/3 Web App activo: ${esc(d.status || 'ok')}`);
+  pinta(); est.innerHTML += '<br>⏳ 2/3 probando el borrado (inocuo)...';
+
+  // 2) POST de borrado con una fila imposible → prueba doPost sin tocar datos
+  try {
+    const r = await fetch(url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'delete', rows:[{ adId:'__TEST_TRACKERPRO__', fecha:'2000-01-01', hora:'00:00:00', valor:0 }] }) });
+    const dd = await r.json();
+    if (dd && dd.ok) lineas.push('✅ 2/3 Borrado (doPost) operativo — prueba inocua, no tocó datos');
+    else { lineas.push('❌ 2/3 doPost respondió error: ' + esc(dd && dd.error || '?')); est.style.color='var(--red)'; pinta(); return; }
+  } catch(e) { lineas.push('❌ 2/3 doPost no responde: ' + esc(e.message || e)); est.style.color='var(--red)'; pinta(); return; }
+  pinta(); est.innerHTML += '<br>⏳ 3/3 verificando que el script controle ESTE Sheet...';
+
+  // 3) Identidad script ↔ Sheet de esta fuente
+  if (!sheetUrl) { lineas.push('⚪ 3/3 Sin URL de Sheet arriba — no se pudo verificar a qué Sheet apunta el script'); pinta(); return; }
+  try {
+    const sheetId = (sheetUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || [])[1] || sheetUrl;
+    const leerUid = async () => {
+      const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`);
+      if (!res.ok) return null;                       // Sheet no accesible
+      const rows = _parseSheetCSV(await res.text());
+      if (!rows.length) return null;                  // sin filas legibles
+      const con = rows.find(x => x.uid);
+      return con ? con.uid : '';                      // '' = hay filas pero sin _uid
+    };
+    let uid = await leerUid();
+    if (uid === '') {   // pedir al script que asigne _uid y reintentar: si los asigna en OTRO Sheet, este seguirá sin ellos
+      await fetch(url + (url.includes('?') ? '&' : '?') + 'action=uids').catch(()=>{});
+      uid = await leerUid();
+    }
+    if (uid === null) { lineas.push('⚠️ 3/3 No se pudo leer el Sheet de esta fuente (¿es público y tiene ventas?)'); est.style.color='var(--orange)'; pinta(); return; }
+    if (uid === '') {
+      lineas.push('❌ 3/3 Se pidió al script asignar _uid pero el Sheet de ESTA fuente sigue sin ellos → el script probablemente está desplegado sobre OTRO Sheet. Cada bot necesita el script pegado en SU propio Sheet (Extensiones → Apps Script) con su propia URL /exec. (Si acabas de pegarlo, espera 1 min y vuelve a probar.)');
+      est.style.color = 'var(--red)'; pinta(); return;
+    }
+    const r = await fetch(url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'},
+      body: JSON.stringify({ action:'update', uid, fields:{} }) });   // sin campos → NO escribe nada
+    const du = await r.json();
+    if (du && du.ok) { lineas.push('✅ 3/3 Identidad confirmada: este script controla el Sheet de ESTA fuente. Todo listo para borrar desde Conciliación.'); est.style.color = 'var(--green)'; }
+    else if (/uid no encontrado/i.test(String(du && du.error || ''))) {
+      lineas.push('❌ 3/3 ¡Este script está desplegado sobre OTRO Sheet! El _uid existe en el Sheet de esta fuente pero el script no lo ve. Cada bot necesita el script pegado en SU propio Sheet (Extensiones → Apps Script) y su propia URL /exec — la misma URL no sirve para dos bots.');
+      est.style.color = 'var(--red)';
+    }
+    else if (/_uid/.test(String(du && du.error || ''))) { lineas.push('⚠️ 3/3 Al Sheet del script le falta la columna _uid — abre el editor de Apps Script y ejecuta crearTriggerUids una vez.'); est.style.color = 'var(--orange)'; }
+    else { lineas.push('⚠️ 3/3 Respuesta inesperada: ' + esc(JSON.stringify(du).slice(0, 140))); est.style.color = 'var(--orange)'; }
+  } catch(e) { lineas.push('⚠️ 3/3 No se pudo verificar identidad: ' + esc(e.message || e)); est.style.color = 'var(--orange)'; }
+  pinta();
+}
+
 function openNuevaFuente() {
   document.getElementById('fuente-modal-title').textContent = '🤖 Nueva Fuente';
   { const e = document.getElementById('fuente-sheet-estado'); if (e) e.textContent = ''; }
+  { const e = document.getElementById('fuente-script-estado'); if (e) e.textContent = ''; }
   document.getElementById('fuente-emoji').value   = '🤖';
   document.getElementById('fuente-nombre').value  = '';
   document.getElementById('fuente-sheet').value   = '';
@@ -8719,6 +8796,7 @@ function editFuente(id) {
   document.getElementById('fuente-edit-id').value = id;
   document.getElementById('fuente-delete-btn').style.display = 'inline-flex';
   { const e = document.getElementById('fuente-sheet-estado'); if (e) e.textContent = ''; }
+  { const e = document.getElementById('fuente-script-estado'); if (e) e.textContent = ''; }
   openModal('modal-fuente');
 }
 
@@ -10834,10 +10912,16 @@ function renderSinIdCard(regsSinId, desde, hasta){
 }
 
 // script_url de la fuente a la que pertenece el workspace (para escribir de vuelta al Sheet).
+// Con 2+ scripts distintos NO se adivina: editar contra el script de otro bot falla
+// con "uid no encontrado". Fallback global solo en modo legado (sin fuentes con script).
 function _scriptUrlDeWorkspace(wsId){
   const ws = (DB.workspaces||[]).find(w=>w.id===wsId);
   const f  = ws && (DB.fuentes||[]).find(x=>x.id===ws.fuente_id);
-  return (f && f.script_url) || DB.config?.script_url || '';
+  if (f && f.script_url) return f.script_url;
+  const conScript = (DB.fuentes||[]).filter(x=>x.script_url);
+  if (conScript.length === 1) return conScript[0].script_url;
+  if (!conScript.length) return DB.config?.script_url || '';
+  return '';
 }
 
 // Escribe campos de vuelta a la fila del Sheet por su _uid (Apps Script action:'update').
@@ -14605,7 +14689,7 @@ init();
     try{
       // Paginar: PostgREST corta en ~1000 filas. Traemos toda la cola en páginas.
       const fechaQ = (CONC.desde?`&fecha=gte.${CONC.desde}`:'') + (CONC.hasta?`&fecha=lte.${CONC.hasta}`:'');
-      const sel = 'select=id,fecha,ad_id,hora,precio,workspace_id,telefono,producto,cliente,origen,estado_verif,ciclo,sincronizado_at,conciliado_at,historial';
+      const sel = 'select=id,fecha,ad_id,hora,precio,workspace_id,telefono,producto,cliente,origen,estado_verif,ciclo,sincronizado_at,conciliado_at,historial,fuente_uid';
       // Traemos pendiente + en_proceso por separado con eq.* (comprobado que funciona;
       // in.() y a veces neq encadenado devolvían 0). Cada uno paginado.
       const traer = async (cic) => {
@@ -14656,7 +14740,7 @@ init();
   // Carga las ventas DESCARTADAS (ciclo=descartado) del periodo a la cola, para poder verlas/restaurarlas.
   window.concVerDescartadas = async function(){
     const fechaQ = (CONC.desde?`&fecha=gte.${CONC.desde}`:'') + (CONC.hasta?`&fecha=lte.${CONC.hasta}`:'');
-    const sel = 'select=id,fecha,ad_id,hora,precio,workspace_id,telefono,producto,cliente,origen,estado_verif,ciclo,sincronizado_at,conciliado_at,historial';
+    const sel = 'select=id,fecha,ad_id,hora,precio,workspace_id,telefono,producto,cliente,origen,estado_verif,ciclo,sincronizado_at,conciliado_at,historial,fuente_uid';
     const rows = await api.get('crm_ventas', `ciclo=eq.descartado&${sel}&order=fecha.desc&limit=2000${fechaQ}`).catch(()=>[]);
     if(!rows.length){ if(typeof showSuccess==='function') showSuccess('No hay ventas descartadas en este periodo'); return; }
     const existentes = new Set(CONC.ventas.map(v=>String(v.id)));
@@ -14751,7 +14835,7 @@ init();
         const key = `${r.adId}|${r.hora}|${r.telefono}`; if (seen.has(key)) continue; seen.add(key);
         out.push({ id:`sheet|${r.adId}|${r.hora}`, fecha:r.fecha, ad_id:r.adId, hora:r.hora, precio:r.valor,
           telefono:r.telefono||'', cliente:r.cliente||'', producto:r.producto||'', workspace_id:wsId,
-          fuente_id:job.fuenteId, script_url:job.scriptUrl });
+          fuente_id:job.fuenteId, script_url:job.scriptUrl, fuente_uid:r.uid||null });
       }
     }
     return out;
@@ -15340,8 +15424,19 @@ init();
     </div>`;
   }
 
-  // Resuelve la URL del script de un registro: la de su fuente, o el fallback global
-  function _concScriptUrlDe(v){ return v.script_url || (DB.fuentes||[]).find(f=>f.id===v.fuente_id)?.script_url || DB.config?.script_url || ''; }
+  // Resuelve la URL del script de un registro: la de SU fuente. Con 2+ scripts
+  // distintos NO se adivina: borrar contra el script de otro bot devuelve deleted:0
+  // y la venta "reaparece" al siguiente sync. Fallback global solo en modo legado.
+  function _concScriptUrlDe(v){
+    if (v.script_url) return v.script_url;
+    const fs = DB.fuentes || [];
+    const f = fs.find(f => f.id === v.fuente_id);
+    if (f && f.script_url) return f.script_url;
+    const conScript = fs.filter(f => f.script_url);
+    if (conScript.length === 1) return conScript[0].script_url;   // un solo script → sin ambigüedad
+    if (!conScript.length) return DB.config?.script_url || '';    // legado (sin fuentes con script)
+    return '';   // 2+ scripts y fuente desconocida → mejor avisar que borrar a ciegas
+  }
 
   // Borrado REAL en el/los Sheet(s) vía Apps Script. Cada registro va al script de SU bot.
   window.concVaciarPapelera = async function(){
@@ -15349,11 +15444,14 @@ init();
     // Agrupar por URL de script (cada bot tiene su propio Sheet/script)
     const grupos={}, sinScript=[];
     pap.forEach(v=>{ const u=_concScriptUrlDe(v); if(u){ (grupos[u]=grupos[u]||[]).push(v); } else { sinScript.push(v); } });
-    if(!Object.keys(grupos).length){ showError('Ninguno de estos registros tiene un script de Sheet conectado. Configura el script en Ajustes → Fuentes (o en el bloque "🔧 Borrar filas del Sheet").'); return; }
-    if(!confirm(`¿Eliminar DEFINITIVAMENTE ${pap.length-sinScript.length} registro(s) de tu(s) Google Sheet(s)?\n\nEsta acción no se puede deshacer.${sinScript.length?`\n\n(${sinScript.length} quedarán en la papelera por no tener script conectado.)`:''}`)) return;
-    let totalDeleted=0, errores=0;
+    if(!Object.keys(grupos).length){ showError('Ninguno de estos registros pudo resolver su script de Sheet. Configura la URL del script en SU fuente (Ajustes → Fuentes) y verifícala con 🧪 Probar script.'); return; }
+    if(!confirm(`¿Eliminar DEFINITIVAMENTE ${pap.length-sinScript.length} registro(s) de tu(s) Google Sheet(s)?\n\nEsta acción no se puede deshacer.${sinScript.length?`\n\n(${sinScript.length} quedarán en la papelera: no se pudo resolver a qué bot/script pertenecen.)`:''}`)) return;
+    const nombreDe = u => { const f=(DB.fuentes||[]).find(x=>x.script_url===u); return f ? `${f.emoji||'🤖'} ${f.nombre}` : 'el script'; };
+    let totalDeleted=0; const okItems=[], fallidos=[];
     for(const [url,items] of Object.entries(grupos)){
       const rows = items.map(v=>({
+        // Borrado PRECISO por _uid (script v4). Si falta, clave natural de respaldo.
+        uid: (v.fuente_uid || v.uid || '') || undefined,
         adId:String(v.ad_id||''),
         // fecha/hora en horario LOCAL (Lima) — así coincide con lo que muestra el Sheet,
         // aunque crm_ventas devuelva la hora en UTC.
@@ -15364,18 +15462,27 @@ init();
       try{
         const res = await fetch(url, { method:'POST', headers:{'Content-Type':'text/plain;charset=utf-8'}, body: JSON.stringify({action:'delete', rows}) });
         const data = await res.json().catch(()=>({}));
-        if(data && data.ok){ totalDeleted += (data.deleted??items.length); }
-        else { errores++; }
-      }catch(e){ errores++; }
+        if(data && data.ok && (+data.deleted||0) > 0){
+          totalDeleted += +data.deleted; okItems.push(...items);
+        } else if(data && data.ok){
+          // deleted:0 → el script respondió pero NO encontró las filas en SU Sheet.
+          // Causa típica con varios bots: la URL pegada es el script de OTRO Sheet.
+          fallidos.push({ items, msg:`${nombreDe(url)} respondió pero no encontró las filas en su Sheet. ¿La URL del script es la de OTRO bot? Verifícala con 🧪 Probar script (Ajustes → Fuentes → ✏️ Editar).` });
+        } else {
+          fallidos.push({ items, msg:`${nombreDe(url)} devolvió error${data&&data.error?': '+String(data.error).slice(0,120):''}. ¿Re-desplegaste el Web App (Nueva versión)?` });
+        }
+      }catch(e){ fallidos.push({ items, msg:`${nombreDe(url)} no respondió (${String(e.message||e).slice(0,80)}).` }); }
     }
     if(totalDeleted) showSuccess(`✅ ${totalDeleted} registro(s) eliminado(s) del Sheet`);
-    if(errores) showError(`${errores} script(s) no respondieron bien. ¿Re-desplegaste el código actualizado y la URL es la correcta?`);
-    // También borrarlas de crm_ventas (por id) para que SALGAN de la conciliación.
-    const idsBorrar = Object.values(grupos).flat().map(v=>v.id).filter(id => id && !String(id).startsWith('sheet|'));
+    fallidos.forEach(f=> showError(`🗑️ ${f.items.length} registro(s) NO se borraron: ${f.msg}`));
+    // Solo salen de crm_ventas los que SÍ se borraron del Sheet. Antes se borraban
+    // TODOS de la BD aunque el Sheet no borrara nada → el próximo sync re-importaba
+    // la fila y la venta "reaparecía". Los fallidos se quedan en la papelera.
+    const idsBorrar = okItems.map(v=>v.id).filter(id => id && !String(id).startsWith('sheet|'));
     for (let i=0;i<idsBorrar.length;i+=100){
       await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas?id=in.(${idsBorrar.slice(i,i+100).join(',')})`, { method:'DELETE', headers:{...api._h()} }).catch(()=>{});
     }
-    CONC.papelera = sinScript;
+    CONC.papelera = [...sinScript, ...fallidos.flatMap(f=>f.items)];
     CONC._sheetAll=null;
     await concCargarCola();                 // recarga la cola desde la BD (ya sin las borradas)
     if (CONC.pagos.length) await concConciliar();
