@@ -2858,7 +2858,27 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       </div>
     </div>
 
-    <div class="modal-section" style="margin-top:16px">📘 Meta Ads (publicidad de este bot)</div>
+    <!-- Guía paso a paso: conectar el bot (Sheet + script) -->
+    <div style="margin-top:14px;border:1px solid var(--border);border-radius:10px;overflow:hidden">
+      <button type="button" onclick="const g=document.getElementById('fuente-guia');const abierto=g.style.display!=='none';g.style.display=abierto?'none':'block';document.getElementById('fuente-guia-flecha').textContent=abierto?'▼':'▲';" style="width:100%;display:flex;justify-content:space-between;align-items:center;background:var(--bg3);border:none;padding:10px 14px;cursor:pointer;color:var(--text);font-size:12px;font-weight:700">
+        <span>📖 Guía: cómo conectar este bot paso a paso</span><span id="fuente-guia-flecha">▼</span>
+      </button>
+      <div id="fuente-guia" style="display:none;padding:12px 14px;font-size:12px;color:var(--text2);line-height:1.75">
+        <div style="margin-bottom:10px;padding:8px 10px;background:var(--orange-dim);border-radius:8px;font-size:11.5px">⚠️ <b>Cada bot vive en SU propio Google Sheet</b> — y cada Sheet necesita <b>su propio script</b> pegado dentro y <b>su propia URL /exec</b>. La misma URL no sirve para dos bots aunque el código sea idéntico.</div>
+        <div style="display:grid;gap:8px">
+          <div><b style="color:var(--accent)">1.</b> <b>Haz público el Sheet de este bot</b> (solo lectura): ábrelo → botón <b>Compartir</b> → "Cualquier persona con el enlace" → <b>Lector</b>. Copia la URL del navegador y pégala arriba en <i>URL del Google Sheet</i>. Verifica con <b>🧪 Probar conexión</b>.</div>
+          <div><b style="color:var(--accent)">2.</b> <b>Columnas que la app lee</b> (encabezados en la fila 1): <code>Ad ID</code>, <code>Fecha y hora</code> (con fecha y hora, ej. 2026-07-09T14:30:00) y <code>Valor</code>. Opcionales: <code>Producto</code>, <code>Nombre del cliente</code>, <code>Numero de celular</code>, <code>Upsell 1..4</code>.</div>
+          <div><b style="color:var(--accent)">3.</b> <b>Instala el script en ESE Sheet</b>: dentro del Sheet → <b>Extensiones → Apps Script</b> → borra el contenido que haya → pega el script → 💾 Guardar (Ctrl+S).
+            <div style="margin-top:6px"><button class="btn btn-ghost btn-sm" type="button" onclick="copyScriptV4()">📋 Copiar script del Sheet (v4)</button> <span id="fuente-script-copy-estado" style="font-size:11px;color:var(--text3)"></span></div>
+          </div>
+          <div><b style="color:var(--accent)">4.</b> <b>Ejecuta <code>crearTriggerUids</code> UNA vez</b>: en el editor de Apps Script, selecciona la función <code>crearTriggerUids</code> en el menú desplegable de arriba → ▶ <b>Ejecutar</b> → autoriza los permisos cuando lo pida. Esto crea la columna oculta <code>_uid</code> (identidad de cada venta) y un disparador que la mantiene al día cada 5 min.</div>
+          <div><b style="color:var(--accent)">5.</b> <b>Impleméntalo como Web App</b>: botón <b>Implementar → Nueva implementación</b> → tipo <b>Aplicación web</b> → Ejecutar como: <b>Yo</b> · Quién tiene acceso: <b>Cualquier persona</b> → Implementar. Copia la <b>URL /exec</b> y pégala arriba en <i>URL del script de borrado</i>.<br><span style="font-size:11px;color:var(--text3)">Si después editas el código: Implementar → Gestionar implementaciones → ✏️ → Versión: <b>Nueva versión</b> → Implementar (la URL no cambia).</span></div>
+          <div><b style="color:var(--accent)">6.</b> <b>Verifica con 🧪 Probar script</b>: los 3 chequeos deben salir ✅. El 3/3 confirma que el script controla <b>este</b> Sheet y no el de otro bot.</div>
+        </div>
+      </div>
+    </div>
+
+    <div class="modal-section" style="margin-top:16px">📘 Meta Ads (publicidad de este bot) <button type="button" class="btn btn-ghost btn-sm" style="margin-left:8px;font-size:10px" onclick="openModal('modal-meta-setup')">❓ Cómo obtener el token</button></div>
     <div class="field">
       <label>Token de Meta (Access Token)</label>
       <input type="password" id="fuente-token" placeholder="EAAG..." style="font-family:var(--mono);font-size:11px" autocomplete="off">
@@ -3445,38 +3465,36 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     </div>
 
     <div style="margin-bottom:16px">
-      <div style="font-size:13px;color:var(--text2);margin-bottom:14px">Sigue estos pasos para obtener tu Access Token de Meta y conectar tus cuentas publicitarias.</div>
+      <div style="font-size:13px;color:var(--text2);margin-bottom:12px">Con esto la app descarga <b>gasto, impresiones, clics y mensajes</b> directo de Meta — para la descarga manual y para el <b>auto-sync</b> (con la app cerrada). Las credenciales van <b>en cada Fuente</b> (bot).</div>
 
-      <div style="display:flex;flex-direction:column;gap:10px;margin-bottom:16px">
-        <div style="display:flex;gap:12px;align-items:flex-start;padding:12px;background:var(--bg3);border-radius:10px;border:1px solid var(--border)">
-          <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0">1</div>
-          <div>
-            <div style="font-weight:600;font-size:12px;color:var(--text);margin-bottom:3px">Ir al Graph API Explorer</div>
-            <div style="font-size:11px;color:var(--text2);margin-bottom:6px">Abre el explorador de Meta para desarrolladores</div>
-            <a href="https://developers.facebook.com/tools/explorer" target="_blank" class="btn btn-ghost btn-sm" style="text-decoration:none;font-size:11px">🔗 Abrir Graph API Explorer</a>
-          </div>
+      <div style="padding:10px 12px;background:var(--green-dim);border-radius:10px;font-size:11.5px;color:var(--text);margin-bottom:12px">
+        ⭐ <b>Método recomendado — Usuario del sistema (el token NO caduca):</b>
+        <div style="margin-top:6px;line-height:1.7;color:var(--text2)">
+          1. Abre <a href="https://business.facebook.com/settings" target="_blank" style="color:var(--accent)">Configuración del negocio</a> → <b>Usuarios → Usuarios del sistema</b> → <b>Agregar</b> (rol: Administrador).<br>
+          2. Con el usuario creado: <b>Agregar activos</b> → Cuentas publicitarias → marca las cuentas de este bot → permiso <b>Administrar campañas</b> (o Ver rendimiento).<br>
+          3. <b>Generar token</b> → elige tu app (o crea una en <a href="https://developers.facebook.com/apps" target="_blank" style="color:var(--accent)">developers.facebook.com</a>, tipo Empresa) → permisos <code>ads_read</code> y <code>read_insights</code> → caducidad: <b>Nunca</b> → Generar y copia el token (empieza con EAA...).
         </div>
-        <div style="display:flex;gap:12px;align-items:flex-start;padding:12px;background:var(--bg3);border-radius:10px;border:1px solid var(--border)">
-          <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0">2</div>
-          <div>
-            <div style="font-weight:600;font-size:12px;color:var(--text);margin-bottom:3px">Selecciona permisos necesarios</div>
-            <div style="font-size:11px;color:var(--text2)">Agrega: <code>ads_read</code>, <code>read_insights</code>, <code>business_management</code></div>
-          </div>
+      </div>
+
+      <div style="padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;font-size:11.5px;color:var(--text2);margin-bottom:12px">
+        ⚡ <b style="color:var(--text)">Método rápido — Graph API Explorer (caduca en ~60 días):</b>
+        <div style="margin-top:6px;line-height:1.7">
+          1. Abre el <a href="https://developers.facebook.com/tools/explorer" target="_blank" style="color:var(--accent)">Graph API Explorer</a> y elige tu app.<br>
+          2. Permisos: <code>ads_read</code>, <code>read_insights</code>, <code>business_management</code> → <b>Generate Access Token</b>.<br>
+          3. Amplíalo a 60 días en el <a href="https://developers.facebook.com/tools/debug/accesstoken" target="_blank" style="color:var(--accent)">Access Token Debugger</a> → botón <b>"Extend Access Token"</b>.<br>
+          <span style="color:var(--orange)">⏰ Cuando caduque, el gasto deja de sincronizar — Telegram te avisa 30 días antes si lo tienes activo.</span>
         </div>
-        <div style="display:flex;gap:12px;align-items:flex-start;padding:12px;background:var(--bg3);border-radius:10px;border:1px solid var(--border)">
-          <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0">3</div>
-          <div>
-            <div style="font-weight:600;font-size:12px;color:var(--text);margin-bottom:3px">Genera token de larga duración</div>
-            <div style="font-size:11px;color:var(--text2)">Haz clic en <strong>"Ampliar token"</strong> para que dure 60 días en lugar de 1 hora</div>
-          </div>
+      </div>
+
+      <div style="padding:10px 12px;background:var(--bg3);border:1px solid var(--border);border-radius:10px;font-size:11.5px;color:var(--text2);margin-bottom:12px">
+        🔎 <b style="color:var(--text)">¿Dónde está el ID de tu cuenta publicitaria?</b>
+        <div style="margin-top:6px;line-height:1.7">
+          En el <b>Administrador de anuncios</b>, mira la URL: <code>...adsmanager/manage/campaigns?act=<b>1234567890</b></code> — ese número es tu ID. También en Configuración del negocio → Cuentas publicitarias. Pégalo con o sin el prefijo <code>act_</code> (la app lo añade sola), <b>un ID por línea</b> si el bot usa varias cuentas.
         </div>
-        <div style="display:flex;gap:12px;align-items:flex-start;padding:12px;background:var(--bg3);border-radius:10px;border:1px solid var(--border)">
-          <div style="width:28px;height:28px;border-radius:50%;background:var(--accent);color:#fff;font-weight:800;font-size:12px;display:flex;align-items:center;justify-content:center;flex-shrink:0">4</div>
-          <div>
-            <div style="font-weight:600;font-size:12px;color:var(--text);margin-bottom:3px">Pega el token en Importar Datos</div>
-            <div style="font-size:11px;color:var(--text2)">Ve a <strong>Importar Datos → Importar vía API de Meta → Configuración de credenciales</strong></div>
-          </div>
-        </div>
+      </div>
+
+      <div style="padding:10px 12px;background:var(--accent-dim);border-radius:10px;font-size:11.5px;color:var(--text)">
+        📍 <b>Dónde pegarlo:</b> <b>Importar Datos → panel 🤖 Fuentes → ✏️ Editar</b> el bot → sección <b>📘 Meta Ads</b>: pega el <b>token</b> y las <b>cuentas</b> (una por línea) → Guardar. Cada bot lleva su propio token/cuentas. Luego prueba con <b>⬇️ Descargar de Meta</b> en el paso 3 de Importar.
       </div>
     </div>
 
@@ -8956,6 +8974,199 @@ async function probarSheetFuente() {
     if (!rows.length) { est.textContent = '⚠️ Conecta, pero no se leyeron ventas — revisa columnas (Ad ID, Fecha y hora, Valor)'; est.style.color = 'var(--orange)'; return; }
     est.textContent = `✅ Conectado · ${rows.length} fila(s) leídas`; est.style.color = 'var(--green)';
   } catch (e) { est.textContent = '❌ Error de conexión — revisa la URL'; est.style.color = 'var(--red)'; }
+}
+
+// ── Script Apps Script v4 (borrado + _uid + edición) — el que se pega en CADA Sheet ──
+// Fuente de verdad: el código real desplegado en los bots (NO el template legado de abajo).
+const SCRIPT_V4 = `// ════════════════════════════════════════════════════════════════════
+// TRACKER PRO — Apps Script v4
+//   • Borrado para la Conciliación (igual que tu v3, intacto)
+//   • Gestión de columna oculta "_uid": ID único y estable por venta
+//   • Edición desde la app (action:'update') escribiendo de vuelta al Sheet
+//
+// PUESTA EN MARCHA (una sola vez):
+//   1. Pega este código (reemplaza todo) y guarda (Ctrl+S).
+//   2. En el selector de función elige "crearTriggerUids" y pulsa ▶ Ejecutar.
+//      → crea la columna "_uid", la rellena y deja un trigger que asigna _uid
+//        a las ventas nuevas cada 5 min. Autoriza los permisos cuando lo pida.
+//   3. Implementar → Gestionar implementaciones → (tu Web App) → Editar →
+//      Nueva versión → Implementar. (Para que la nueva acción quede activa.)
+// ════════════════════════════════════════════════════════════════════
+
+var TZ = 'America/Lima';
+
+function doPost(e) {
+  try {
+    var body = JSON.parse(e.postData.contents);
+    if (body && body.action === 'update' && body.uid) {
+      return _json(_updateByUid(body.uid, body.fields || {}));
+    }
+    if (body && body.action === 'delete' && body.rows && body.rows.length) {
+      return _json(_deleteRows(body.rows));
+    }
+    return _json({ ok: true });
+  } catch (err) { return _json({ ok: false, error: String(err) }); }
+}
+
+function doGet(e) {
+  // ?action=uids fuerza la asignación de _uid (útil para llamarlo antes de sincronizar)
+  if (e && e.parameter && e.parameter.action === 'uids') {
+    var n = asegurarUids();
+    return _json({ ok: true, status: 'Tracker Pro v4', uids_asignados: n });
+  }
+  return _json({ ok: true, status: 'Tracker Pro v4 activo (borrado + _uid + edicion)' });
+}
+
+// ── Columna _uid: la crea (oculta) si falta y asigna un UUID a cada fila sin uid.
+//    Devuelve cuántos asignó. Es idempotente: nunca reescribe un uid existente.
+function asegurarUids() {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var lastRow = sheet.getLastRow(), lastCol = sheet.getLastColumn();
+  if (lastRow < 1) return 0;
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0]
+    .map(function (h) { return h.toString().toLowerCase().trim(); });
+  var iUid = headers.indexOf('_uid');
+  if (iUid < 0) {                                   // crear la columna al final
+    iUid = lastCol;
+    sheet.getRange(1, iUid + 1).setValue('_uid');
+    try { sheet.hideColumns(iUid + 1); } catch (e2) {}  // ocultarla
+  }
+  if (lastRow < 2) return 0;
+  var rng = sheet.getRange(2, iUid + 1, lastRow - 1, 1);
+  var vals = rng.getValues();
+  var asignados = 0;
+  for (var i = 0; i < vals.length; i++) {
+    if (!vals[i][0] || vals[i][0].toString().trim() === '') {
+      vals[i][0] = Utilities.getUuid();
+      asignados++;
+    }
+  }
+  if (asignados) rng.setValues(vals);
+  return asignados;
+}
+
+// Crea (una sola vez) el trigger por tiempo que mantiene los _uid al día.
+function crearTriggerUids() {
+  var ya = ScriptApp.getProjectTriggers().some(function (t) {
+    return t.getHandlerFunction() === 'asegurarUids';
+  });
+  if (!ya) ScriptApp.newTrigger('asegurarUids').timeBased().everyMinutes(5).create();
+  var n = asegurarUids();
+  Logger.log('Trigger _uid listo. UIDs asignados ahora: ' + n);
+}
+
+// ── Edición desde la app: encuentra la fila por _uid y escribe los campos enviados.
+//    fields admite: adId/ad_id, valor/precio, telefono, cliente, producto, fecha.
+function _updateByUid(uid, fields) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var lastRow = sheet.getLastRow(), lastCol = sheet.getLastColumn();
+  if (lastRow < 2) return { ok: false, error: 'sin datos' };
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0]
+    .map(function (h) { return h.toString().toLowerCase().trim(); });
+  var iUid = headers.indexOf('_uid');
+  if (iUid < 0) return { ok: false, error: 'falta columna _uid (corre crearTriggerUids)' };
+
+  var col = {
+    adId:     _find(headers, ['ad id', 'ad_id']),
+    valor:    _find(headers, ['valor', 'value']),
+    telefono: _find(headers, ['numero de celular', 'telefono', 'phone', 'celular']),
+    cliente:  _find(headers, ['nombre del cliente', 'nombre cliente', 'cliente', 'nombre']),
+    producto: _find(headers, ['producto', 'product']),
+    fecha:    _find(headers, ['fecha y hora', 'fecha'])
+  };
+  // localizar la fila por uid
+  var uids = sheet.getRange(2, iUid + 1, lastRow - 1, 1).getValues();
+  var rowIdx = -1;
+  for (var i = 0; i < uids.length; i++) {
+    if ((uids[i][0] || '').toString().trim() === uid) { rowIdx = i + 2; break; }
+  }
+  if (rowIdx < 0) return { ok: false, error: 'uid no encontrado' };
+
+  var alias = {
+    adId:     ['adId', 'ad_id'],
+    valor:    ['valor', 'precio'],
+    telefono: ['telefono'],
+    cliente:  ['cliente'],
+    producto: ['producto'],
+    fecha:    ['fecha', 'hora']
+  };
+  var escritos = [];
+  Object.keys(alias).forEach(function (campo) {
+    var ci = col[campo]; if (ci < 0) return;
+    for (var j = 0; j < alias[campo].length; j++) {
+      var key = alias[campo][j];
+      if (fields[key] !== undefined && fields[key] !== null && fields[key] !== '') {
+        sheet.getRange(rowIdx, ci + 1).setValue(fields[key]);
+        escritos.push(campo);
+        break;
+      }
+    }
+  });
+  return { ok: true, updated_row: rowIdx, campos: escritos };
+}
+
+// ── Borrado: por _uid si viene (preciso); si no, por clave natural (tu lógica v3).
+function _deleteRows(rows) {
+  var sheet = SpreadsheetApp.getActiveSpreadsheet().getActiveSheet();
+  var lastRow = sheet.getLastRow(), lastCol = sheet.getLastColumn();
+  if (lastRow < 2) return { ok: true, deleted: 0 };
+  var headers = sheet.getRange(1, 1, 1, lastCol).getValues()[0]
+    .map(function (h) { return h.toString().toLowerCase().trim(); });
+  var iUid   = headers.indexOf('_uid');
+  var iAdId  = _find(headers, ['ad id', 'ad_id']);
+  var iFecha = _find(headers, ['fecha y hora', 'fecha']);
+  var iValor = _find(headers, ['valor', 'value']);
+  var data = sheet.getRange(2, 1, lastRow - 1, lastCol).getValues();
+
+  var uidWanted = {};              // borrado preciso por uid
+  var want = {};                   // respaldo por clave natural
+  for (var k = 0; k < rows.length; k++) {
+    var t = rows[k];
+    if (t.uid) { uidWanted[t.uid.toString().trim()] = true; continue; }
+    var kk = t.adId + '|' + t.fecha + '|' + (t.hora || '') + '|' +
+             (Math.round((parseFloat(t.valor) || 0) * 100) / 100);
+    want[kk] = (want[kk] || 0) + 1;
+  }
+  var toDelete = [];
+  for (var r = 0; r < data.length; r++) {
+    var row = data[r];
+    if (iUid >= 0 && row[iUid] && uidWanted[row[iUid].toString().trim()]) { toDelete.push(r + 2); continue; }
+    var adId = (row[iAdId] || '').toString().replace(/\\.0$/, '').trim();
+    var fr = row[iFecha], f = '', h = '';
+    if (fr instanceof Date) {
+      f = Utilities.formatDate(fr, TZ, 'yyyy-MM-dd');
+      h = Utilities.formatDate(fr, TZ, 'HH:mm:ss');
+    } else {
+      var s = (fr || '').toString().trim();
+      if (s.indexOf('T') >= 0) { f = s.split('T')[0]; h = s.split('T')[1].substring(0, 8); }
+      else { var sp = s.split(' '); f = sp[0] || ''; h = (sp[1] || '').substring(0, 8); }
+    }
+    var val = Math.round((parseFloat((row[iValor] || '0').toString().replace(/[^0-9.]/g, '')) || 0) * 100) / 100;
+    var key = adId + '|' + f + '|' + h + '|' + val;
+    if (want[key] > 0) { toDelete.push(r + 2); want[key]--; }
+  }
+  toDelete.sort(function (a, b) { return b - a; });
+  for (var d = 0; d < toDelete.length; d++) sheet.deleteRow(toDelete[d]);
+  return { ok: true, deleted: toDelete.length };
+}
+
+function _find(headers, opts) {
+  for (var i = 0; i < opts.length; i++) { var x = headers.indexOf(opts[i]); if (x >= 0) return x; }
+  for (var j = 0; j < opts.length; j++) {
+    for (var k = 0; k < headers.length; k++) { if (headers[k].indexOf(opts[j]) >= 0) return k; }
+  }
+  return -1;
+}
+function _json(o) { return ContentService.createTextOutput(JSON.stringify(o)).setMimeType(ContentService.MimeType.JSON); }`;
+
+function copyScriptV4() {
+  const est = document.getElementById('fuente-script-copy-estado');
+  const ok = () => { if (est) { est.textContent = '✅ Copiado — pégalo en Extensiones → Apps Script del Sheet de este bot'; est.style.color = 'var(--green)'; } };
+  navigator.clipboard.writeText(SCRIPT_V4).then(ok).catch(() => {
+    const ta = document.createElement('textarea');
+    ta.value = SCRIPT_V4; document.body.appendChild(ta); ta.select();
+    document.execCommand('copy'); document.body.removeChild(ta); ok();
+  });
 }
 
 // ── Probar el script de borrado (Web App) de la fuente: 3 chequeos ──
