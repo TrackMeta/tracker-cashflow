@@ -4986,9 +4986,9 @@ async function onLoginSuccess(user) {
     try { refreshAccountMenu(); } catch(e){}
     loadGlobalData();  // datos+alertas de todos los productos para el círculo global (no bloquea el arranque)
     try { startAutoSyncInterval(); } catch(e){}  // sincronización automática por intervalo (si está activa)
-    // Mostrar badge SETUP si el usuario no tiene Google Sheets configurado
+    // Mostrar badge SETUP si el usuario no tiene Google Sheets configurado (ni legado ni en fuentes)
     const badge = document.getElementById('nav-setup-badge');
-    if (badge) badge.style.display = DB.config?.sheets_url ? 'none' : 'inline';
+    if (badge) badge.style.display = (DB.config?.sheets_url || (DB.fuentes || []).some(f => f.sheets_url)) ? 'none' : 'inline';
     // Mostrar onboarding si es usuario nuevo
     setTimeout(() => { try { checkShowOnboarding(); } catch(e) {} }, 800);
   } catch(e) {
@@ -5085,17 +5085,22 @@ async function renderAdminPage() {
 
     const rows = await Promise.all(profiles.map(async p => {
       try {
-        const [regs, cfgs, wss, syncLog] = await Promise.all([
+        const [regs, cfgs, wss, syncLog, ftes] = await Promise.all([
           api.get('registros', `user_id=eq.${p.id}&select=gasto_meta,gasto_tiktok,v1,v2,v3,v4&limit=5000`),
           api.get('config', `user_id=eq.${p.id}&select=sheets_url,script_url,meta_token&limit=10`).catch(()=>[]),
           api.get('workspaces', `user_id=eq.${p.id}&select=id,nombre&limit=10`).catch(()=>[]),
           api.get('sync_log', `id=like.last_sync_*&order=synced_at.desc&limit=1`).catch(()=>[]),
+          api.get('fuentes', `user_id=eq.${p.id}&select=sheets_url,meta_token&limit=10`).catch(()=>[]),
         ]);
         const m = calcMetrics(regs);
         const totalVentas = regs.reduce((s,r)=>(s+(+r.v1||0)+(+r.v2||0)+(+r.v3||0)+(+r.v4||0)),0);
         const cfg = cfgs[0] || {};
         const lastSync = syncLog[0]?.synced_at || null;
-        return { ...p, m, totalVentas, sheetsOk: !!cfg.sheets_url, metaOk: !!cfg.meta_token, workspaces: wss, lastSync };
+        // Sheet/token pueden vivir en las fuentes (modelo multi-bot) o en config (legado)
+        return { ...p, m, totalVentas,
+          sheetsOk: !!cfg.sheets_url || (ftes||[]).some(f=>f.sheets_url),
+          metaOk: !!cfg.meta_token || (ftes||[]).some(f=>f.meta_token),
+          workspaces: wss, lastSync };
       } catch { return { ...p, m: calcMetrics([]), totalVentas:0, sheetsOk:false, metaOk:false, workspaces:[], lastSync:null }; }
     }));
 
@@ -9704,9 +9709,17 @@ function updateSheetsStatus() {
   const btn    = document.getElementById('btn-sheets-sync');
   if (!status) return;
   const cfg = DB.config;
-  if (cfg.sheets_url) {
-    const sheetId = cfg.sheets_url.match(/\/spreadsheets\/d\/([^/]+)/)?.[1]?.substring(0,12) + '...';
-    status.textContent = `✅ Conectado · Sheet: ${sheetId || 'configurado'}`;
+  // El Sheet puede vivir en las FUENTES (modelo multi-bot) o en config (legado).
+  // Antes solo se miraba config.sheets_url → en cuentas nuevas (solo fuentes) el
+  // botón "Sincronizar ahora" quedaba deshabilitado aunque todo estuviera conectado.
+  const fuentesConSheet = (DB.fuentes || []).filter(f => f.sheets_url);
+  if (fuentesConSheet.length || cfg.sheets_url) {
+    if (fuentesConSheet.length) {
+      status.textContent = `✅ Conectado · ${fuentesConSheet.length} fuente${fuentesConSheet.length===1?'':'s'} con Sheet (${fuentesConSheet.map(f=>`${f.emoji||'🤖'} ${f.nombre}`).join(' · ')})`;
+    } else {
+      const sheetId = cfg.sheets_url.match(/\/spreadsheets\/d\/([^/]+)/)?.[1]?.substring(0,12) + '...';
+      status.textContent = `✅ Conectado · Sheet: ${sheetId || 'configurado'}`;
+    }
     status.style.color = 'var(--green)';
     if (btn) {
       btn.disabled = false;
