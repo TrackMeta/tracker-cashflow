@@ -4081,41 +4081,52 @@ async function actualizarConsolidacion(wsIds) {
     const ws = DB.workspaces.find(w => w.id === wsId);
     if (!ws) continue;
     const rate = wsUsdRate(ws);
-    let regs, estados;
+    let regs, estados, cfg;
     try {
-      regs = await api.get('registros', `workspace_id=eq.${wsId}&fecha=gte.${desde}&select=fecha,gasto_meta,gasto_tiktok`);
+      regs = await api.get('registros', `workspace_id=eq.${wsId}&fecha=gte.${desde}&select=fecha,gasto_meta,gasto_tiktok,v1,v2,v3,v4,upsell_total`);
       estados = await api.get('dia_estado', `workspace_id=eq.${wsId}&fecha=gte.${desde}`);
+      cfg = (await api.get('config', `workspace_id=eq.${wsId}&select=p1,p2,p3,p4&limit=1`).catch(()=>[]))[0] || DB.config || {};
     } catch(e) { continue; } // tabla aún no creada → omitir
-    const gastoPorFecha = {};
-    regs.forEach(r => { gastoPorFecha[r.fecha] = (gastoPorFecha[r.fecha]||0) + (+r.gasto_meta||0) + (+r.gasto_tiktok||0); });
+    // Gasto + ingresos por fecha (misma fórmula que el edge `consolidar`), para que
+    // dia_estado.ingresos_usd/profit_usd queden escritos también cuando consolida el cliente.
+    const porFecha = {};
+    regs.forEach(r => {
+      const d = porFecha[r.fecha] || (porFecha[r.fecha] = { g:0, ing:0 });
+      d.g += (+r.gasto_meta||0) + (+r.gasto_tiktok||0);
+      d.ing += (+r.v1||0)*(cfg.p1??10) + (+r.v2||0)*(cfg.p2??7) + (+r.v3||0)*(cfg.p3??5) + (+r.v4||0)*(cfg.p4??3) + (+r.upsell_total||0);
+    });
     const estMap = {}; estados.forEach(e => estMap[e.fecha] = e);
 
-    for (const [fecha, gastoRaw] of Object.entries(gastoPorFecha)) {
-      const g = +(+gastoRaw).toFixed(2);
+    for (const [fecha, a] of Object.entries(porFecha)) {
+      const g = +a.g.toFixed(2);
+      const ingUsd = +(a.ing / rate).toFixed(2);
+      const profitUsd = +((a.ing - g) / rate).toFixed(2);
       const e = estMap[fecha];
       const consolidadoPorEdad = fecha <= nDaysAgo(2); // 2+ días → firme
       if (!e) {
         await api.post('dia_estado', {
           workspace_id: wsId, user_id: CURRENT_USER?.id, fecha,
           gasto_total: g, gasto_anterior: g, gasto_provisional: g,
+          ingresos_usd: ingUsd, profit_usd: profitUsd,
           primer_sync_at: ahoraISO, ultimo_cambio_at: ahoraISO,
           consolidado: consolidadoPorEdad, usd_rate: rate
         }).catch(()=>{});
         continue;
       }
-      const patch = {};
+      if (e.consolidado) continue;   // día congelado — igual que el edge (antes el cliente lo pisaba)
+      const patch = { ingresos_usd: ingUsd, profit_usd: profitUsd };
       if (Math.abs(g - (+e.gasto_total||0)) > 0.001) {
         patch.gasto_anterior  = e.gasto_total;
         patch.gasto_total     = g;
         patch.ultimo_cambio_at = ahoraISO;
       }
-      if (!e.consolidado && consolidadoPorEdad) {
+      if (consolidadoPorEdad) {
         patch.consolidado    = true;
         patch.consolidado_at = ahoraISO;
         patch.usd_rate       = rate;
         patch.gasto_total    = g;
       }
-      if (Object.keys(patch).length) await api.patch('dia_estado', e.id, patch).catch(()=>{});
+      await api.patch('dia_estado', e.id, patch).catch(()=>{});
     }
   }
 }
@@ -5997,11 +6008,10 @@ function _confianzaDe(m, diasActivos) {
 // 1 = parejo todos los días; 0 = montaña rusa. Volatilidad relativa al gasto diario
 // promedio (no al profit medio, que puede ser ~0 y dispararía el ratio).
 function _consistenciaDe(rs) {
-  const P = DB.config;
   const porDia = {};
   rs.forEach(r => {
     const g = (+r.gasto_meta||0)+(+r.gasto_tiktok||0);
-    const ing = (+r.v1||0)*P.p1+(+r.v2||0)*P.p2+(+r.v3||0)*P.p3+(+r.v4||0)*P.p4+(+r.upsell_total||0);
+    const ing = _ingRegDe(r);
     const d = porDia[r.fecha] || (porDia[r.fecha] = { g:0, p:0 });
     d.g += g; d.p += ing - g;
   });
@@ -6058,17 +6068,23 @@ function saveScoreWeights() {
   } catch(e) { showError('Error guardando pesos: '+e.message); }
 }
 
+// Ingreso de un registro (ventas × precios con defaults + bump). ÚNICA fuente de la
+// fórmula para tendencia/consistencia/sparkline/saturación — antes estaba duplicada
+// 6 veces con P.p1 sin default (NaN silencioso si el workspace no tenía config).
+function _ingRegDe(r, P) {
+  P = P || DB.config || {};
+  return (+r.v1||0)*(P.p1??10) + (+r.v2||0)*(P.p2??7) + (+r.v3||0)*(P.p3??5) + (+r.v4||0)*(P.p4??3) + (+r.upsell_total||0);
+}
 function _calcTendencia(adId, desde, hasta) {
   // Regresión lineal del ROAS diario PONDERADA por gasto (un día con S/2 de gasto
   // no debe pesar igual que uno con S/50). Devuelve el cambio relativo estimado
   // a lo largo del período, clampeado a [-1, 1]. Antes: mitad vs mitad (ruidoso).
   const regsAd = DB.registros.filter(r => r.ad_id === adId && r.fecha >= desde && r.fecha <= hasta);
   if (regsAd.length < 2) return 0;
-  const P = DB.config;
   const porDia = {};
   regsAd.forEach(r => {
     const g = (+r.gasto_meta||0)+(+r.gasto_tiktok||0);
-    const ing = (+r.v1||0)*P.p1+(+r.v2||0)*P.p2+(+r.v3||0)*P.p3+(+r.v4||0)*P.p4+(+r.upsell_total||0);
+    const ing = _ingRegDe(r);
     const d = porDia[r.fecha] || (porDia[r.fecha] = { g:0, ing:0 });
     d.g += g; d.ing += ing;
   });
@@ -6258,11 +6274,10 @@ function renderAnalyzerUI() {
     try {
       const regsPer = all.flatMap(d=>d.rs);
       const porDow = {};
-      const P = DB.config;
       regsPer.forEach(r => {
         const dow = new Date(r.fecha+'T12:00:00').getDay();
         const g = (+r.gasto_meta||0)+(+r.gasto_tiktok||0);
-        const ing = (+r.v1||0)*P.p1+(+r.v2||0)*P.p2+(+r.v3||0)*P.p3+(+r.v4||0)*P.p4+(+r.upsell_total||0);
+        const ing = _ingRegDe(r);
         const x = porDow[dow] || (porDow[dow] = { p:0, dias:new Set() });
         x.p += ing - g; x.dias.add(r.fecha);
       });
@@ -6406,14 +6421,13 @@ function renderAnalyzerUI() {
   if (chartEvoCtx && data.length > 0) {
     if (charts.analyzerEvo) charts.analyzerEvo.destroy();
     const top3 = data.slice(0, 3);
-    const P = DB.config;
     const colors = ['#10B981', '#3B82F6', '#F59E0B'];
     const allFechas = [...new Set(DB.registros.filter(r => top3.some(d => d.adId === r.ad_id)).map(r => r.fecha))].sort();
     const datasets = top3.map((d, idx) => {
       const byDate = {};
       DB.registros.filter(r => r.ad_id === d.adId && allFechas.includes(r.fecha)).forEach(r => {
         const g = (+r.gasto_meta||0) + (+r.gasto_tiktok||0);
-        const ing = (+r.v1||0)*P.p1 + (+r.v2||0)*P.p2 + (+r.v3||0)*P.p3 + (+r.v4||0)*P.p4 + (+r.upsell_total||0);
+        const ing = _ingRegDe(r);
         byDate[r.fecha] = g > 0 ? ing/g : 0;
       });
       return {
@@ -6480,12 +6494,11 @@ function analyzerToggleDet(i){
   const el = document.getElementById('anal-det-'+i); if (!el) return;
   if (el.style.display !== 'none') { el.style.display = 'none'; return; }
   const d = (window._analyzerView||[])[i]; if (!d) return;
-  const P = DB.config;
   // Serie diaria (ROAS y gasto)
   const porDia = {};
   (d.rs||[]).forEach(r => {
     const g = (+r.gasto_meta||0)+(+r.gasto_tiktok||0);
-    const ing = (+r.v1||0)*P.p1+(+r.v2||0)*P.p2+(+r.v3||0)*P.p3+(+r.v4||0)*P.p4+(+r.upsell_total||0);
+    const ing = _ingRegDe(r);
     const x = porDia[r.fecha] || (porDia[r.fecha] = { g:0, ing:0 });
     x.g += g; x.ing += ing;
   });
@@ -9107,7 +9120,8 @@ async function deleteFuente() {
 let _autoSyncTimer = null;
 function autoSyncMin(){ return parseInt(localStorage.getItem('trakker_autosync_min') || '0', 10) || 0; }
 async function runAutoSync(){
-  if (!DB.config?.sheets_url) return;                 // sin Sheet configurado, no hay nada que sincronizar
+  // Sin ningún Sheet (ni legado ni en fuentes) no hay nada que sincronizar
+  if (!DB.config?.sheets_url && !(DB.fuentes || []).some(f => f.sheets_url)) return;
   try {
     // Sync COMPLETO en el servidor: ventas del Sheet + gasto de Meta + consolidación (igual que el auto-sync programado)
     const res = await fetch(`${SUPABASE_URL}/functions/v1/auto-sync`, {
@@ -9622,7 +9636,9 @@ async function renderHub(){
     center.classList.remove('ok', 'warn', 'error');
     let cls = 'ok', ctaLabel = 'Ver resumen completo →', ctaFn = () => navTo('global', null);
 
-    if (!DB.config?.sheets_url){
+    // Hay Sheet si lo tiene el config legado O alguna fuente (modelo multi-bot)
+    const _tieneSheet = !!DB.config?.sheets_url || (DB.fuentes || []).some(f => f.sheets_url);
+    if (!_tieneSheet){
       cls = 'warn'; ico.textContent = '⚙️';
       title.textContent = 'Configura tu Google Sheet'; sub.textContent = 'Conecta tu fuente para sincronizar';
       ctaLabel = 'Conectar →'; ctaFn = () => navTo('importar', null);
@@ -9650,7 +9666,7 @@ async function renderHub(){
     const sys = document.getElementById('hub-sysbar');
     if (sys){
       const nProd = (DB.workspaces || []).length;
-      const okSync = !syncCls.includes('error') && !!DB.config?.sheets_url;
+      const okSync = !syncCls.includes('error') && (!!DB.config?.sheets_url || (DB.fuentes || []).some(f => f.sheets_url));
       const aTxt = totalAl ? `🚨 ${totalAl} alerta${totalAl > 1 ? 's' : ''} activa${totalAl > 1 ? 's' : ''}` : '✅ Sin alertas activas';
       sys.innerHTML = `<span>${okSync ? '🟢 Sincronización activa' : '🟠 Sincronización pendiente'}</span><span class="hub2-sep">·</span><span>${aTxt}</span><span class="hub2-sep">·</span><span>📦 ${nProd} producto${nProd !== 1 ? 's' : ''}</span>`;
     }
@@ -10073,8 +10089,7 @@ function getSaturacion(adId) {
   const regs = DB.registros.filter(r=>r.ad_id===adId);
   if (regs.length < (SC.sat_dias||3)+1) return null;
   const sorted = [...regs].sort((a,b)=>b.fecha.localeCompare(a.fecha));
-  const P = DB.config;
-  const getAllRoas = r => { const g=(+r.gasto_meta||0)+(+r.gasto_tiktok||0); if(g<=0)return 0; const ing=(+r.v1||0)*P.p1+(+r.v2||0)*P.p2+(+r.v3||0)*P.p3+(+r.v4||0)*P.p4; return ing/g; };
+  const getAllRoas = r => { const g=(+r.gasto_meta||0)+(+r.gasto_tiktok||0); if(g<=0)return 0; return _ingRegDe(r)/g; };
   const peakRoas = Math.max(...regs.map(getAllRoas));
   if (peakRoas<=0) return null;
   const lastN = sorted.slice(0, SC.sat_dias||3);
