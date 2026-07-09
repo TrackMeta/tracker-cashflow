@@ -14779,56 +14779,95 @@ init();
     // Solo (re)emparejamos ventas SIN decisión manual; respetamos validadas a mano y descartadas.
     const vts = CONC.ventas;
     vts.forEach(v=>{ if(!v.manual && v.estado!=='descartado'){ v.pago=null; v.estado='pendiente'; v.candidatos=[]; } });
-    for(const v of vts){
-      if(v.manual || v.estado==='descartado') continue;
+    // ── FASE 1 (monto exacto): matching GLOBAL por mejor-par-primero ──
+    // Antes cada venta (en orden de hora) "robaba" su mejor pago aunque ese pago le
+    // calzara MEJOR a otra venta → errores en cascada con montos repetidos. Ahora se
+    // puntúan TODOS los pares (venta, pago) del rango y se asignan de mayor a menor
+    // score: cada pago termina con la venta que más afinidad tiene con él
+    // (teléfono > nombre > cercanía en el tiempo > mismo día).
+    const libres = vts.filter(v=>!v.manual && v.estado!=='descartado');
+    const pares = [];
+    for(const v of libres){
       const precio=+v.precio;
-      const cands=[];
+      for(let i=0;i<pool.length;i++){
+        if(Math.abs(pool[i].monto-precio)>0.01) continue;
+        const s=_concScore(v, pool[i]);
+        // VENTANA DE FECHA: ±1 día como mucho (sin esto, una venta emparejaba con
+        // un pago ANTIGUO solo porque coincidía el nombre).
+        if(s.dd > 1) continue;
+        pares.push({ v, i, ...s });
+      }
+    }
+    pares.sort((a,b)=> b.score-a.score);
+    // Candidatos por venta y rivales por pago (listas quedan orden desc por construcción)
+    const candDe = new Map(), rivalesDe = new Map();
+    for(const par of pares){
+      let a=candDe.get(par.v); if(!a){ a=[]; candDe.set(par.v,a); } a.push(par);
+      let b=rivalesDe.get(par.i); if(!b){ b=[]; rivalesDe.set(par.i,b); } b.push(par);
+    }
+    for(const par of pares){
+      if(par.v.pago || pool[par.i].used) continue;
+      pool[par.i].used=true; par.v.pago=pool[par.i];
+      par.v.matchInfo = { nm:par.nm, ph:par.ph };
+      par.v.candidatos = (candDe.get(par.v)||[]).map(c=>c.i);
+      // Ambigüedad BILATERAL: ¿esta venta tenía otro pago casi igual de bueno aún libre?
+      // ¿o este pago tenía otra venta casi igual de buena aún sin pago?
+      const otroPago  = (candDe.get(par.v)||[]).find(c=>c.i!==par.i && !pool[c.i].used);
+      const otraVenta = (rivalesDe.get(par.i)||[]).find(c=>c.v!==par.v && !c.v.pago);
+      const margen = Math.min(otroPago ? par.score-otroPago.score : 9, otraVenta ? par.score-otraVenta.score : 9);
+      const afinFuerte = par.ph || par.nm >= 0.7;              // mismo teléfono o nombre
+      const ventanaOk  = par.dmin <= VERIF_TOL_MIN;
+      // 🟢 auto-validar: monto OK + ventana de tiempo + (afinidad fuerte o candidato que destaca sin ambigüedad)
+      if( ventanaOk && (afinFuerte || margen >= 0.25) ){
+        par.v.estado='verificada';
+      } else {
+        par.v.estado='revision';
+      }
+    }
+    // candidatos también para las ventas que quedaron sin pago (para el selector manual)
+    for(const v of libres){ if(!v.pago) v.candidatos = (candDe.get(v)||[]).map(c=>c.i); }
+    // ── FASE 2 (monto distinto): SOLO con afinidad real (teléfono o nombre) ──
+    // Antes se aceptaba el pago libre más cercano en el tiempo aunque no hubiera
+    // NINGUNA señal del cliente → consumía pagos ajenos y generaba errores en cadena.
+    // Ahora exige teléfono o nombre coincidente; el tiempo solo desempata.
+    const paresP = [];
+    for(const v of libres){
+      if(v.pago) continue;
       for(let i=0;i<pool.length;i++){
         if(pool[i].used) continue;
-        if(Math.abs(pool[i].monto-precio)<=0.01){
-          // VENTANA DE FECHA: el pago debe ser del mismo día de la venta (±1 día como mucho).
-          // Sin esto, una venta emparejaba con un pago ANTIGUO solo porque coincidía el nombre.
-          const dd = _concDiaDiff(v.fecha, pool[i].fechaDia);
-          if(dd > 1) continue;
-          const dmin = Math.abs(pool[i].fecha-v._dt)/60000;
-          const nm = _concNameSim(v.cliente, pool[i].origen);
-          const ph = _concPhoneMatch(v, pool[i]);
-          // score de afinidad: teléfono pesa fuerte, nombre proporcional
-          cands.push({ i, dd, dmin, nm, ph, score: (ph?0.6:0) + nm });
-        }
+        const s=_concScore(v, pool[i]);
+        if(s.dd > 1) continue;
+        if(!s.ph && s.nm < 0.5) continue;         // sin afinidad no hay "parcial"
+        if(s.dmin > VERIF_TOL_MIN) continue;
+        paresP.push({ v, i, ...s });
       }
-      // Mismo día primero → luego afinidad (nombre/teléfono) → luego cercanía temporal
-      cands.sort((a,b)=> (a.dd - b.dd) || (b.score - a.score) || (a.dmin - b.dmin));
-      v.candidatos = cands.map(c=>c.i);
-      if(cands.length){
-        const best = cands[0], seg = cands[1];
-        const afinFuerte = best.ph || best.nm >= 0.7;            // mismo nombre/teléfono
-        const ventanaOk  = best.dmin <= VERIF_TOL_MIN;
-        const sinAmbig   = cands.length===1
-                          || (best.score - (seg?seg.score:0)) >= 0.4   // un candidato destaca por afinidad
-                          || (seg && (seg.dmin - best.dmin) > 5);       // o por tiempo (lógica previa)
-        v.matchInfo = { nm:best.nm, ph:best.ph };
-        // 🟢 auto-validar: monto OK + (dentro de ventana sin ambigüedad)  o  (afinidad fuerte y tiempo razonable)
-        if( (ventanaOk && sinAmbig) || (afinFuerte && best.dmin <= VERIF_NEAR_MIN && sinAmbig) ){
-          pool[best.i].used=true; v.estado='verificada'; v.pago=pool[best.i];
-        } else {
-          pool[best.i].used=true; v.estado='revision'; v.pago=pool[best.i];
-        }
-        continue;
-      }
-      // Monto distinto: aceptar como parcial si hay afinidad fuerte (nombre/teléfono) y tiempo cercano,
-      // o como respaldo el pago más cercano en el tiempo (lógica previa).
-      let bt=-1, btd=Infinity, btScore=-1;
-      for(let i=0;i<pool.length;i++){
-        if(pool[i].used) continue;
-        if(_concDiaDiff(v.fecha, pool[i].fechaDia) > 1) continue;   // misma ventana de fecha
-        const d = Math.abs(pool[i].fecha-v._dt)/60000; if(d > VERIF_NEAR_MIN) continue;
-        const nm = _concNameSim(v.cliente, pool[i].origen), ph = _concPhoneMatch(v, pool[i]);
-        const sc = (ph?0.6:0) + nm;
-        if( sc > btScore || (sc===btScore && d < btd) ){ btScore=sc; btd=d; bt=i; }
-      }
-      if(bt>=0){ pool[bt].used=true; v.estado='parcial'; v.pago=pool[bt]; v.matchInfo={ nm:_concNameSim(v.cliente,pool[bt].origen), ph:_concPhoneMatch(v,pool[bt]) }; continue; }
-      v.estado='sin_match';
+    }
+    paresP.sort((a,b)=> b.score-a.score);
+    for(const par of paresP){
+      if(par.v.pago || pool[par.i].used) continue;
+      pool[par.i].used=true; par.v.pago=pool[par.i]; par.v.estado='parcial';
+      par.v.matchInfo={ nm:par.nm, ph:par.ph };
+    }
+    for(const v of libres){ if(!v.pago) v.estado='sin_match'; }
+    // ── CIERRE DE LOTE: montos repetidos sin señal del cliente ──
+    // Si para un mismo (día, monto) TODAS las ventas quedaron emparejadas con monto
+    // exacto y no sobró ningún pago libre de ese monto, el conjunto cierra 1:1: la
+    // conciliación es correcta en dinero aunque la atribución exacta entre clientes
+    // sin nombre/teléfono sea intercambiable → se auto-validan (antes quedaban en
+    // "revisión" y obligaban a repasar una por una). Si sobra un pago o falta una
+    // venta, el lote NO cierra y se mantiene la revisión manual.
+    const lotes = new Map();
+    for(const v of libres){
+      const k = v.fecha+'|'+(+v.precio).toFixed(2);
+      let g=lotes.get(k); if(!g){ g={rev:[], abiertas:0}; lotes.set(k,g); }
+      if(v.estado==='revision') g.rev.push(v);
+      else if(v.estado!=='verificada') g.abiertas++;   // sin_match/parcial del mismo monto → no cierra
+    }
+    for(const [k,g] of lotes){
+      if(!g.rev.length || g.abiertas) continue;
+      const fecha=k.slice(0,10), monto=+k.slice(11);
+      const pagoLibre = pool.some(p=> !p.used && Math.abs(p.monto-monto)<=0.01 && _concDiaDiff(fecha, p.fechaDia)<=1);
+      if(!pagoLibre) g.rev.forEach(v=>{ v.estado='verificada'; });
     }
     // Cobertura del reporte (fix bug fantasma): día sin datos bancarios → queda ⚪, no 🔴.
     const _bankDias = CONC.pagos.map(p=>p.fechaDia).filter(Boolean).sort();
@@ -14852,15 +14891,32 @@ init();
     if(isNaN(a) || isNaN(b)) return 999;
     return Math.abs((a - b) / 86400000);
   }
-  // Similitud de nombres por tokens (1.0 si todos los tokens del más corto están en el otro).
+  // Similitud de nombres por tokens, INSENSIBLE A TILDES ("José" ≈ "Jose") y con
+  // match por prefijo ≥5 letras ("Rodrig…" truncado por el banco ≈ "Rodrigo").
+  // 1.0 si todos los tokens del más corto aparecen en el otro.
   function _concNameSim(a, b){
-    a = String(a||'').toLowerCase().replace(/[^a-záéíóúñü ]/gi,' ').trim();
-    b = String(b||'').toLowerCase().replace(/[^a-záéíóúñü ]/gi,' ').trim();
+    const norm = s => String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
+      .replace(/[^a-zñ ]/gi,' ').replace(/\s+/g,' ').trim();
+    a = norm(a); b = norm(b);
     if(!a || !b) return 0;
-    const ta = a.split(/\s+/).filter(t=>t.length>=2), tb = b.split(/\s+/).filter(t=>t.length>=2);
+    const ta = a.split(' ').filter(t=>t.length>=2), tb = b.split(' ').filter(t=>t.length>=2);
     if(!ta.length || !tb.length) return 0;
-    const sb = new Set(tb); let inter = 0; ta.forEach(t=>{ if(sb.has(t)) inter++; });
+    let inter = 0;
+    ta.forEach(t=>{
+      if(tb.some(u => u===t || (t.length>=5 && u.length>=5 && (u.startsWith(t) || t.startsWith(u))))) inter++;
+    });
     return inter / Math.min(ta.length, tb.length);
+  }
+  // Score compuesto de un par venta↔pago. El teléfono es la señal más fuerte (1.2),
+  // luego el nombre (hasta 0.9), la cercanía en el tiempo (hasta 0.7, decae linealmente
+  // hasta la ventana de ±3h) y un bono por ser el mismo día (0.3).
+  function _concScore(v, p){
+    const dd   = _concDiaDiff(v.fecha, p.fechaDia);
+    const dmin = Math.abs(p.fecha - v._dt)/60000;
+    const nm   = _concNameSim(v.cliente, p.origen);
+    const ph   = _concPhoneMatch(v, p);
+    const tScore = Math.max(0, 1 - dmin/VERIF_TOL_MIN);
+    return { dd, dmin, nm, ph, score: (ph?1.2:0) + nm*0.9 + tScore*0.7 + (dd===0?0.3:0) };
   }
   // ¿El teléfono de la venta aparece en el texto del pago (origen/descripción/operación)?
   function _concPhoneMatch(v, p){
