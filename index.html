@@ -4047,7 +4047,7 @@ async function syncGoogleSheets() {
 
   // Un trabajo por fuente con Sheet. Sin fuentes → Sheet de config (modo legado).
   const fuentesConSheet = (DB.fuentes || []).filter(f => f.sheets_url);
-  const jobs = fuentesConSheet.length
+  let jobs = fuentesConSheet.length
     ? fuentesConSheet.map(f => ({
         nombre: f.nombre || 'Fuente',
         url: f.sheets_url,
@@ -4056,8 +4056,21 @@ async function syncGoogleSheets() {
     : ((DB.config.sheets_url || DB.config.sheets_id)
         ? [{ nombre: 'Principal', url: DB.config.sheets_url || DB.config.sheets_id, wsList: DB.workspaces }]
         : []);
-  // Fuente sin productos asignados aún → abarca todos (transición)
-  jobs.forEach(j => { if (!j.wsList.length) j.wsList = DB.workspaces; });
+  // Con UNA sola fuente es seguro abarcar todos los productos (incluye los que aún
+  // no tienen fuente asignada — modo transición). Con 2+ fuentes NO se hace fallback:
+  // cada fuente sincroniza SOLO sus productos; de lo contrario su "espejo" pondría en
+  // 0 las ventas de los otros bots que no están en su Sheet. Las fuentes sin productos
+  // se omiten con aviso (jamás se corren contra toda la base).
+  if (jobs.length === 1 && !jobs[0].wsList.length) jobs[0].wsList = DB.workspaces;
+  const jobsSinProd = jobs.length > 1 ? jobs.filter(j => !j.wsList.length) : [];
+  if (jobs.length > 1) jobs = jobs.filter(j => j.wsList.length);
+  if (jobsSinProd.length) showError(`⚠️ Sin productos asignados: ${jobsSinProd.map(j => j.nombre).join(', ')}. Esas fuentes no se sincronizan — asigna sus productos a la fuente en el editor de producto.`);
+  // Con varias fuentes, los productos sin fuente asignada (huérfanos) no pertenecen a
+  // ningún bot → no se sincronizan. Avisar para que el usuario los asigne.
+  if (fuentesConSheet.length > 1) {
+    const huerfanos = DB.workspaces.filter(w => !w.fuente_id);
+    if (huerfanos.length) showError(`⚠️ ${huerfanos.length} producto(s) sin fuente asignada no se sincronizan: ${huerfanos.slice(0, 4).map(w => w.nombre).join(', ')}${huerfanos.length > 4 ? '…' : ''}. Asígnalos a un bot en el editor de producto.`);
+  }
 
   if (!jobs.length) {
     status.textContent = '⚠️ Configura el Google Sheet de tu fuente primero';
@@ -14665,7 +14678,10 @@ init();
     const jobs = fuentesConSheet.length
       ? fuentesConSheet.map(f => ({ url:f.sheets_url, fuenteId:f.id, scriptUrl:f.script_url||'', wsList: DB.workspaces.filter(w => w.fuente_id === f.id) }))
       : ((DB.config.sheets_url || DB.config.sheets_id) ? [{ url: DB.config.sheets_url || DB.config.sheets_id, fuenteId:null, scriptUrl:DB.config.script_url||'', wsList: DB.workspaces }] : []);
-    jobs.forEach(j => { if (!j.wsList.length) j.wsList = DB.workspaces; });
+    // Solo con una fuente se abarca todo; con 2+ cada job rutea por su propio Sheet
+    // (los ad_id conocidos igual resuelven vía adIdToWs global) para no reclamar
+    // ventas de otros bots en la conciliación.
+    if (jobs.length === 1 && !jobs[0].wsList.length) jobs[0].wsList = DB.workspaces;
     if (!jobs.length) return [];
     const adIdToWs = {}; (DB.anuncios||[]).forEach(a => { if (a.ad_id) adIdToWs[a.ad_id] = a.workspace_id; });
     const out = [], seen = new Set();

@@ -160,9 +160,10 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
     : recientes;
   if (!rows.length) return { ventas: 0, registros: 0, wsIds: [] };
 
-  // Quitar SOLO filas byte-idénticas; los casi-duplicados suben para auditar en Conciliación.
-  const seen = new Set<string>(); const unicas = [];
-  for (const r of rows) { const k = `${r.adId}|${r.telefono}|${r.hora}|${r.valor}`; if (seen.has(k)) continue; seen.add(k); unicas.push(r); }
+  // No se deduplica: suben TODAS las filas (idéntico al sync manual del cliente),
+  // para que ambos motores cuenten igual y los números no oscilen entre un sync y otro.
+  // Los duplicados reales se auditan/borran desde Conciliación.
+  const unicas = rows;
 
   const grupos: Record<string, any> = {}; const crmRows = [];
   for (const r of unicas) {
@@ -458,12 +459,16 @@ async function consolidar(wsId: string, ws: any): Promise<string[]> {
 async function procesarUsuario(userId: string, conMeta: boolean, sheetDays = 5) {
   const fuentes = await sb("GET", `fuentes?user_id=eq.${userId}`);
   const workspaces = await sb("GET", `workspaces?user_id=eq.${userId}`);
+  const multiFuente = (fuentes || []).length > 1;
   const wsTouched = new Set<string>();
   let totVentas = 0;
   for (const f of (fuentes || [])) {
     const wsList = (workspaces || []).filter((w: any) => w.fuente_id === f.id);
-    const wsForJob = wsList.length ? wsList : workspaces;
-    if (f.sheets_url) {
+    // Con una sola fuente cubre todos los productos (incluye los sin asignar). Con
+    // 2+ fuentes cada una toca SOLO sus productos: si no tiene ninguno, NO sincroniza
+    // (así su espejo no pone en 0 las ventas de los otros bots que no están en su Sheet).
+    const wsForJob = wsList.length ? wsList : (multiFuente ? [] : workspaces);
+    if (f.sheets_url && wsForJob.length) {
       try {
         const r = await syncSheet({ url: f.sheets_url, wsList: wsForJob, userId }, sheetDays);
         totVentas += r.ventas; r.wsIds.forEach((id) => wsTouched.add(id));
