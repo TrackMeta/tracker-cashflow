@@ -1990,6 +1990,10 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div>
       <div class="page-title">🧠 Analyzer Pro</div>
       <div class="page-sub" id="analyzer-sub">Análisis inteligente de rendimiento de todos tus anuncios</div>
+      <div style="display:flex;gap:8px;margin-top:8px">
+        <button class="btn btn-sm btn-primary" id="anal-modo-proy" onclick="analSetModo('proyectado')">🟡 Proyectado</button>
+        <button class="btn btn-sm btn-ghost" id="anal-modo-conf" onclick="analSetModo('confirmado')">🟢 Confirmado</button>
+      </div>
     </div>
     <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
       <select id="analyzer-periodo" onchange="onAnalyzerPeriodo()" style="background:var(--bg2);border:1px solid var(--border2);border-radius:8px;padding:6px 10px;color:var(--text);font-size:12px;font-family:var(--font)">
@@ -2082,7 +2086,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div class="tbl-wrap">
       <table>
         <thead><tr>
-          <th>#</th><th>Anuncio</th><th>Score</th><th>Tendencia</th><th>Acción</th>
+          <th>#</th><th>Anuncio</th><th>Score</th><th>Confianza</th><th>Tendencia</th><th>Acción</th>
           <th>ROAS</th><th>Profit</th><th>Ventas</th><th>Ingresos</th><th>Inversión</th>
           <th>Impr.</th><th>Clics</th><th>CTR</th><th>CPM</th><th>CPC</th><th>Chats</th><th>CPR</th>
           <th>CPA</th><th>Conv%</th><th>Ticket Prom</th><th>Saturación</th>
@@ -2096,20 +2100,27 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   <div class="panel" style="margin-top:18px">
     <div class="panel-header"><span class="panel-title">ℹ️ ¿Cómo funciona el Score?</span></div>
     <div class="panel-body" style="font-size:12px;color:var(--text2);line-height:1.7">
-      El <strong>Score Inteligente</strong> es un número de 0 a 100 que combina 5 factores:<br>
-      <div style="display:grid;grid-template-columns:repeat(5,1fr);gap:8px;margin-top:10px">
-        <div style="padding:10px;background:var(--bg3);border-radius:8px;text-align:center;border-top:3px solid var(--green)"><div style="font-size:18px;font-weight:800;color:var(--green)">35%</div><div style="font-size:11px;margin-top:3px">ROAS</div></div>
-        <div style="padding:10px;background:var(--bg3);border-radius:8px;text-align:center;border-top:3px solid var(--accent)"><div style="font-size:18px;font-weight:800;color:var(--accent)">25%</div><div style="font-size:11px;margin-top:3px">Profit Margin</div></div>
-        <div style="padding:10px;background:var(--bg3);border-radius:8px;text-align:center;border-top:3px solid var(--teal)"><div style="font-size:18px;font-weight:800;color:var(--teal)">15%</div><div style="font-size:11px;margin-top:3px">Conv. Rate</div></div>
+      El <strong>Score Inteligente</strong> es un número de 0 a 100 que combina 6 factores (pesos editables con el botón 🧠 Score):<br>
+      <div style="display:grid;grid-template-columns:repeat(6,1fr);gap:8px;margin-top:10px">
+        <div style="padding:10px;background:var(--bg3);border-radius:8px;text-align:center;border-top:3px solid var(--green)"><div style="font-size:18px;font-weight:800;color:var(--green)">30%</div><div style="font-size:11px;margin-top:3px">ROAS</div></div>
+        <div style="padding:10px;background:var(--bg3);border-radius:8px;text-align:center;border-top:3px solid var(--accent)"><div style="font-size:18px;font-weight:800;color:var(--accent)">20%</div><div style="font-size:11px;margin-top:3px">Margen</div></div>
+        <div style="padding:10px;background:var(--bg3);border-radius:8px;text-align:center;border-top:3px solid var(--teal)"><div style="font-size:18px;font-weight:800;color:var(--teal)">10%</div><div style="font-size:11px;margin-top:3px">Conversión</div></div>
         <div style="padding:10px;background:var(--bg3);border-radius:8px;text-align:center;border-top:3px solid var(--orange)"><div style="font-size:18px;font-weight:800;color:var(--orange)">10%</div><div style="font-size:11px;margin-top:3px">CPA Eficiente</div></div>
         <div style="padding:10px;background:var(--bg3);border-radius:8px;text-align:center;border-top:3px solid var(--purple)"><div style="font-size:18px;font-weight:800;color:var(--purple)">15%</div><div style="font-size:11px;margin-top:3px">Tendencia</div></div>
+        <div style="padding:10px;background:var(--bg3);border-radius:8px;text-align:center;border-top:3px solid var(--pink,#ec4899)"><div style="font-size:18px;font-weight:800;color:var(--pink,#ec4899)">15%</div><div style="font-size:11px;margin-top:3px">Consistencia</div></div>
       </div>
       <div style="margin-top:12px">
-        <strong>Acciones recomendadas:</strong>
-        🚀 <strong style="color:var(--green)">ESCALAR</strong> (Score ≥ 70) ·
+        <strong>Acciones recomendadas</strong> (el Score manda, pero la <b>confianza estadística</b> y la <b>saturación</b> la matizan):
+        🚀 <strong style="color:var(--green)">ESCALAR</strong> (Score ≥ 70 + confianza suficiente) ·
+        🌱 <strong style="color:var(--teal)">PROMETEDOR</strong> (Score ≥ 70 pero pocos datos aún) ·
         ✅ <strong style="color:var(--accent)">MANTENER</strong> (50-69) ·
-        ⚠️ <strong style="color:var(--orange)">VIGILAR</strong> (30-49) ·
-        🛑 <strong style="color:var(--red)">PAUSAR</strong> (&lt;30)
+        ⚠️ <strong style="color:var(--orange)">VIGILAR</strong> (30-49, saturación, o score bajo sin evidencia) ·
+        🛑 <strong style="color:var(--red)">PAUSAR</strong> (&lt;30 con evidencia suficiente)
+      </div>
+      <div style="margin-top:8px;font-size:11.5px">
+        <strong>● Confianza:</strong> mide si hay datos suficientes para decidir (días activos + gasto acumulado + chats). Un anuncio de 1 día con ROAS 5x puede ser suerte — con confianza <b style="color:var(--red)">baja</b> el Analyzer no recomienda escalar ni cortar.
+        <strong>🎢 Consistencia:</strong> premia el profit parejo día a día y castiga la montaña rusa.
+        <strong>📈 Tendencia:</strong> regresión del ROAS diario ponderada por gasto (los días con más inversión pesan más).
       </div>
     </div>
   </div>
@@ -2910,7 +2921,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
   <div class="modal">
     <div class="modal-header"><span class="modal-title">🧠 Cómo se calcula el Score</span><button class="modal-close" onclick="closeModal('modal-score')">×</button></div>
     <div style="font-size:12px;color:var(--text2);line-height:1.6;margin-bottom:12px">
-      El Score (0–100) combina 5 factores. Ajusta cuánto pesa cada uno según tu estrategia — la suma se normaliza a 100.
+      El Score (0–100) combina 6 factores. Ajusta cuánto pesa cada uno según tu estrategia — la suma se normaliza a 100.
     </div>
     <div class="form-row form-2" style="margin-top:4px">
       <div class="field"><label>🎯 ROAS</label><input type="number" id="sw-roas" step="1" min="0"></div>
@@ -2918,6 +2929,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <div class="field"><label>💬 Conversión (chats→ventas)</label><input type="number" id="sw-conv" step="1" min="0"></div>
       <div class="field"><label>📉 Eficiencia CPA</label><input type="number" id="sw-cpa" step="1" min="0"></div>
       <div class="field"><label>📈 Tendencia</label><input type="number" id="sw-tend" step="1" min="0"></div>
+      <div class="field"><label>🎢 Consistencia (estabilidad diaria)</label><input type="number" id="sw-cons" step="1" min="0"></div>
       <div class="field" style="display:flex;flex-direction:column;justify-content:flex-end"><label>Suma actual</label><div id="sw-suma" style="font-weight:800;font-family:var(--mono);font-size:18px;padding:6px 0"></div></div>
     </div>
     <div style="display:flex;justify-content:space-between;gap:8px;margin-top:18px">
@@ -5919,6 +5931,7 @@ function initAnalyzerFilters() {
 }
 
 function onAnalyzerPeriodo() { onPeriodoSeccion('analyzer'); }
+async function analSetModo(m){ DASH_MODE=m; _syncModoBtns(); if(m==='confirmado') await cargarCicloMap(); renderAnalyzer(); }
 
 function analyzerSort(by, btn) {
   _analyzerSortBy = by;
@@ -5927,7 +5940,7 @@ function analyzerSort(by, btn) {
   renderAnalyzerUI();
 }
 
-const SCORE_WEIGHTS_DEFAULT = { roas:35, margin:25, conv:15, cpa:10, tend:15 };
+const SCORE_WEIGHTS_DEFAULT = { roas:30, margin:20, conv:10, cpa:10, tend:15, cons:15 };
 // Pesos del Score (editables). Se guardan por workspace en localStorage para no depender del esquema de Supabase.
 function _scoreWeightsKey() { return `tracker_score_weights_${CURRENT_WORKSPACE?.id || 'default'}`; }
 function getScoreWeights() {
@@ -5937,10 +5950,10 @@ function getScoreWeights() {
     return { ...SCORE_WEIGHTS_DEFAULT, ...(w && typeof w==='object' ? w : {}) };
   } catch(e) { return { ...SCORE_WEIGHTS_DEFAULT }; }
 }
-function _calcScore(m, tendencia) {
+function _calcScore(m, tendencia, consistencia) {
   // Score 0-100 con pesos configurables; los pesos se normalizan a 100.
   const W = getScoreWeights();
-  const tot = (W.roas+W.margin+W.conv+W.cpa+W.tend) || 100;
+  const tot = (W.roas+W.margin+W.conv+W.cpa+W.tend+(W.cons||0)) || 100;
   const k = 100 / tot;
   const p1 = +(DB.config?.p1) || 10;
   const fRoas   = Math.min(m.roas / 3, 1);
@@ -5948,21 +5961,57 @@ function _calcScore(m, tendencia) {
   const fConv   = Math.min(m.conv / 0.4, 1);
   const fCpa    = m.ventas > 0 ? Math.min(p1 / Math.max(m.cpv, 0.1), 1) : 0;
   const fTend   = (tendencia + 1) / 2;
+  const fCons   = Math.min(Math.max(consistencia ?? 0.5, 0), 1);
   const parts = {
     roas:   fRoas   * W.roas   * k,
     margin: fMargin * W.margin * k,
     conv:   fConv   * W.conv   * k,
     cpa:    fCpa    * W.cpa    * k,
     tend:   fTend   * W.tend   * k,
+    cons:   fCons   * (W.cons||0) * k,
   };
-  const total = Math.round(parts.roas + parts.margin + parts.conv + parts.cpa + parts.tend);
+  const total = Math.round(parts.roas + parts.margin + parts.conv + parts.cpa + parts.tend + parts.cons);
   return { total, parts, W };
 }
 // Texto de desglose del score para tooltip
 function _scoreDesglose(sb) {
   if (!sb) return '';
-  const L = { roas:'ROAS', margin:'Margen', conv:'Conversión', cpa:'CPA', tend:'Tendencia' };
-  return Object.entries(sb.parts).map(([k,v]) => `${L[k]}: +${v.toFixed(0)} (de ${Math.round(sb.W[k]*100/((sb.W.roas+sb.W.margin+sb.W.conv+sb.W.cpa+sb.W.tend)||100))})`).join(' · ');
+  const L = { roas:'ROAS', margin:'Margen', conv:'Conversión', cpa:'CPA', tend:'Tendencia', cons:'Consistencia' };
+  const tot = (sb.W.roas+sb.W.margin+sb.W.conv+sb.W.cpa+sb.W.tend+(sb.W.cons||0)) || 100;
+  return Object.entries(sb.parts).map(([k,v]) => `${L[k]}: +${v.toFixed(0)} (de ${Math.round((sb.W[k]||0)*100/tot)})`).join(' · ');
+}
+
+// ── Confianza estadística (0..1): ¿hay evidencia suficiente para decidir? ──
+// Combina días activos, gasto acumulado (relativo al precio del producto) y chats.
+// Un anuncio de 1 día con S/6 puede tener ROAS 5x por pura suerte — la confianza
+// evita que el Analyzer grite "ESCALAR" sin datos.
+function _confianzaDe(m, diasActivos) {
+  const p1 = +(DB.config?.p1) || 10;
+  const ev = 0.35 * Math.min(diasActivos / 5, 1)
+           + 0.35 * Math.min(m.inversion / (5 * p1), 1)
+           + 0.30 * Math.min(m.chats / 30, 1);
+  const nivel = ev >= 0.7 ? 'alta' : ev >= 0.45 ? 'media' : 'baja';
+  return { ev, nivel };
+}
+// ── Consistencia (0..1): qué tan estable es el profit diario ──
+// 1 = parejo todos los días; 0 = montaña rusa. Volatilidad relativa al gasto diario
+// promedio (no al profit medio, que puede ser ~0 y dispararía el ratio).
+function _consistenciaDe(rs) {
+  const P = DB.config;
+  const porDia = {};
+  rs.forEach(r => {
+    const g = (+r.gasto_meta||0)+(+r.gasto_tiktok||0);
+    const ing = (+r.v1||0)*P.p1+(+r.v2||0)*P.p2+(+r.v3||0)*P.p3+(+r.v4||0)*P.p4+(+r.upsell_total||0);
+    const d = porDia[r.fecha] || (porDia[r.fecha] = { g:0, p:0 });
+    d.g += g; d.p += ing - g;
+  });
+  const dias = Object.values(porDia);
+  if (dias.length < 3) return 0.5;   // pocos días → neutral, ni premia ni castiga
+  const profits = dias.map(d => d.p);
+  const mean = profits.reduce((a,b)=>a+b,0) / profits.length;
+  const sd = Math.sqrt(profits.reduce((a,b)=>a+(b-mean)*(b-mean),0) / profits.length);
+  const gastoProm = Math.max(dias.reduce((a,d)=>a+d.g,0) / dias.length, 1);
+  return 1 / (1 + sd / gastoProm);
 }
 
 // ── Editor de pesos del Score ──
@@ -5973,15 +6022,16 @@ function openScoreWeights() {
   document.getElementById('sw-conv').value   = w.conv;
   document.getElementById('sw-cpa').value    = w.cpa;
   document.getElementById('sw-tend').value   = w.tend;
-  ['sw-roas','sw-margin','sw-conv','sw-cpa','sw-tend'].forEach(id => {
-    document.getElementById(id).oninput = _scoreSumaUpdate;
+  const swc = document.getElementById('sw-cons'); if (swc) swc.value = w.cons ?? 15;
+  ['sw-roas','sw-margin','sw-conv','sw-cpa','sw-tend','sw-cons'].forEach(id => {
+    const el = document.getElementById(id); if (el) el.oninput = _scoreSumaUpdate;
   });
   _scoreSumaUpdate();
   openModal('modal-score');
 }
 function _scoreSumaUpdate() {
-  const s = ['sw-roas','sw-margin','sw-conv','sw-cpa','sw-tend']
-    .reduce((a,id) => a + (+document.getElementById(id).value || 0), 0);
+  const s = ['sw-roas','sw-margin','sw-conv','sw-cpa','sw-tend','sw-cons']
+    .reduce((a,id) => a + (+document.getElementById(id)?.value || 0), 0);
   const el = document.getElementById('sw-suma');
   if (el) { el.textContent = s; el.style.color = s>0 ? 'var(--text)' : 'var(--red)'; }
 }
@@ -5989,15 +6039,17 @@ function resetScoreWeights() {
   const d = SCORE_WEIGHTS_DEFAULT;
   document.getElementById('sw-roas').value=d.roas; document.getElementById('sw-margin').value=d.margin;
   document.getElementById('sw-conv').value=d.conv; document.getElementById('sw-cpa').value=d.cpa;
-  document.getElementById('sw-tend').value=d.tend; _scoreSumaUpdate();
+  document.getElementById('sw-tend').value=d.tend;
+  const swc = document.getElementById('sw-cons'); if (swc) swc.value = d.cons;
+  _scoreSumaUpdate();
 }
 function saveScoreWeights() {
   const w = {
     roas:+document.getElementById('sw-roas').value||0, margin:+document.getElementById('sw-margin').value||0,
     conv:+document.getElementById('sw-conv').value||0, cpa:+document.getElementById('sw-cpa').value||0,
-    tend:+document.getElementById('sw-tend').value||0,
+    tend:+document.getElementById('sw-tend').value||0, cons:+document.getElementById('sw-cons')?.value||0,
   };
-  if ((w.roas+w.margin+w.conv+w.cpa+w.tend) <= 0) { showError('La suma de pesos debe ser mayor que 0'); return; }
+  if ((w.roas+w.margin+w.conv+w.cpa+w.tend+w.cons) <= 0) { showError('La suma de pesos debe ser mayor que 0'); return; }
   try {
     localStorage.setItem(_scoreWeightsKey(), JSON.stringify(w));
     closeModal('modal-score');
@@ -6007,31 +6059,48 @@ function saveScoreWeights() {
 }
 
 function _calcTendencia(adId, desde, hasta) {
-  // Comparar ROAS del período reciente vs anterior
+  // Regresión lineal del ROAS diario PONDERADA por gasto (un día con S/2 de gasto
+  // no debe pesar igual que uno con S/50). Devuelve el cambio relativo estimado
+  // a lo largo del período, clampeado a [-1, 1]. Antes: mitad vs mitad (ruidoso).
   const regsAd = DB.registros.filter(r => r.ad_id === adId && r.fecha >= desde && r.fecha <= hasta);
   if (regsAd.length < 2) return 0;
-  const sorted = [...regsAd].sort((a, b) => a.fecha.localeCompare(b.fecha));
-  const mid = Math.floor(sorted.length / 2);
-  const firstHalf = sorted.slice(0, mid);
-  const secondHalf = sorted.slice(mid);
   const P = DB.config;
-  const roasOf = regs => {
-    const g = regs.reduce((s, r) => s + (+r.gasto_meta || 0) + (+r.gasto_tiktok || 0), 0);
-    const i = regs.reduce((s, r) => s + (+r.v1||0)*P.p1 + (+r.v2||0)*P.p2 + (+r.v3||0)*P.p3 + (+r.v4||0)*P.p4 + (+r.upsell_total||0), 0);
-    return g > 0 ? i / g : 0;
-  };
-  const r1 = roasOf(firstHalf), r2 = roasOf(secondHalf);
-  if (r1 === 0 && r2 === 0) return 0;
-  if (r1 === 0) return 1;
-  const cambio = (r2 - r1) / r1;
-  return Math.max(-1, Math.min(1, cambio)); // clamp -1 to 1
+  const porDia = {};
+  regsAd.forEach(r => {
+    const g = (+r.gasto_meta||0)+(+r.gasto_tiktok||0);
+    const ing = (+r.v1||0)*P.p1+(+r.v2||0)*P.p2+(+r.v3||0)*P.p3+(+r.v4||0)*P.p4+(+r.upsell_total||0);
+    const d = porDia[r.fecha] || (porDia[r.fecha] = { g:0, ing:0 });
+    d.g += g; d.ing += ing;
+  });
+  const fechas = Object.keys(porDia).sort();
+  const pts = fechas.map((f,i) => ({ x:i, y: porDia[f].g > 0 ? porDia[f].ing/porDia[f].g : 0, w: Math.max(porDia[f].g, 0.01) }));
+  if (pts.length < 2) return 0;
+  // Mínimos cuadrados ponderados
+  const sw = pts.reduce((s,p)=>s+p.w,0);
+  const mx = pts.reduce((s,p)=>s+p.w*p.x,0)/sw, my = pts.reduce((s,p)=>s+p.w*p.y,0)/sw;
+  let num=0, den=0;
+  pts.forEach(p=>{ num += p.w*(p.x-mx)*(p.y-my); den += p.w*(p.x-mx)*(p.x-mx); });
+  if (den === 0) return 0;
+  const slope = num/den;                                   // ΔROAS por día
+  const cambioTotal = slope * (pts.length - 1);            // ΔROAS en todo el período
+  const base = Math.max(my, 0.15);                         // relativo al ROAS medio
+  return Math.max(-1, Math.min(1, cambioTotal / base));
 }
 
-function _getAccion(score) {
-  if (score >= 70) return { emoji: '🚀', nombre: 'ESCALAR', color: 'green' };
-  if (score >= 50) return { emoji: '✅', nombre: 'MANTENER', color: 'accent' };
-  if (score >= 30) return { emoji: '⚠️', nombre: 'VIGILAR', color: 'orange' };
-  return { emoji: '🛑', nombre: 'PAUSAR', color: 'red' };
+// Acción recomendada: el score manda, pero la CONFIANZA y la SATURACIÓN la matizan.
+// - Score alto sin datos suficientes → 🌱 PROMETEDOR (no escales a ciegas)
+// - Score alto pero saturando → ⚠️ VIGILAR (el creativo va de bajada)
+// - Score bajo sin evidencia → ⚠️ VIGILAR (no cortes por 2 días malos)
+function _getAccion(score, conf, saturando) {
+  if (score >= 70) {
+    if (conf && conf.nivel === 'baja') return { emoji:'🌱', nombre:'PROMETEDOR', color:'teal', bucket:'prometedor', motivo:'Score alto pero pocos datos aún — dale 2-3 días más antes de escalar' };
+    if (saturando) return { emoji:'⚠️', nombre:'VIGILAR', color:'orange', bucket:'vigilar', motivo:'Score alto pero el ROAS viene cayendo desde su pico (saturación) — no escales todavía' };
+    return { emoji:'🚀', nombre:'ESCALAR', color:'green', bucket:'escalar', motivo:'Rendimiento sólido con evidencia suficiente' };
+  }
+  if (score >= 50) return { emoji:'✅', nombre:'MANTENER', color:'accent', bucket:'mantener', motivo:'Rendimiento aceptable — sin cambios' };
+  if (score >= 30) return { emoji:'⚠️', nombre:'VIGILAR', color:'orange', bucket:'vigilar', motivo:'Rendimiento flojo — revisa segmentación/creativo' };
+  if (conf && conf.nivel === 'baja') return { emoji:'⚠️', nombre:'VIGILAR', color:'orange', bucket:'vigilar', motivo:'Score bajo pero con pocos datos — espera 1-2 días antes de cortar' };
+  return { emoji:'🛑', nombre:'PAUSAR', color:'red', bucket:'pausar', motivo:'Quema presupuesto sin retorno y con evidencia suficiente' };
 }
 
 function _tendenciaArrow(t) {
@@ -6064,12 +6133,16 @@ function renderAnalyzer() {
     const m = calcMetrics(rs);
     if (m.inversion < minGasto) return null;
     const tendencia = _calcTendencia(adId, desde, hasta);
-    const sb = _calcScore(m, tendencia);
-    const score = sb.total;
-    const accion = _getAccion(score);
-    const ticketProm = m.ventas > 0 ? m.ingresos / m.ventas : 0;
+    const consistencia = _consistenciaDe(rs);
     const diasActivos = new Set(rs.map(r => r.fecha)).size;
-    return { adId, nombre: a.nombre || adId, campana: rs[0]?.campana || '—', m, tendencia, score, scoreBreak: sb, accion, ticketProm, diasActivos };
+    const conf = _confianzaDe(m, diasActivos);
+    const saturando = !!getSaturacion(adId);
+    const sb = _calcScore(m, tendencia, consistencia);
+    const score = sb.total;
+    const accion = _getAccion(score, conf, saturando);
+    const ticketProm = m.ventas > 0 ? m.ingresos / m.ventas : 0;
+    const gastoDiario = diasActivos > 0 ? m.inversion / diasActivos : 0;
+    return { adId, nombre: a.nombre || adId, campana: rs[0]?.campana || '—', m, tendencia, consistencia, conf, saturando, score, scoreBreak: sb, accion, ticketProm, diasActivos, gastoDiario, rs };
   }).filter(Boolean);
 
   // Subtítulo
@@ -6079,17 +6152,13 @@ function renderAnalyzer() {
   renderAnalyzerUI();
 }
 
-let _analyzerAccion = '';   // '' | 'escalar' | 'mantener' | 'vigilar' | 'pausar'
+let _analyzerAccion = '';   // '' | 'escalar' | 'prometedor' | 'mantener' | 'vigilar' | 'pausar'
 function analyzerSetAccion(a) {
   _analyzerAccion = (_analyzerAccion === a) ? '' : a;
   renderAnalyzerUI();
 }
-function _bucketDe(score) {
-  if (score >= 70) return 'escalar';
-  if (score >= 50) return 'mantener';
-  if (score >= 30) return 'vigilar';
-  return 'pausar';
-}
+// El bucket ya viene decidido por _getAccion (score + confianza + saturación)
+function _bucketDe(d) { return d.accion?.bucket || 'vigilar'; }
 
 function renderAnalyzerUI() {
   let data = [..._analyzerData];
@@ -6105,21 +6174,22 @@ function renderAnalyzerUI() {
 
   // KPIs (sobre el conjunto completo, antes de filtrar por acción)
   const totalAds = data.length;
-  const escalar = data.filter(d => d.score >= 70).length;
-  const pausar = data.filter(d => d.score < 30).length;
+  const escalar = data.filter(d => _bucketDe(d) === 'escalar').length;
+  const pausar = data.filter(d => _bucketDe(d) === 'pausar').length;
   const subiendo = data.filter(d => d.tendencia > 0.1).length;
   const avgScore = totalAds > 0 ? Math.round(data.reduce((s, d) => s + d.score, 0) / totalAds) : 0;
 
   // Chips de filtro por acción (clicables)
   const chipsEl = document.getElementById('analyzer-accion-chips');
   if (chipsEl) {
-    const cnt = { escalar:0, mantener:0, vigilar:0, pausar:0 };
-    data.forEach(d => cnt[_bucketDe(d.score)]++);
+    const cnt = { escalar:0, prometedor:0, mantener:0, vigilar:0, pausar:0 };
+    data.forEach(d => cnt[_bucketDe(d)]++);
     const defs = [
-      { k:'escalar',  lbl:'🚀 Escalar',  col:'var(--green)' },
-      { k:'mantener', lbl:'✅ Mantener', col:'var(--accent)' },
-      { k:'vigilar',  lbl:'⚠️ Vigilar',  col:'var(--orange)' },
-      { k:'pausar',   lbl:'🛑 Cortar',   col:'var(--red)' },
+      { k:'escalar',    lbl:'🚀 Escalar',    col:'var(--green)' },
+      { k:'prometedor', lbl:'🌱 Prometedor', col:'var(--teal)' },
+      { k:'mantener',   lbl:'✅ Mantener',   col:'var(--accent)' },
+      { k:'vigilar',    lbl:'⚠️ Vigilar',    col:'var(--orange)' },
+      { k:'pausar',     lbl:'🛑 Cortar',     col:'var(--red)' },
     ];
     chipsEl.innerHTML = defs.map(d => {
       const on = _analyzerAccion === d.k;
@@ -6128,37 +6198,88 @@ function renderAnalyzerUI() {
   }
 
   // Aplicar filtro por acción al listado mostrado
-  if (_analyzerAccion) data = data.filter(d => _bucketDe(d.score) === _analyzerAccion);
+  if (_analyzerAccion) data = data.filter(d => _bucketDe(d) === _analyzerAccion);
 
   document.getElementById('analyzer-kpis').innerHTML = [
     kpiCard('Anuncios Analizados', totalAds, 'accent', `${data.filter(d => d.m.inversion > 0).length} con inversión`),
     kpiCard('Score Promedio', avgScore + '/100', avgScore >= 50 ? 'green' : avgScore >= 30 ? 'orange' : 'red'),
-    kpiCard('🚀 Escalar', escalar, 'green', `Score ≥ 70`),
-    kpiCard('🛑 Pausar', pausar, 'red', `Score < 30`),
+    kpiCard('🚀 Escalar', escalar, 'green', `listos, con evidencia`),
+    kpiCard('🛑 Pausar', pausar, 'red', `quemando presupuesto`),
     kpiCard('📈 Subiendo', subiendo, 'teal', `Tendencia positiva`),
   ].join('');
 
 
-  // ── Resumen Ejecutivo (texto inteligente) ──
+  // ── MOTOR DE INSIGHTS: hallazgos priorizados y CUANTIFICADOS ──
   const resumenEl = document.getElementById('analyzer-resumen');
-  if (resumenEl && data.length) {
-    const best = data[0];
-    const worst = data[data.length - 1];
-    const totalProfit = data.reduce((s, d) => s + d.m.profit, 0);
-    const totalInv = data.reduce((s, d) => s + d.m.inversion, 0);
-    const bajando = data.filter(d => d.tendencia < -0.1);
-    const sinVentas = data.filter(d => d.m.ventas === 0 && d.m.inversion > 5);
-    let resumen = `<div style="display:grid;gap:8px">`;
-    resumen += `<div>🏆 <strong>Mejor anuncio:</strong> <span style="color:var(--green);font-weight:700">${best.nombre}</span> con Score ${best.score}/100, ROAS ${fmt.roas(best.m.roas)} y ${best.m.ventas} ventas.</div>`;
-    if (escalar > 0) resumen += `<div>🚀 <strong>${escalar} anuncio${escalar>1?'s':''} para escalar</strong> — tienen Score ≥ 70. Considera aumentar presupuesto.</div>`;
-    if (pausar > 0) resumen += `<div>🛑 <strong>${pausar} anuncio${pausar>1?'s':''} para pausar</strong> — Score < 30. Están quemando presupuesto sin retorno.</div>`;
-    if (bajando.length > 0) resumen += `<div>📉 <strong>${bajando.length} anuncio${bajando.length>1?'s':''} bajando</strong> — su ROAS está cayendo vs el período anterior: ${bajando.slice(0,3).map(d=>'<em>'+d.nombre+'</em>').join(', ')}.</div>`;
-    if (sinVentas.length > 0) resumen += `<div>💸 <strong>${sinVentas.length} anuncio${sinVentas.length>1?'s':''} con gasto pero sin ventas</strong> — revisa segmentación o creativos.</div>`;
-    resumen += `<div>💰 <strong>Profit total del período:</strong> <span style="color:${totalProfit>=0?'var(--green)':'var(--red)'}; font-weight:700">${fmt.s(totalProfit)}</span> sobre inversión de ${fmt.s(totalInv)}.</div>`;
-    resumen += `</div>`;
-    resumenEl.innerHTML = resumen;
+  if (resumenEl && _analyzerData.length) {
+    const all = [..._analyzerData].sort((a,b)=>b.score-a.score);   // insights sobre TODO, no el filtro
+    const best = all[0];
+    const totalProfit = all.reduce((s, d) => s + d.m.profit, 0);
+    const totalInv = all.reduce((s, d) => s + d.m.inversion, 0);
+    const bEscalar = all.filter(d => _bucketDe(d) === 'escalar');
+    const bPausar  = all.filter(d => _bucketDe(d) === 'pausar');
+    const bProm    = all.filter(d => _bucketDe(d) === 'prometedor');
+    const ins = [];   // { pri, html }  — se ordenan por prioridad
+    // 1) Fuga de dinero (lo más urgente): pérdida acumulada de los PAUSAR
+    if (bPausar.length) {
+      const fuga = bPausar.reduce((s,d)=>s + Math.min(d.m.profit, 0), 0);
+      const diario = bPausar.reduce((s,d)=>s + d.gastoDiario, 0);
+      const pl = bPausar.length>1;
+      ins.push({ pri: 1, html: `🛑 <strong>Fuga de dinero:</strong> ${bPausar.length} anuncio${pl?'s':''} en rojo te ${fuga<0?`${pl?'costaron':'costó'} <b style="color:var(--red)">${fmt.s(Math.abs(fuga))}</b> este período`:`${pl?'están':'está'} sin retorno`} y ${pl?'siguen':'sigue'} gastando ~<b>${fmt.s(diario)}/día</b>: ${bPausar.slice(0,3).map(d=>`<em>${d.nombre}</em>`).join(', ')}${bPausar.length>3?'…':''}. Pausarlo${pl?'s':''} hoy corta la pérdida.` });
+    }
+    // 2) Reasignación con impacto estimado (pausar → escalar)
+    if (bPausar.length && bEscalar.length) {
+      const liberado = bPausar.reduce((s,d)=>s + d.gastoDiario, 0);
+      const roasDest = bEscalar.reduce((s,d)=>s + d.m.roas * d.m.inversion, 0) / Math.max(bEscalar.reduce((s,d)=>s + d.m.inversion, 0), 0.01);
+      const impactoDia = liberado * (roasDest * 0.8 - 1);   // 0.8 = factor conservador (el ROAS decae al escalar)
+      if (impactoDia > 0) ins.push({ pri: 2, html: `♻️ <strong>Reasignación sugerida:</strong> mover los ~<b>${fmt.s(liberado)}/día</b> de los anuncios en rojo hacia ${bEscalar.slice(0,2).map(d=>`<em>${d.nombre}</em>`).join(' y ')} (ROAS prom. ${fmt.roas(roasDest)}) generaría ≈ <b style="color:var(--green)">+${fmt.s(impactoDia)}/día</b> (~${fmt.s(impactoDia*30)}/mes) de profit adicional. <span style="color:var(--text3)">Estimación conservadora (×0.8 por decaimiento al escalar).</span>` });
+    }
+    // 3) Escalar con monto concreto
+    if (bEscalar.length) {
+      const e = bEscalar[0];
+      ins.push({ pri: 3, html: `🚀 <strong>Listo para escalar:</strong> <em>${e.nombre}</em> — Score ${e.score}, ROAS ${fmt.roas(e.m.roas)}, confianza ${e.conf.nivel}. Sube su presupuesto de ~${fmt.s(e.gastoDiario)}/día a <b>${fmt.s(e.gastoDiario*1.25)}/día</b> (+25%) y evalúa en 48h.${bEscalar.length>1?` Igual ${bEscalar.length-1} más en el chip 🚀.`:''}` });
+    }
+    // 4) Fatiga creativa: cayendo sostenido con evidencia
+    const fatiga = all.filter(d => d.tendencia < -0.25 && d.conf.nivel !== 'baja' && d.diasActivos >= 5);
+    if (fatiga.length) ins.push({ pri: 4, html: `🎨 <strong>Fatiga creativa:</strong> ${fatiga.slice(0,3).map(d=>`<em>${d.nombre}</em>`).join(', ')} lleva${fatiga.length>1?'n':''} días cayendo de forma sostenida — el creativo se está agotando. Prepara variantes nuevas ANTES de que cruce${fatiga.length>1?'n':''} a pérdida.` });
+    // 5) Estrellas nacientes
+    if (bProm.length) ins.push({ pri: 5, html: `🌱 <strong>Prometedor${bProm.length>1?'es':''}:</strong> ${bProm.slice(0,3).map(d=>`<em>${d.nombre}</em> (Score ${d.score}, ${d.diasActivos}d)`).join(', ')} — números excelentes pero pocos datos. No escales aún: deja correr 2-3 días con el mismo presupuesto.` });
+    // 6) Riesgo de concentración
+    const profitPos = all.filter(d=>d.m.profit>0);
+    if (profitPos.length > 1) {
+      const totPos = profitPos.reduce((s,d)=>s+d.m.profit,0);
+      const topShare = Math.max(...profitPos.map(d=>d.m.profit)) / Math.max(totPos, 0.01);
+      if (topShare >= 0.6) {
+        const top = profitPos.sort((a,b)=>b.m.profit-a.m.profit)[0];
+        ins.push({ pri: 6, html: `⚖️ <strong>Riesgo de concentración:</strong> el ${(topShare*100).toFixed(0)}% de tu profit depende de <em>${top.nombre}</em>. Si se satura o lo rechazan, pierdes casi todo — ten 1-2 creativos de respaldo probándose.` });
+      }
+    }
+    // 7) Mejor día de la semana (si hay ≥ 8 días con datos)
+    try {
+      const regsPer = all.flatMap(d=>d.rs);
+      const porDow = {};
+      const P = DB.config;
+      regsPer.forEach(r => {
+        const dow = new Date(r.fecha+'T12:00:00').getDay();
+        const g = (+r.gasto_meta||0)+(+r.gasto_tiktok||0);
+        const ing = (+r.v1||0)*P.p1+(+r.v2||0)*P.p2+(+r.v3||0)*P.p3+(+r.v4||0)*P.p4+(+r.upsell_total||0);
+        const x = porDow[dow] || (porDow[dow] = { p:0, dias:new Set() });
+        x.p += ing - g; x.dias.add(r.fecha);
+      });
+      const dias = Object.entries(porDow).filter(([,x])=>x.dias.size>0).map(([dow,x])=>({ dow:+dow, avg:x.p/x.dias.size, n:x.dias.size }));
+      const totalDias = new Set(regsPer.map(r=>r.fecha)).size;
+      if (totalDias >= 8 && dias.length >= 3) {
+        const NOM = ['domingos','lunes','martes','miércoles','jueves','viernes','sábados'];
+        const mejor = [...dias].sort((a,b)=>b.avg-a.avg)[0];
+        const peor  = [...dias].sort((a,b)=>a.avg-b.avg)[0];
+        if (mejor.dow !== peor.dow) ins.push({ pri: 7, html: `📅 <strong>Patrón semanal:</strong> tus <b>${NOM[mejor.dow]}</b> promedian <b style="color:var(--green)">${fmt.s(mejor.avg)}</b> de profit/día vs <b style="color:${peor.avg<0?'var(--red)':'var(--text)'}">${fmt.s(peor.avg)}</b> los ${NOM[peor.dow]}. Considera subir presupuesto los ${NOM[mejor.dow]}.` });
+      }
+    } catch(e) {}
+    // Cierre: mejor anuncio + totales
+    ins.push({ pri: 8, html: `🏆 <strong>Mejor anuncio:</strong> <span style="color:var(--green);font-weight:700">${best.nombre}</span> (Score ${best.score}, ROAS ${fmt.roas(best.m.roas)}, ${best.m.ventas} ventas, confianza ${best.conf.nivel}). 💰 <strong>Profit total:</strong> <span style="color:${totalProfit>=0?'var(--green)':'var(--red)'};font-weight:700">${fmt.s(totalProfit)}</span> sobre ${fmt.s(totalInv)} invertidos.` });
+    resumenEl.innerHTML = `<div style="display:grid;gap:9px">` + ins.sort((a,b)=>a.pri-b.pri).map(i=>`<div>${i.html}</div>`).join('') + `</div>`;
   } else if (resumenEl) {
-    resumenEl.innerHTML = '<span style="color:var(--text3)">Sin datos suficientes para generar resumen.</span>';
+    resumenEl.innerHTML = '<span style="color:var(--text3)">Sin datos suficientes para generar insights.</span>';
   }
 
   // Ranking visual (cards)
@@ -6166,23 +6287,32 @@ function renderAnalyzerUI() {
   if (!data.length) {
     rankEl.innerHTML = '<div style="padding:40px;text-align:center;color:var(--text3)">Sin datos suficientes. Ajusta los filtros o el mínimo de gasto.</div>';
   } else {
+    // Benchmarks del producto (ponderados) para el detalle expandible
+    const _bm = (() => {
+      const t = { impr:0, clics:0, chats:0, ventas:0, inv:0 };
+      _analyzerData.forEach(d => { t.impr+=d.m.impr; t.clics+=d.m.clics; t.chats+=d.m.chats; t.ventas+=d.m.ventas; t.inv+=d.m.inversion; });
+      return { ctr: t.impr>0?t.clics/t.impr:0, conv: t.chats>0?t.ventas/t.chats:0, cpa: t.ventas>0?t.inv/t.ventas:0 };
+    })();
+    window._analyzerBench = _bm;
     rankEl.innerHTML = data.map((d, i) => {
       const scoreColor = d.score >= 70 ? 'var(--green)' : d.score >= 50 ? 'var(--accent)' : d.score >= 30 ? 'var(--orange)' : 'var(--red)';
-      const scoreBg = d.score >= 70 ? 'var(--green-dim)' : d.score >= 50 ? 'var(--accent-dim)' : d.score >= 30 ? 'var(--orange-dim)' : 'var(--red-dim)';
       const medal = i === 0 ? '🥇' : i === 1 ? '🥈' : i === 2 ? '🥉' : `#${i + 1}`;
       const barW = Math.max(d.score, 2);
-      return `<div style="display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);transition:background 0.1s" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
+      const confCol = d.conf.nivel==='alta' ? 'var(--green)' : d.conf.nivel==='media' ? 'var(--orange)' : 'var(--red)';
+      return `<div onclick="analyzerToggleDet(${i})" style="cursor:pointer;display:flex;align-items:center;gap:12px;padding:12px 16px;border-bottom:1px solid var(--border);transition:background 0.1s" onmouseover="this.style.background='var(--bg3)'" onmouseout="this.style.background=''">
         <div style="min-width:32px;text-align:center;font-size:${i < 3 ? '18px' : '12px'};font-weight:700;color:var(--text2)">${medal}</div>
         <div style="flex:1;min-width:0">
           <div style="display:flex;align-items:center;gap:8px;margin-bottom:4px">
             <span style="font-size:13px;font-weight:700;color:var(--text);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:180px">${d.nombre}</span>
             <span style="font-size:10px;color:var(--text3);overflow:hidden;text-overflow:ellipsis;white-space:nowrap;max-width:120px">${d.campana}</span>
+            ${d.saturando ? '<span style="font-size:9px;font-weight:700;color:var(--orange);background:var(--orange-dim);padding:1px 6px;border-radius:8px">SATURANDO</span>' : ''}
           </div>
           <div style="display:flex;align-items:center;gap:6px">
             <div style="flex:1;height:8px;background:var(--bg4);border-radius:4px;overflow:hidden;max-width:200px">
               <div style="height:100%;width:${barW}%;background:${scoreColor};border-radius:4px;transition:width 0.4s"></div>
             </div>
             <span style="font-size:10px;color:var(--text3)">${d.diasActivos}d activo</span>
+            <span style="font-size:10px;font-weight:700;color:${confCol}" title="Confianza estadística: días activos + gasto + chats acumulados">● conf. ${d.conf.nivel}</span>
           </div>
         </div>
         <div style="display:flex;align-items:center;gap:16px;flex-shrink:0;flex-wrap:wrap">
@@ -6203,10 +6333,12 @@ function renderAnalyzerUI() {
             <div style="font-size:9px;color:var(--text3)">Ventas</div>
           </div>
           <div style="text-align:center;min-width:70px">${_tendenciaArrow(d.tendencia)}<div style="font-size:9px;color:var(--text3)">Tendencia</div></div>
-          <div style="min-width:90px"><span class="badge ${d.accion.color}" style="font-size:11px;padding:4px 10px">${d.accion.emoji} ${d.accion.nombre}</span></div>
+          <div style="min-width:90px"><span class="badge ${d.accion.color}" style="font-size:11px;padding:4px 10px" title="${d.accion.motivo||''}">${d.accion.emoji} ${d.accion.nombre}</span></div>
         </div>
-      </div>`;
+      </div>
+      <div id="anal-det-${i}" style="display:none;padding:12px 16px 16px 60px;border-bottom:1px solid var(--border);background:var(--bg3)"></div>`;
     }).join('');
+    window._analyzerView = data;   // para el detalle expandible
   }
 
   // Chart: Score por anuncio (horizontal bar)
@@ -6309,7 +6441,7 @@ function renderAnalyzerUI() {
   // Tabla detallada
   const tbody = document.getElementById('analyzer-tbody');
   if (!data.length) {
-    tbody.innerHTML = '<tr><td colspan="21" style="text-align:center;color:var(--text3);padding:28px">Sin datos suficientes. Ajusta los filtros.</td></tr>';
+    tbody.innerHTML = '<tr><td colspan="22" style="text-align:center;color:var(--text3);padding:28px">Sin datos suficientes. Ajusta los filtros.</td></tr>';
     return;
   }
   tbody.innerHTML = data.map((d, i) => {
@@ -6320,8 +6452,9 @@ function renderAnalyzerUI() {
       <td style="font-weight:700;color:var(--text2)">${i + 1}</td>
       <td class="left" style="font-weight:600;max-width:140px;overflow:hidden;text-overflow:ellipsis">${d.nombre}</td>
       <td style="text-align:center"><span style="display:inline-block;padding:3px 10px;border-radius:20px;font-weight:800;font-size:13px;font-family:var(--mono);color:${scoreColor};background:${d.score >= 70 ? 'var(--green-dim)' : d.score >= 50 ? 'var(--accent-dim)' : d.score >= 30 ? 'var(--orange-dim)' : 'var(--red-dim)'}">${d.score}</span></td>
+      <td style="color:${d.conf.nivel==='alta'?'var(--green)':d.conf.nivel==='media'?'var(--orange)':'var(--red)'};font-weight:700">● ${d.conf.nivel}</td>
       <td>${_tendenciaArrow(d.tendencia)}</td>
-      <td><span class="badge ${d.accion.color}">${d.accion.emoji} ${d.accion.nombre}</span></td>
+      <td><span class="badge ${d.accion.color}" title="${d.accion.motivo||''}">${d.accion.emoji} ${d.accion.nombre}</span></td>
       <td style="color:${d.m.roas >= 2 ? 'var(--green)' : d.m.roas >= 1 ? 'var(--orange)' : 'var(--red)'};font-weight:700">${fmt.roas(d.m.roas)}</td>
       <td style="color:${d.m.profit >= 0 ? 'var(--green)' : 'var(--red)'}">${fmt.s(d.m.profit)}</td>
       <td>${d.m.ventas}</td>
@@ -6340,6 +6473,60 @@ function renderAnalyzerUI() {
       <td>${sat}</td>
     </tr>`;
   }).join('');
+}
+
+// ── Detalle expandible por anuncio: sparkline diaria + benchmarks + plan ──
+function analyzerToggleDet(i){
+  const el = document.getElementById('anal-det-'+i); if (!el) return;
+  if (el.style.display !== 'none') { el.style.display = 'none'; return; }
+  const d = (window._analyzerView||[])[i]; if (!d) return;
+  const P = DB.config;
+  // Serie diaria (ROAS y gasto)
+  const porDia = {};
+  (d.rs||[]).forEach(r => {
+    const g = (+r.gasto_meta||0)+(+r.gasto_tiktok||0);
+    const ing = (+r.v1||0)*P.p1+(+r.v2||0)*P.p2+(+r.v3||0)*P.p3+(+r.v4||0)*P.p4+(+r.upsell_total||0);
+    const x = porDia[r.fecha] || (porDia[r.fecha] = { g:0, ing:0 });
+    x.g += g; x.ing += ing;
+  });
+  const fechas = Object.keys(porDia).sort();
+  const serie = fechas.map(f => porDia[f].g > 0 ? porDia[f].ing/porDia[f].g : 0);
+  // Sparkline SVG (ROAS diario con línea de breakeven en 1x)
+  const W=260, H=54, n=serie.length;
+  const maxY = Math.max(...serie, 1.2), minY = 0;
+  const px = idx => n>1 ? idx*(W-8)/(n-1)+4 : W/2;
+  const py = v => H-6 - (v-minY)*(H-14)/(maxY-minY||1);
+  const puntos = serie.map((v,idx)=>`${px(idx).toFixed(1)},${py(v).toFixed(1)}`).join(' ');
+  const spark = n>1 ? `<svg width="${W}" height="${H}" style="display:block">
+      <line x1="4" y1="${py(1).toFixed(1)}" x2="${W-4}" y2="${py(1).toFixed(1)}" stroke="var(--border2)" stroke-dasharray="3,3"/>
+      <polyline points="${puntos}" fill="none" stroke="${d.m.roas>=1?'var(--green)':'var(--red)'}" stroke-width="2"/>
+      ${serie.map((v,idx)=>`<circle cx="${px(idx).toFixed(1)}" cy="${py(v).toFixed(1)}" r="2.4" fill="${v>=1?'var(--green)':'var(--red)'}"/>`).join('')}
+    </svg><div style="font-size:9px;color:var(--text3)">ROAS diario · línea punteada = breakeven 1x · ${fmt.date(fechas[0])} → ${fmt.date(fechas[n-1])}</div>`
+    : '<div style="font-size:11px;color:var(--text3)">Un solo día de datos — sin gráfico</div>';
+  // Benchmarks vs promedio del producto
+  const B = window._analyzerBench || { ctr:0, conv:0, cpa:0 };
+  const cmp = (v, ref, invertir) => {
+    if (!ref || !isFinite(v)) return '<span style="color:var(--text3)">—</span>';
+    const pct = (v-ref)/ref*100;
+    const bueno = invertir ? pct < 0 : pct > 0;
+    return `<span style="color:${bueno?'var(--green)':'var(--red)'};font-weight:700">${pct>=0?'+':''}${pct.toFixed(0)}%</span> <span style="color:var(--text3)">vs prom.</span>`;
+  };
+  const chip = (lbl, val, comp) => `<div style="padding:7px 10px;background:var(--bg2);border:1px solid var(--border);border-radius:8px;font-size:11px"><b>${lbl}</b> ${val} · ${comp}</div>`;
+  el.innerHTML = `<div style="display:flex;gap:20px;flex-wrap:wrap;align-items:flex-start">
+    <div>${spark}</div>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+      ${chip('CTR', (d.m.ctr*100).toFixed(2)+'%', cmp(d.m.ctr, B.ctr))}
+      ${chip('Cierre', fmt.pct(d.m.conv), cmp(d.m.conv, B.conv))}
+      ${d.m.ventas>0 ? chip('CPA', fmt.s(d.m.cpv), cmp(d.m.cpv, B.cpa, true)) : ''}
+      ${chip('Consistencia', (d.consistencia*100).toFixed(0)+'/100', d.consistencia>=0.6?'<span style="color:var(--green)">estable</span>':'<span style="color:var(--orange)">variable</span>')}
+    </div>
+    <div style="flex:1;min-width:220px;font-size:12px;line-height:1.6;padding:8px 12px;background:var(--bg2);border-left:3px solid var(--${d.accion.color==='accent'?'accent':d.accion.color==='teal'?'teal':d.accion.color});border-radius:8px">
+      <b>${d.accion.emoji} ${d.accion.nombre}</b> — ${d.accion.motivo||''}
+      ${_bucketDe(d)==='escalar' ? `<br>💡 Presupuesto sugerido: de ~${fmt.s(d.gastoDiario)}/día a <b>${fmt.s(d.gastoDiario*1.25)}/día</b> (+25%), evalúa en 48h.` : ''}
+      ${_bucketDe(d)==='pausar' ? `<br>💡 Pausarlo libera ~<b>${fmt.s(d.gastoDiario)}/día</b> para tus ganadores.` : ''}
+    </div>
+  </div>`;
+  el.style.display = 'block';
 }
 
 // Explica por qué el anuncio #1 destacó: lista las dimensiones donde lidera
@@ -10101,7 +10288,7 @@ function onDashPeriodo() {
 // Default CONFIRMADO: la finalidad de la app es analizar ventas confirmadas (auditadas).
 let DASH_MODE = 'confirmado';
 function _syncModoBtns(){
-  [['dash-modo-proy','dash-modo-conf'],['global-modo-proy','global-modo-conf'],['met-modo-proy','met-modo-conf']].forEach(([pid,cid])=>{
+  [['dash-modo-proy','dash-modo-conf'],['global-modo-proy','global-modo-conf'],['met-modo-proy','met-modo-conf'],['anal-modo-proy','anal-modo-conf']].forEach(([pid,cid])=>{
     const p=document.getElementById(pid), c=document.getElementById(cid);
     if(p&&c){ p.className='btn btn-sm '+(DASH_MODE==='proyectado'?'btn-primary':'btn-ghost'); c.className='btn btn-sm '+(DASH_MODE==='confirmado'?'btn-primary':'btn-ghost'); }
   });
@@ -10119,6 +10306,7 @@ const MET = { sort:'gasto', dir:-1, _last:null };
 const MET_COLS = [
   { k:'anuncio',  l:'Anuncio',          t:'txt' },
   { k:'estado',   l:'Estado',           t:'badge' },
+  { k:'score',    l:'Score',            t:'num' },   // Score del Analyzer Pro (mismo cálculo)
   { k:'gasto',    l:'Importe gastado',  t:'money' },
   { k:'impr',     l:'Impresiones',      t:'num' },
   { k:'cpm',      l:'CPM',              t:'money' },
@@ -10139,7 +10327,7 @@ const MET_COLS = [
   { k:'dias',     l:'Días activos',     t:'num' },
 ];
 const MET_PRESETS = {
-  rendimiento: ['anuncio','estado','gasto','ventas','cpv','ingresos','roas','profit'],
+  rendimiento: ['anuncio','estado','score','gasto','ventas','cpv','ingresos','roas','profit'],
   entrega:     ['anuncio','gasto','impr','cpm','clics','ctr','cpc'],
   interaccion: ['anuncio','clics','chats','cpr','clicChat','conv','ventas'],
   todas:       MET_COLS.map(c=>c.k),
@@ -10232,8 +10420,10 @@ function _metRows(desde, hasta){
     const M = calcMetrics(rs);   // respeta 🟡/🟢 vía DASH_MODE + CICLO_MAP
     if(!M.inversion && !M.ventas && !M.impr && !M.chats) return null;   // fila totalmente vacía
     const dias = new Set(rs.filter(r=>((+r.gasto_meta||0)+(+r.gasto_tiktok||0))>0).map(r=>r.fecha)).size;
+    // Score del Analyzer Pro (mismo motor: tendencia + consistencia + pesos)
+    const score = _calcScore(M, _calcTendencia(adId, desde, hasta), _consistenciaDe(rs)).total;
     return {
-      adId, nombre: nomDe[adId]||'', est: getEstado(M.roas, M.conv, M.inversion),
+      adId, nombre: nomDe[adId]||'', est: getEstado(M.roas, M.conv, M.inversion), score,
       gasto:M.inversion, impr:M.impr, cpm:M.cpm, clics:M.clics, ctr:M.ctr,
       cpc: M.clics>0 ? M.inversion/M.clics : 0,
       chats:M.chats, cpr:M.cpr, clicChat: M.clics>0 ? M.chats/M.clics : 0,
@@ -10283,12 +10473,14 @@ function renderMetricas(){
   tb.innerHTML = rows.map(r=> `<tr onclick="metAbrirAnuncio('${String(r.adId).replace(/'/g,'')}')" style="cursor:pointer">`+cols.map(c=>{
     if(c.k==='anuncio') return `<td style="position:sticky;left:0;background:var(--bg2);z-index:1;max-width:230px"><div style="font-weight:700;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${r.nombre||(r.adId==='SIN_ID'?'Ventas sin Ad ID':'—')}</div><div style="font-size:10px;color:var(--text3);font-family:var(--mono)">${r.adId}</div></td>`;
     if(c.k==='estado') return `<td style="text-align:left">${estadoBadge(r.est)}</td>`;
+    if(c.k==='score'){ const sc=+r.score||0; const scol=sc>=70?'green':sc>=50?'accent':sc>=30?'orange':'red';
+      return `<td style="text-align:right"><span style="display:inline-block;padding:2px 9px;border-radius:14px;font-weight:800;font-family:var(--mono);font-size:12px;color:var(--${scol});background:var(--${scol}-dim)">${sc}</span></td>`; }
     const bg = metFmtBg(c.k, r[c.k], c.t);
     return `<td style="text-align:right;white-space:nowrap${bg?';background:'+bg:''}">${_metFmt(c.t, r[c.k])}</td>`;
   }).join('')+'</tr>').join('') || `<tr><td colspan="${cols.length}" style="text-align:center;color:var(--text3);padding:28px">Sin datos en este período</td></tr>`;
   document.getElementById('met-tfoot').innerHTML = rows.length ? '<tr style="font-weight:800;border-top:2px solid var(--border2)">'+cols.map(c=>{
     if(c.k==='anuncio') return `<td style="position:sticky;left:0;background:var(--bg2)">TOTAL · ${rows.length} anuncio${rows.length===1?'':'s'}</td>`;
-    if(c.k==='estado'||c.k==='dias') return '<td></td>';
+    if(c.k==='estado'||c.k==='dias'||c.k==='score') return '<td></td>';
     return `<td style="text-align:right;white-space:nowrap">${_metFmt(c.t, T[c.k]??0)}</td>`;
   }).join('')+'</tr>' : '';
   const kp=document.getElementById('met-kpis');
