@@ -1,4 +1,4 @@
-const CACHE = 'trakker-v2';
+const CACHE = 'trakker-v3';
 const URLS = ['/tracker-cashflow/'];
 
 self.addEventListener('install', e => {
