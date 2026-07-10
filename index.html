@@ -4069,7 +4069,7 @@ const SUPABASE_URL = 'https://uegooussscihdnnohrff.supabase.co';
 const SUPABASE_ANON_KEY = 'sb_publishable_K1WeBEacSJKm5CA8cv-FPQ_zOdQw79s';
 // La service_role key se eliminó del cliente. Las operaciones privilegiadas
 // (crear/borrar usuarios) viven ahora en la Edge Function 'admin-users'.
-const APPS_SCRIPT_URL ='https://script.google.com/macros/s/AKfycbxi-QGLR8I0_cbOxA21bszBnMULjrXpOcasl4FnPc3trOc1DzJdYk2bPYhAOZcG_0p2ag/exec';
+// (La URL del Apps Script vive en cada FUENTE — ya no hay una constante global.)
 
 // ════════════════════════════════════════════════
 // MOTOR DE CONSOLIDACIÓN DE GASTO (Etapa 2)
@@ -5085,17 +5085,24 @@ async function renderAdminPage() {
 
     const rows = await Promise.all(profiles.map(async p => {
       try {
-        const [regs, cfgs, wss, syncLog, ftes] = await Promise.all([
+        const [regs, cfgs, wss, ftes] = await Promise.all([
           api.get('registros', `user_id=eq.${p.id}&select=gasto_meta,gasto_tiktok,v1,v2,v3,v4&limit=5000`),
           api.get('config', `user_id=eq.${p.id}&select=sheets_url,script_url,meta_token&limit=10`).catch(()=>[]),
           api.get('workspaces', `user_id=eq.${p.id}&select=id,nombre&limit=10`).catch(()=>[]),
-          api.get('sync_log', `id=like.last_sync_*&order=synced_at.desc&limit=1`).catch(()=>[]),
           api.get('fuentes', `user_id=eq.${p.id}&select=sheets_url,meta_token&limit=10`).catch(()=>[]),
         ]);
         const m = calcMetrics(regs);
         const totalVentas = regs.reduce((s,r)=>(s+(+r.v1||0)+(+r.v2||0)+(+r.v3||0)+(+r.v4||0)),0);
         const cfg = cfgs[0] || {};
-        const lastSync = syncLog[0]?.synced_at || null;
+        // Último sync DE ESTE usuario: sync_log se filtra por SUS workspaces
+        // (antes era una consulta global → mostraba el sync de cualquier usuario)
+        let lastSync = null;
+        try {
+          if (wss.length) {
+            const sl = await api.get('sync_log', `id=in.(${wss.map(w=>`last_sync_${w.id}`).join(',')})&order=synced_at.desc&limit=1`);
+            lastSync = sl[0]?.synced_at || null;
+          }
+        } catch(e) {}
         // Sheet/token pueden vivir en las fuentes (modelo multi-bot) o en config (legado)
         return { ...p, m, totalVentas,
           sheetsOk: !!cfg.sheets_url || (ftes||[]).some(f=>f.sheets_url),
@@ -9333,8 +9340,16 @@ async function deleteFuente() {
 }
 
 // ── Sincronización automática por INTERVALO (cliente, mientras la app está abierta) ──
+// ── Preferencias locales POR USUARIO ──
+// Antes eran claves compartidas del navegador: dos cuentas en la misma PC se
+// pisaban el nombre del saludo y el intervalo de auto-sync entre sí.
+function _prefKey(base){ return `${base}_${CURRENT_USER?.id || 'anon'}`; }
+function prefGet(base){ return localStorage.getItem(_prefKey(base)); }
+function prefSet(base, v){ localStorage.setItem(_prefKey(base), v); localStorage.removeItem(base); }
+function prefDel(base){ localStorage.removeItem(_prefKey(base)); localStorage.removeItem(base); }
+
 let _autoSyncTimer = null;
-function autoSyncMin(){ return parseInt(localStorage.getItem('trakker_autosync_min') || '0', 10) || 0; }
+function autoSyncMin(){ return parseInt(prefGet('trakker_autosync_min') || '0', 10) || 0; }
 async function runAutoSync(){
   // Sin ningún Sheet (ni legado ni en fuentes) no hay nada que sincronizar
   if (!DB.config?.sheets_url && !(DB.fuentes || []).some(f => f.sheets_url)) return;
@@ -9344,7 +9359,7 @@ async function runAutoSync(){
       method: 'POST', headers: { ...api._h(), 'Content-Type': 'application/json' }, body: JSON.stringify({ days: 5 })
     });
     if (res.ok){
-      localStorage.setItem('trakker_autosync_last', String(Date.now()));
+      prefSet('trakker_autosync_last', String(Date.now()));
       _upsertSyncCfg({ ultima_intervalo: new Date().toISOString() }).catch(()=>{}); // marca para que el cron no duplique
       // refrescar la vista actual + los KPIs globales del Hub (si no, el círculo queda con datos viejos)
       try { await loadAll(); } catch(e){}
@@ -9360,14 +9375,14 @@ function startAutoSyncInterval(){
   const min = autoSyncMin();
   if (!min) { updateAutoSyncIntLabel(); return; }
   const ms = min * 60000;
-  const last = +localStorage.getItem('trakker_autosync_last') || 0;
+  const last = +prefGet('trakker_autosync_last') || 0;
   if (Date.now() - last > ms) setTimeout(runAutoSync, 10000); // catch-up tras cargar
   _autoSyncTimer = setInterval(runAutoSync, ms);
   updateAutoSyncIntLabel();
 }
 function setAutoSyncInterval(){
   const sel = document.getElementById('autosync-int'); if (!sel) return;
-  localStorage.setItem('trakker_autosync_min', sel.value);
+  prefSet('trakker_autosync_min', sel.value);
   startAutoSyncInterval();                                  // timer del cliente (app abierta)
   _upsertSyncCfg({ intervalo_min: +sel.value }).catch(()=>{}); // servidor (app CERRADA, vía Edge Function)
   if (typeof showSuccess === 'function') showSuccess(+sel.value ? `✅ Sincronización cada ${sel.options[sel.selectedIndex].text} (también con la app cerrada)` : 'Sincronización por intervalo desactivada');
@@ -9376,7 +9391,7 @@ function updateAutoSyncIntLabel(){
   const est = document.getElementById('autosync-int-estado'); if (!est) return;
   const min = autoSyncMin();
   if (!min){ est.textContent = '○ Desactivada'; return; }
-  const last = +localStorage.getItem('trakker_autosync_last') || 0;
+  const last = +prefGet('trakker_autosync_last') || 0;
   const cada = min < 60 ? `${min} min` : `${min/60} h`;
   est.textContent = `🟢 Activa · cada ${cada}${last ? ` · última: ${new Date(last).toLocaleString('es-PE',{day:'2-digit',month:'2-digit',hour:'2-digit',minute:'2-digit'})}` : ''}`;
 }
@@ -9392,7 +9407,7 @@ async function loadAutosyncConfig() {
   } catch(e) { AUTOSYNC_CFG = null; }
   // El intervalo del servidor manda (corre con la app cerrada); sincroniza el timer del cliente
   if (AUTOSYNC_CFG && AUTOSYNC_CFG.intervalo_min != null){
-    localStorage.setItem('trakker_autosync_min', String(AUTOSYNC_CFG.intervalo_min));
+    prefSet('trakker_autosync_min', String(AUTOSYNC_CFG.intervalo_min));
     const si = document.getElementById('autosync-int'); if (si) si.value = String(AUTOSYNC_CFG.intervalo_min);
     startAutoSyncInterval();
   }
@@ -9779,10 +9794,12 @@ function hubCta(){ const f = window._hubCta; if (typeof f === 'function') f(); }
 async function renderHub(){
   try {
     // Saludo + fecha + tema
-    const saved = (localStorage.getItem('tracker_nombre') || '').trim();
+    // Nombre/género POR USUARIO (antes eran claves compartidas: otra cuenta en la
+    // misma PC veía el saludo del dueño anterior)
+    const saved = (prefGet('tracker_nombre') || '').trim();
     const nick = (CURRENT_USER?.email || '').split('@')[0];
     const cap  = saved || (nick ? nick.charAt(0).toUpperCase() + nick.slice(1) : '');
-    const hola = localStorage.getItem('tracker_genero') === 'f' ? 'Bienvenida' : 'Bienvenido';
+    const hola = prefGet('tracker_genero') === 'f' ? 'Bienvenida' : 'Bienvenido';
     const elS = document.getElementById('hub-saludo'); if (elS) elS.textContent = `${hola}${cap ? ', ' + cap : ''} 👋`;
     const elT = document.getElementById('hub-theme-ico'); if (elT) elT.textContent = document.body.classList.contains('dark') ? '☀️' : '🌙';
 
@@ -9937,18 +9954,18 @@ async function abrirProducto(wsId){
 // ── Configuraciones: nombre para el saludo personalizado del Hub ──
 function renderConfiguracion(){
   const inp = document.getElementById('cfg-nombre');
-  if (inp) inp.value = (localStorage.getItem('tracker_nombre') || '').trim();
+  if (inp) inp.value = (prefGet('tracker_nombre') || '').trim();
   const gen = document.getElementById('cfg-genero');
-  if (gen) gen.value = localStorage.getItem('tracker_genero') === 'f' ? 'f' : 'm';
+  if (gen) gen.value = prefGet('tracker_genero') === 'f' ? 'f' : 'm';
   const adm = document.getElementById('cfg-admin-card');
   if (adm) adm.style.display = IS_ADMIN ? 'flex' : 'none';
 }
 function guardarNombre(){
   const inp = document.getElementById('cfg-nombre'); if (!inp) return;
   const v = inp.value.trim();
-  if (v) localStorage.setItem('tracker_nombre', v); else localStorage.removeItem('tracker_nombre');
+  if (v) prefSet('tracker_nombre', v); else prefDel('tracker_nombre');
   const gen = document.getElementById('cfg-genero');
-  if (gen) localStorage.setItem('tracker_genero', gen.value === 'f' ? 'f' : 'm');
+  if (gen) prefSet('tracker_genero', gen.value === 'f' ? 'f' : 'm');
   if (typeof showSuccess === 'function') showSuccess('✅ Guardado');
   try { renderHub(); } catch(e){}
 }
