@@ -10909,13 +10909,21 @@ function validacionTxt(rows) { return _validacionTxtFromRes(validacionResumen(ro
 
 // Conteo exacto por consultas COUNT (no trae filas → inmune al tope de ~1000).
 // `params` = filtro base, ej. `workspace_id=in.(a,b)&fecha=gte.X&fecha=lte.Y`.
+// Filtro de usuario para consultas SIN scope de workspace. Los ADMIN pueden leer
+// filas de otros usuarios vía RLS (así funciona el Panel Admin) → sin este filtro,
+// la cola de Conciliación mezclaba ventas de otras cuentas (ej. las de la pareja).
+function userScopeQ(){
+  const uid = (typeof ADMIN_VIEWING_USER_ID !== 'undefined' && ADMIN_VIEWING_USER_ID) || CURRENT_USER?.id;
+  return uid ? `&user_id=eq.${uid}` : '';
+}
 async function validacionConteo(params) {
   const q = params ? params + '&' : '';
+  const uq = userScopeQ();
   const [val, pend, err, rev] = await Promise.all([
-    api.count('crm_ventas', `${q}ciclo=eq.finalizado`),
-    api.count('crm_ventas', `${q}ciclo=eq.pendiente`),
-    api.count('crm_ventas', `${q}ciclo=eq.en_proceso&estado_verif=in.(sin_match,fantasma)`),
-    api.count('crm_ventas', `${q}ciclo=eq.en_proceso&estado_verif=not.in.(sin_match,fantasma)`),
+    api.count('crm_ventas', `${q}ciclo=eq.finalizado${uq}`),
+    api.count('crm_ventas', `${q}ciclo=eq.pendiente${uq}`),
+    api.count('crm_ventas', `${q}ciclo=eq.en_proceso&estado_verif=in.(sin_match,fantasma)${uq}`),
+    api.count('crm_ventas', `${q}ciclo=eq.en_proceso&estado_verif=not.in.(sin_match,fantasma)${uq}`),
   ]);
   const total = val + pend + rev + err;
   return { val, pend, rev, err, total, pct: total ? Math.round(val / total * 100) : 0 };
@@ -15417,7 +15425,7 @@ init();
       const traer = async (cic) => {
         let out = [], offset = 0;
         while (true) {
-          const page = await api.get('crm_ventas', `ciclo=eq.${cic}&${sel}&order=fecha.desc&limit=1000&offset=${offset}${fechaQ}`).catch(()=>[]);
+          const page = await api.get('crm_ventas', `ciclo=eq.${cic}&${sel}&order=fecha.desc&limit=1000&offset=${offset}${fechaQ}${userScopeQ()}`).catch(()=>[]);
           out.push(...page);
           if (page.length < 1000) break;
           offset += 1000;
@@ -15463,7 +15471,7 @@ init();
   window.concVerDescartadas = async function(){
     const fechaQ = (CONC.desde?`&fecha=gte.${CONC.desde}`:'') + (CONC.hasta?`&fecha=lte.${CONC.hasta}`:'');
     const sel = 'select=id,fecha,ad_id,hora,precio,workspace_id,telefono,producto,cliente,origen,estado_verif,ciclo,sincronizado_at,conciliado_at,historial,fuente_uid';
-    const rows = await api.get('crm_ventas', `ciclo=eq.descartado&${sel}&order=fecha.desc&limit=2000${fechaQ}`).catch(()=>[]);
+    const rows = await api.get('crm_ventas', `ciclo=eq.descartado&${sel}&order=fecha.desc&limit=2000${fechaQ}${userScopeQ()}`).catch(()=>[]);
     if(!rows.length){ if(typeof showSuccess==='function') showSuccess('No hay ventas descartadas en este periodo'); return; }
     const existentes = new Set(CONC.ventas.map(v=>String(v.id)));
     const wsFuente = {}; (DB.workspaces||[]).forEach(w => { wsFuente[w.id] = w.fuente_id; });
@@ -15493,7 +15501,7 @@ init();
     const guia = document.getElementById('conc-bandeja-guia');
     try{
       const r = await validacionConteo('');
-      const desc = await api.count('crm_ventas', 'ciclo=eq.descartado');
+      const desc = await api.count('crm_ventas', 'ciclo=eq.descartado' + userScopeQ());
       box.innerHTML = [
         kpiCard('Validadas', r.val, r.val?'green':'teal', `${r.pct}% del total`),
         kpiCard('Pendientes', r.pend, r.pend?'orange':'green', '⚪ en cola'),
@@ -15567,8 +15575,8 @@ init();
     if (CONC._sheetAll.length) return CONC._sheetAll.filter(v => v.fecha >= desde && v.fecha <= hasta);
     // Fallback: crm_ventas (copia sincronizada) si no hay Sheet accesible
     const baseQ = `fecha=gte.${desde}&fecha=lte.${hasta}`;
-    return await api.get('crm_ventas', `${baseQ}&select=id,fecha,ad_id,hora,precio,workspace_id,telefono,producto,cliente`).catch(async()=>
-      await api.get('crm_ventas', `${baseQ}&select=id,fecha,ad_id,hora,precio,workspace_id`)).catch(()=>[]);
+    return await api.get('crm_ventas', `${baseQ}${userScopeQ()}&select=id,fecha,ad_id,hora,precio,workspace_id,telefono,producto,cliente`).catch(async()=>
+      await api.get('crm_ventas', `${baseQ}${userScopeQ()}&select=id,fecha,ad_id,hora,precio,workspace_id`)).catch(()=>[]);
   }
 
   // ── Paso 3: superpone el reporte del banco sobre la COLA ya cargada ──
