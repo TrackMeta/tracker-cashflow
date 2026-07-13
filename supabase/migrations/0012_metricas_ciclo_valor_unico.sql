@@ -13,6 +13,10 @@
 -- security invoker → respeta RLS.
 -- ============================================================================
 
+-- La firma de retorno cambia respecto de 0010 (nuevas columnas), y Postgres no
+-- permite cambiar el tipo de retorno con CREATE OR REPLACE → hay que DROP primero.
+drop function if exists public.metricas_ciclo_por_ad(date, date);
+
 create or replace function public.metricas_ciclo_por_ad(p_desde date, p_hasta date)
 returns table (
   workspace_id   uuid,
