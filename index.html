@@ -1709,7 +1709,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       </div>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th><input type="checkbox" id="sel-all" onchange="toggleAll(this)"></th><th>Fecha</th><th>Ad ID</th><th>Producto</th><th>V.P1</th><th>V.P2</th><th>V.P3</th><th>V.P4</th><th>Total</th><th>Ingresos S/</th><th>Estado</th></tr></thead>
+          <thead><tr><th><input type="checkbox" id="sel-all" onchange="toggleAll(this)"></th><th>Fecha</th><th>Ad ID</th><th>Producto</th><th>Ventas</th><th>Ingresos S/</th><th>Estado</th></tr></thead>
           <tbody id="import-tbody"></tbody>
         </table>
       </div>
@@ -2182,7 +2182,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <div class="panel-header"><span class="panel-title">Detalle por anuncio</span></div>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>Creativo</th><th>P1</th><th>P2</th><th>P3</th><th>P4</th><th>% P1</th></tr></thead>
+          <thead><tr><th>Creativo</th><th>Ventas</th><th>Desglose por precio</th><th>% Directa</th></tr></thead>
           <tbody id="rem-tbody"></tbody>
         </table>
       </div>
@@ -2908,12 +2908,9 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 <div class="modal-overlay" id="modal-config">
   <div class="modal">
     <div class="modal-header"><span class="modal-title">⚙️ Configuración</span><button class="modal-close" onclick="closeModal('modal-config')">×</button></div>
-    <div class="modal-section">💰 Precios de este producto</div>
+    <div class="modal-section">💰 Precio de referencia</div>
     <div class="form-row form-2" style="margin-top:8px">
-      <div class="field"><label>Precio Original (S/)</label><input type="number" id="cfg-p1"></div>
-      <div class="field"><label>Remarketing 1 (S/)</label><input type="number" id="cfg-p2"></div>
-      <div class="field"><label>Remarketing 2 (S/)</label><input type="number" id="cfg-p3"></div>
-      <div class="field"><label>Remarketing 3 (S/)</label><input type="number" id="cfg-p4"></div>
+      <div class="field"><label>Precio objetivo (S/)</label><input type="number" id="cfg-p1"><span style="font-size:10px;color:var(--text3);margin-top:3px;display:block">Precio principal del producto. Se usa como referencia para el CPA (costo por venta) y el score. Los ingresos reales salen del valor de cada venta del Sheet, no de aquí.</span></div>
       <div class="field"><label>Tipo de cambio → USD</label><input type="number" id="cfg-tc" step="0.1"><span style="font-size:10px;color:var(--text3);margin-top:3px;display:block">Es la misma tasa que ves en Editar Producto. Cambiarla aquí la actualiza en ambos lados.</span></div>
     </div>
     <div class="modal-section" style="margin-top:14px">🚨 Umbrales de alerta</div>
@@ -3001,12 +2998,10 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     </div>
 
     <!-- Ventas -->
-    <div class="modal-section">🛒 Ventas por precio</div>
-    <div class="form-row form-4">
-      <div class="field"><label>P. Original (S/<span id="nr-p1-lbl">10</span>)</label><input type="number" id="nr-v1" value="0" oninput="updatePreview()"></div>
-      <div class="field"><label>Remarketing 1 (S/<span id="nr-p2-lbl">7</span>)</label><input type="number" id="nr-v2" value="0" oninput="updatePreview()"></div>
-      <div class="field"><label>Remarketing 2 (S/<span id="nr-p3-lbl">5</span>)</label><input type="number" id="nr-v3" value="0" oninput="updatePreview()"></div>
-      <div class="field"><label>Remarketing 3 (S/<span id="nr-p4-lbl">3</span>)</label><input type="number" id="nr-v4" value="0" oninput="updatePreview()"></div>
+    <div class="modal-section">🛒 Ventas</div>
+    <div class="form-row form-2">
+      <div class="field"><label>Cantidad de ventas</label><input type="number" id="nr-ventas" value="0" min="0" step="1" oninput="updatePreview()"></div>
+      <div class="field"><label>Ingreso total (S/)</label><input type="number" id="nr-ingresos" value="0" min="0" step="0.01" oninput="updatePreview()"></div>
     </div>
 
     <!-- Upsells -->
@@ -3605,18 +3600,11 @@ async function reconstruirRegistros() {
           const up3 = iUp3>=0 ? parseVal(cols[iUp3]||'') : 0;
           const up4 = iUp4>=0 ? parseVal(cols[iUp4]||'') : 0;
 
-          // Solo comparar contra precios activos (>0) para evitar que P4=0 atraiga montos bajos
-          const activePrices = [[P1,0],[P2,1],[P3,2],[P4,3]].filter(([p])=>p>0);
-          const match = activePrices.find(([p])=>Math.abs(valor-p)<0.50);
-          const mi = match ? match[1] : activePrices.reduce((best,[p,i])=>Math.abs(valor-p)<Math.abs(valor-activePrices[best][0])?i:best, 0);
-
           // Clave incluye producto para separar Ad IDs reutilizados entre productos
           const key = `${fecha}||${adId}||${prodNorm}`;
-          if (!grupos[key]) grupos[key] = { fecha, adId, v1:0, v2:0, v3:0, v4:0, upsell:0, wsId };
-          if (mi===0) grupos[key].v1++;
-          else if (mi===1) grupos[key].v2++;
-          else if (mi===2) grupos[key].v3++;
-          else grupos[key].v4++;
+          if (!grupos[key]) grupos[key] = { fecha, adId, ventas:0, ingresos:0, upsell:0, wsId };
+          // Modelo de valor único: cada venta suma su precio real.
+          if (valor > 0) { grupos[key].ventas++; grupos[key].ingresos += valor; }
           grupos[key].upsell += up1+up2+up3+up4;
         });
 
@@ -3625,7 +3613,7 @@ async function reconstruirRegistros() {
         for (const g of Object.values(grupos)) {
           const rKey = `${g.wsId}||${g.adId}||${g.fecha}`;
           if (!registrosMap[rKey]) { registrosMap[rKey] = { ...g }; }
-          else { registrosMap[rKey].v1+=g.v1; registrosMap[rKey].v2+=g.v2; registrosMap[rKey].v3+=g.v3; registrosMap[rKey].v4+=g.v4; registrosMap[rKey].upsell+=g.upsell; }
+          else { registrosMap[rKey].ventas+=g.ventas; registrosMap[rKey].ingresos+=g.ingresos; registrosMap[rKey].upsell+=g.upsell; }
         }
         const registros = Object.values(registrosMap);
         if (!registros.length) {
@@ -3633,7 +3621,7 @@ async function reconstruirRegistros() {
           btn.disabled=false; btn.textContent='📊 Reconstruir desde CSV'; return;
         }
 
-        const confirm1 = confirm(`⚠️ Esto actualizará ${registros.length} registros de TODOS los productos que tengan Ad IDs en este CSV.\n\nSolo se actualizarán las columnas de ventas (P1, P2, P3, P4, Upsells).\nEl gasto de Meta Ads NO se tocará.\n\n¿Continuar?`);
+        const confirm1 = confirm(`⚠️ Esto actualizará ${registros.length} registros de TODOS los productos que tengan Ad IDs en este CSV.\n\nSolo se actualizarán las columnas de ventas (Ventas, Ingresos, Upsells).\nEl gasto de Meta Ads NO se tocará.\n\n¿Continuar?`);
         if (!confirm1) { btn.disabled=false; btn.textContent='📊 Reconstruir desde CSV'; return; }
 
         btn.textContent = `⏳ Actualizando ${registros.length} registros...`;
@@ -3651,7 +3639,7 @@ async function reconstruirRegistros() {
               },
               body: JSON.stringify([{
                 fecha: r.fecha, ad_id: r.adId,
-                v1:0, v2:0, v3:0, v4:0, upsell_total:0,
+                ventas:0, ingresos:0, v1:0, v2:0, v3:0, v4:0, upsell_total:0,
                 gasto_meta:0, impr_meta:0, clics_meta:0, chats_meta:0,
                 workspace_id: wsId, user_id: CURRENT_USER?.id
               }])
@@ -3664,7 +3652,7 @@ async function reconstruirRegistros() {
                 ...api._h(),
                 'Prefer': 'return=minimal'
               },
-              body: JSON.stringify({ v1: r.v1, v2: r.v2, v3: r.v3, v4: r.v4, upsell_total: r.upsell })
+              body: JSON.stringify({ ventas: r.ventas, ingresos: r.ingresos, v1:0, v2:0, v3:0, v4:0, upsell_total: r.upsell })
             });
             actualizados++;
           } catch(err) { console.warn('Error en registro', r.fecha, r.adId, err); }
@@ -3910,13 +3898,11 @@ function procesarFila(sheet, row) {
   var up2=iUp2>=0?(parseFloat((row_data[iUp2]||'0').toString().replace(/[^0-9.]/g,''))||0):0;
   var up3=iUp3>=0?(parseFloat((row_data[iUp3]||'0').toString().replace(/[^0-9.]/g,''))||0):0;
   var up4=iUp4>=0?(parseFloat((row_data[iUp4]||'0').toString().replace(/[^0-9.]/g,''))||0):0;
-  var diffs=[Math.abs(valor-P1),Math.abs(valor-P2),Math.abs(valor-P3),Math.abs(valor-P4)];
-  var mi=diffs.indexOf(Math.min.apply(null,diffs));
-  var v1=0,v2=0,v3=0,v4=0; if(mi===0)v1=1;else if(mi===1)v2=1;else if(mi===2)v3=1;else v4=1;
-  var res=supabaseFetch('POST','/rest/v1/registros',[{fecha:fecha,ad_id:adId,v1:0,v2:0,v3:0,v4:0,upsell_total:0,gasto_meta:0,impr_meta:0,clics_meta:0,chats_meta:0,workspace_id:wsId,user_id:USER_ID}],{'Prefer':'return=minimal'});
-  var actual=supabaseFetch('GET','/rest/v1/registros?workspace_id=eq.'+wsId+'&fecha=eq.'+fecha+'&ad_id=eq.'+encodeURIComponent(adId)+'&select=v1,v2,v3,v4,upsell_total',null,{});
-  var cur={v1:0,v2:0,v3:0,v4:0,upsell_total:0}; try{var p2=JSON.parse(actual.getContentText());if(p2&&p2[0])cur=p2[0];}catch(e){}
-  supabaseFetch('PATCH','/rest/v1/registros?workspace_id=eq.'+wsId+'&fecha=eq.'+fecha+'&ad_id=eq.'+encodeURIComponent(adId),{v1:(+cur.v1||0)+v1,v2:(+cur.v2||0)+v2,v3:(+cur.v3||0)+v3,v4:(+cur.v4||0)+v4,upsell_total:(+cur.upsell_total||0)+up1+up2+up3+up4});
+  var esVenta=valor>0?1:0;
+  var res=supabaseFetch('POST','/rest/v1/registros',[{fecha:fecha,ad_id:adId,ventas:0,ingresos:0,v1:0,v2:0,v3:0,v4:0,upsell_total:0,gasto_meta:0,impr_meta:0,clics_meta:0,chats_meta:0,workspace_id:wsId,user_id:USER_ID}],{'Prefer':'return=minimal'});
+  var actual=supabaseFetch('GET','/rest/v1/registros?workspace_id=eq.'+wsId+'&fecha=eq.'+fecha+'&ad_id=eq.'+encodeURIComponent(adId)+'&select=ventas,ingresos,upsell_total',null,{});
+  var cur={ventas:0,ingresos:0,upsell_total:0}; try{var p2=JSON.parse(actual.getContentText());if(p2&&p2[0])cur=p2[0];}catch(e){}
+  supabaseFetch('PATCH','/rest/v1/registros?workspace_id=eq.'+wsId+'&fecha=eq.'+fecha+'&ad_id=eq.'+encodeURIComponent(adId),{ventas:(+cur.ventas||0)+esVenta,ingresos:(+cur.ingresos||0)+(valor>0?valor:0),upsell_total:(+cur.upsell_total||0)+up1+up2+up3+up4});
   if(horaStr) supabaseFetch('POST','/rest/v1/crm_ventas',[{fecha:fecha,ad_id:adId,hora:fecha+'T'+horaStr+'-05:00',precio:valor,workspace_id:wsId,user_id:USER_ID,origen:'sheets',ciclo:'pendiente',estado_verif:'pendiente',sincronizado_at:new Date().toISOString()}],{'Prefer':'resolution=ignore-duplicates,return=minimal'});
   supabaseFetch('POST','/rest/v1/sync_log',[{id:'last_sync_'+wsId,synced_at:new Date().toISOString(),registros:1}],{'Prefer':'resolution=merge-duplicates,return=minimal'});
   console.log('✅ Fila '+row+': '+adId+' → '+wsId+' S/'+valor);
@@ -3950,14 +3936,14 @@ function syncCompleto(forzar) {
     var valor=parseFloat((row[iValor]||'0').toString().replace(/[^0-9.]/g,''))||0;
     var up1=iUp1>=0?(parseFloat((row[iUp1]||'0').toString().replace(/[^0-9.]/g,''))||0):0,up2=iUp2>=0?(parseFloat((row[iUp2]||'0').toString().replace(/[^0-9.]/g,''))||0):0,up3=iUp3>=0?(parseFloat((row[iUp3]||'0').toString().replace(/[^0-9.]/g,''))||0):0,up4=iUp4>=0?(parseFloat((row[iUp4]||'0').toString().replace(/[^0-9.]/g,''))||0):0;
     var key=wsId+'||'+fecha+'||'+adId;
-    if(!grupos[key])grupos[key]={wsId:wsId,fecha:fecha,adId:adId,v1:0,v2:0,v3:0,v4:0,upsell:0};
-    if(valor>0){var activos=[[P1,0],[P2,1],[P3,2],[P4,3]].filter(function(x){return x[0]>0;});var mEx=activos.filter(function(x){return Math.abs(valor-x[0])<0.50;});var mi=mEx.length?mEx[0][1]:activos.reduce(function(bi,x,i){return Math.abs(valor-x[0])<Math.abs(valor-activos[bi][0])?i:bi;},0);if(mi===0)grupos[key].v1++;else if(mi===1)grupos[key].v2++;else if(mi===2)grupos[key].v3++;else grupos[key].v4++;}
+    if(!grupos[key])grupos[key]={wsId:wsId,fecha:fecha,adId:adId,ventas:0,ingresos:0,upsell:0};
+    if(valor>0){grupos[key].ventas++;grupos[key].ingresos+=valor;}
     grupos[key].upsell+=up1+up2+up3+up4;
     if(horaStr&&valor>0)crm.push({fecha:fecha,ad_id:adId,hora:fecha+'T'+horaStr+'-05:00',precio:valor,workspace_id:wsId,user_id:USER_ID,origen:'sheets',ciclo:'pendiente',estado_verif:'pendiente',sincronizado_at:new Date().toISOString()});
   });
   var registros=Object.values(grupos);
-  registros.forEach(function(r){supabaseFetch('POST','/rest/v1/registros',[{fecha:r.fecha,ad_id:r.adId,v1:0,v2:0,v3:0,v4:0,upsell_total:0,gasto_meta:0,impr_meta:0,clics_meta:0,chats_meta:0,workspace_id:r.wsId,user_id:USER_ID}],{'Prefer':'return=minimal'});});
-  registros.forEach(function(r){supabaseFetch('PATCH','/rest/v1/registros?workspace_id=eq.'+r.wsId+'&fecha=eq.'+r.fecha+'&ad_id=eq.'+encodeURIComponent(r.adId),{v1:r.v1,v2:r.v2,v3:r.v3,v4:r.v4,upsell_total:r.upsell});});
+  registros.forEach(function(r){supabaseFetch('POST','/rest/v1/registros',[{fecha:r.fecha,ad_id:r.adId,ventas:0,ingresos:0,v1:0,v2:0,v3:0,v4:0,upsell_total:0,gasto_meta:0,impr_meta:0,clics_meta:0,chats_meta:0,workspace_id:r.wsId,user_id:USER_ID}],{'Prefer':'return=minimal'});});
+  registros.forEach(function(r){supabaseFetch('PATCH','/rest/v1/registros?workspace_id=eq.'+r.wsId+'&fecha=eq.'+r.fecha+'&ad_id=eq.'+encodeURIComponent(r.adId),{ventas:r.ventas,ingresos:r.ingresos,upsell_total:r.upsell});});
   if(crm.length){for(var i=0;i<crm.length;i+=100)supabaseFetch('POST','/rest/v1/crm_ventas',crm.slice(i,i+100),{'Prefer':'resolution=ignore-duplicates,return=minimal'});}
   supabaseFetch('POST','/rest/v1/sync_log',[{id:'last_sync_'+WORKSPACE_ID,synced_at:new Date().toISOString(),registros:registros.length}],{'Prefer':'resolution=merge-duplicates,return=minimal'});
   props.setProperty('lastHash',currentHash);
@@ -4111,7 +4097,7 @@ async function actualizarConsolidacion(wsIds) {
     regs.forEach(r => {
       const d = porFecha[r.fecha] || (porFecha[r.fecha] = { g:0, ing:0 });
       d.g += (+r.gasto_meta||0) + (+r.gasto_tiktok||0);
-      d.ing += (+r.v1||0)*(cfg.p1??10) + (+r.v2||0)*(cfg.p2??7) + (+r.v3||0)*(cfg.p3??5) + (+r.v4||0)*(cfg.p4??3) + (+r.upsell_total||0);
+      d.ing += regIngresoBase(r, cfg) + (+r.upsell_total||0);
     });
     const estMap = {}; estados.forEach(e => estMap[e.fecha] = e);
 
@@ -4380,14 +4366,11 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
 
       // Clave incluye producto normalizado para separar ventas del mismo Ad ID en distintos productos
       const key = `${r.fecha}||${r.adId}||${prodNorm}`;
-      if (!grupos[key]) grupos[key] = { fecha: r.fecha, adId: r.adId, v1:0, v2:0, v3:0, v4:0, upsell:0, wsId };
+      if (!grupos[key]) grupos[key] = { fecha: r.fecha, adId: r.adId, ventas:0, ingresos:0, upsell:0, wsId };
       const g = grupos[key];
 
-      // Solo comparar contra precios activos (>0) para evitar que P4=0 atraiga montos bajos
-      const preciosActivos = [[+P.p1,0],[+P.p2,1],[+P.p3,2],[+P.p4,3]].filter(([p])=>p>0);
-      const matchExacto = preciosActivos.find(([p])=>Math.abs(r.valor-p)<0.50);
-      const idx = matchExacto ? matchExacto[1] : preciosActivos.reduce((bi,[p,i])=>Math.abs(r.valor-p)<Math.abs(r.valor-preciosActivos[bi][0])?i:bi, 0);
-      if (idx === 0) g.v1++; else if (idx === 1) g.v2++; else if (idx === 2) g.v3++; else if (idx === 3) g.v4++;
+      // Modelo de valor único: cada venta suma su precio real, sin tramos.
+      if (r.valor > 0) { g.ventas++; g.ingresos += r.valor; }
 
       g.upsell += r.up1 + r.up2 + r.up3 + r.up4;
 
@@ -4403,11 +4386,9 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
       if (!registrosMap[key]) {
         registrosMap[key] = { ...g };
       } else {
-        registrosMap[key].v1 += g.v1;
-        registrosMap[key].v2 += g.v2;
-        registrosMap[key].v3 += g.v3;
-        registrosMap[key].v4 += g.v4;
-        registrosMap[key].upsell += g.upsell;
+        registrosMap[key].ventas   += g.ventas;
+        registrosMap[key].ingresos += g.ingresos;
+        registrosMap[key].upsell   += g.upsell;
       }
     }
     const registros = Object.values(registrosMap);
@@ -4431,7 +4412,7 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
 
       const creates = lote.map(r => ({
         fecha: r.fecha, ad_id: r.adId,
-        v1: 0, v2: 0, v3: 0, v4: 0, upsell_total: 0,
+        ventas: 0, ingresos: 0, v1: 0, v2: 0, v3: 0, v4: 0, upsell_total: 0,
         gasto_meta: 0, impr_meta: 0, clics_meta: 0, chats_meta: 0,
         gasto_tiktok: 0, impr_tiktok: 0, clics_tiktok: 0, chats_tiktok: 0,
         workspace_id: r.wsId, user_id: CURRENT_USER?.id
@@ -4446,7 +4427,7 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
         .map(r =>
           fetch(`${SUPABASE_URL}/rest/v1/registros?workspace_id=eq.${r.wsId}&fecha=eq.${r.fecha}&ad_id=eq.${encodeURIComponent(r.adId)}`, {
             method: 'PATCH', headers: { ...api._h(), 'Prefer': 'return=minimal' },
-            body: JSON.stringify({ v1: r.v1, v2: r.v2, v3: r.v3, v4: r.v4, upsell_total: r.upsell })
+            body: JSON.stringify({ ventas: r.ventas, ingresos: r.ingresos, v1: 0, v2: 0, v3: 0, v4: 0, upsell_total: r.upsell })
           })
         ));
     }
@@ -4458,13 +4439,13 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
     const wsIdsReg = [...new Set(registros.map(r => r.wsId))];
     for (const wsId of wsIdsReg) {
       const conVentas = await api.get('registros',
-        `workspace_id=eq.${wsId}&fecha=gte.${fechaMinima}&fecha=lte.${fechaMaxima}&or=(v1.gt.0,v2.gt.0,v3.gt.0,v4.gt.0,upsell_total.gt.0)&select=ad_id,fecha`).catch(()=>[]);
+        `workspace_id=eq.${wsId}&fecha=gte.${fechaMinima}&fecha=lte.${fechaMaxima}&or=(ventas.gt.0,ingresos.gt.0,v1.gt.0,v2.gt.0,v3.gt.0,v4.gt.0,upsell_total.gt.0)&select=ad_id,fecha`).catch(()=>[]);
       await Promise.all(conVentas
         .filter(reg => !regMapKeys.has(`${wsId}||${reg.ad_id}||${reg.fecha}`) && !protegidos.has(`${wsId}||${reg.ad_id}||${reg.fecha}`))
         .map(reg =>
           fetch(`${SUPABASE_URL}/rest/v1/registros?workspace_id=eq.${wsId}&ad_id=eq.${encodeURIComponent(reg.ad_id)}&fecha=eq.${reg.fecha}`, {
             method: 'PATCH', headers: { ...api._h(), 'Prefer': 'return=minimal' },
-            body: JSON.stringify({ v1:0, v2:0, v3:0, v4:0, upsell_total:0 })
+            body: JSON.stringify({ ventas:0, ingresos:0, v1:0, v2:0, v3:0, v4:0, upsell_total:0 })
           })
         ));
     }
@@ -5092,7 +5073,7 @@ async function renderAdminPage() {
           api.get('fuentes', `user_id=eq.${p.id}&select=sheets_url,meta_token&limit=10`).catch(()=>[]),
         ]);
         const m = calcMetrics(regs);
-        const totalVentas = regs.reduce((s,r)=>(s+(+r.v1||0)+(+r.v2||0)+(+r.v3||0)+(+r.v4||0)),0);
+        const totalVentas = regs.reduce((s,r)=>(s+regVentas(r)),0);
         const cfg = cfgs[0] || {};
         // Último sync DE ESTE usuario: sync_log se filtra por SUS workspaces
         // (antes era una consulta global → mostraba el sync de cualquier usuario)
@@ -5817,21 +5798,23 @@ function globalSelectAll(val) {
 // calcMetrics con config externa (para dashboard global)
 function calcMetricsWithConfig(regs, P, modeOverride) {
   const conf = ((modeOverride || (typeof DASH_MODE !== 'undefined' ? DASH_MODE : 'proyectado')) === 'confirmado');
-  let gm=0,gt=0,im=0,it=0,cm=0,ct=0,chm=0,cht=0,v1=0,v2=0,v3=0,v4=0,bumpVal=0,bumpN=0;
+  let gm=0,gt=0,im=0,it=0,cm=0,ct=0,chm=0,cht=0,ingresos=0,ventas=0,bumpVal=0,bumpN=0;
+  const dist = {};   // desglose por precio real {precio: cantidad}
   regs.forEach(r => {
     gm+=+r.gasto_meta||0; gt+=+r.gasto_tiktok||0;
     im+=+r.impr_meta||0; it+=+r.impr_tiktok||0;
     cm+=+r.clics_meta||0; ct+=+r.clics_tiktok||0;
     chm+=+r.chats_meta||0; cht+=+r.chats_tiktok||0;
     const c = CICLO_MAP.get(cicloKey(r.workspace_id, r.ad_id, r.fecha));
-    if (conf) { v1+=c?+c.v1c:0; v2+=c?+c.v2c:0; v3+=c?+c.v3c:0; v4+=c?+c.v4c:0; }
-    else      { v1+=+r.v1||0;  v2+=+r.v2||0;  v3+=+r.v3||0;  v4+=+r.v4||0; }
+    if (conf) { ingresos += c?+c.ing_conf:0; ventas += c?+c.n_conf:0; }
+    else      { ingresos += regIngresoBase(r, P); ventas += regVentas(r); }
+    const pj = conf ? (c&&c.precios_conf) : (c&&c.precios_proy);
+    if (pj) for (const [pr,ct2] of Object.entries(pj)) dist[pr]=(dist[pr]||0)+(+ct2||0);
     bumpVal += conf ? (c?+c.bump_val_conf:0) : (c?+c.bump_val_proy:(+r.upsell_total||0));
     bumpN   += conf ? (c?+c.bump_n_conf:0)   : (c?+c.bump_n_proy:0);
   });
   const inversion=gm+gt;
-  const ingresos = v1*(P.p1??10)+v2*(P.p2??7)+v3*(P.p3??5)+v4*(P.p4??3);
-  const ventas=v1+v2+v3+v4, chats=chm+cht, impr=im+it, clics=cm+ct;
+  const chats=chm+cht, impr=im+it, clics=cm+ct;
   const profit=ingresos-inversion;
   const roasGastoMin = P.roas_gasto_min || 1;
   const roas = inversion >= roasGastoMin ? ingresos/inversion : 0;
@@ -5840,7 +5823,7 @@ function calcMetricsWithConfig(regs, P, modeOverride) {
   const roasConBump = inversion >= roasGastoMin ? ingresosConBump/inversion : 0;
   return {inversion,invIGV:inversion,ingresos,ingresosBase:ingresos,upsells:bumpVal,bumpValor:bumpVal,bumpVentas:bumpN,
     ingresosConBump,profitConBump,roasConBump,
-    ventas,chats,impr,clics,profit,roas,conv,v1,v2,v3,v4,
+    ventas,chats,impr,clics,profit,roas,conv,preciosDist:dist,
     cpv:ventas>0?inversion/ventas:0, ctr:impr>0?clics/impr:0, cpm:impr>0?inversion/impr*1000:0, cpr:chats>0?inversion/chats:0};
 }
 
@@ -6098,12 +6081,39 @@ function saveScoreWeights() {
   } catch(e) { showError('Error guardando pesos: '+e.message); }
 }
 
-// Ingreso de un registro (ventas × precios con defaults + bump). ÚNICA fuente de la
-// fórmula para tendencia/consistencia/sparkline/saturación — antes estaba duplicada
-// 6 veces con P.p1 sin default (NaN silencioso si el workspace no tenía config).
+// ── MODELO DE VALOR ÚNICO ──────────────────────────────────────────────────
+// Cada venta vale su `precio` real (no hay tramos P1..P4). El registro guarda el
+// agregado en `ventas` (cantidad) e `ingresos` (Σ precio). Estos dos helpers son
+// la ÚNICA fuente de "cuántas ventas" y "cuánto dinero base" de un registro.
+// Fallback legacy: si aún no corrió la migración (sin ventas/ingresos), se
+// reconstruye desde v1..v4 con los precios del workspace, para no romper nada.
+function regVentas(r){
+  if (r && r.ventas !== undefined && r.ventas !== null && r.ventas !== '') return +r.ventas||0;
+  return (+r?.v1||0)+(+r?.v2||0)+(+r?.v3||0)+(+r?.v4||0);
+}
+// Ingreso BASE (Σ precio real, SIN Order Bump).
+function regIngresoBase(r, P){
+  if (r && r.ingresos !== undefined && r.ingresos !== null && r.ingresos !== '') return +r.ingresos||0;
+  P = P || DB.config || {};
+  return (+r?.v1||0)*(P.p1??10) + (+r?.v2||0)*(P.p2??7) + (+r?.v3||0)*(P.p3??5) + (+r?.v4||0)*(P.p4??3);
+}
+// Ingreso de un registro (base + Order Bump). ÚNICA fuente de la fórmula para
+// tendencia/consistencia/sparkline/saturación.
 function _ingRegDe(r, P) {
   P = P || DB.config || {};
-  return (+r.v1||0)*(P.p1??10) + (+r.v2||0)*(P.p2??7) + (+r.v3||0)*(P.p3??5) + (+r.v4||0)*(P.p4??3) + (+r.upsell_total||0);
+  return regIngresoBase(r, P) + (+r.upsell_total||0);
+}
+// Desglose por precio real para tooltips/análisis: "🎯 S/10 ×13 · 🔁 S/7 ×4 · 🔁 S/5 ×6".
+// El precio más alto = venta directa (🎯); los menores = remarketing (🔁).
+function distPreciosEntries(dist){
+  if(!dist) return [];
+  return Object.entries(dist).map(([p,c])=>[+p,+c]).filter(([p,c])=>c>0 && isFinite(p)).sort((a,b)=>b[0]-a[0]);
+}
+function _money(n){ return 'S/'+(n%1===0?n:n.toFixed(2)); }
+function fmtPreciosDist(dist){
+  const es = distPreciosEntries(dist);
+  if(!es.length) return '';
+  return es.map(([p,c],i)=>`${i===0?'🎯':'🔁'} ${_money(p)} ×${c}`).join('  ·  ');
 }
 function _calcTendencia(adId, desde, hasta) {
   // Regresión lineal del ROAS diario PONDERADA por gasto (un día con S/2 de gasto
@@ -6708,17 +6718,30 @@ function renderMejorAnuncio() {
 // ANÁLISIS DE REMARKETING
 // ════════════════════════════════════════════════
 
-function renderRemarketing() {
+async function renderRemarketing() {
   const { desde, hasta } = aplicarPeriodo('remarketing');
   const regs    = DB.registros.filter(r => r.fecha >= desde && r.fecha <= hasta);
   const P       = DB.config;
+  const conf    = (typeof DASH_MODE !== 'undefined' && DASH_MODE === 'confirmado');
+  await cargarCicloMap();   // capa de desglose por precio real
 
-  let v1=0, v2=0, v3=0, v4=0;
-  regs.forEach(r => { v1+=+r.v1||0; v2+=+r.v2||0; v3+=+r.v3||0; v4+=+r.v4||0; });
-  const total = v1+v2+v3+v4;
+  // Agrega el desglose por precio real (dinámico) desde CICLO_MAP: total y por anuncio.
+  const dist = {}, perAd = {};
+  regs.forEach(r => {
+    const c = CICLO_MAP.get(cicloKey(r.workspace_id, r.ad_id, r.fecha));
+    const pj = c ? (conf ? c.precios_conf : c.precios_proy) : null;
+    if (!pj) return;
+    for (const [pr, ct] of Object.entries(pj)){
+      const n = +ct||0; if (!n) continue;
+      dist[pr] = (dist[pr]||0) + n;
+      (perAd[r.ad_id] || (perAd[r.ad_id] = {}))[pr] = ((perAd[r.ad_id]||{})[pr]||0) + n;
+    }
+  });
+  const entries = distPreciosEntries(dist);   // [precio, cantidad] desc por precio
+  const total = entries.reduce((s,[,c])=>s+c, 0);
 
   if (!total) {
-    document.getElementById('rem-kpis').innerHTML = '<div class="alert alert-warn" style="grid-column:1/-1">Sin ventas en el período</div>';
+    document.getElementById('rem-kpis').innerHTML = '<div class="alert alert-warn" style="grid-column:1/-1">Sin ventas con desglose por precio en el período' + (conf?' (confirmadas)':'') + '</div>';
     document.getElementById('rem-tbody').innerHTML = '';
     const remEmb = document.getElementById('rem-embudo'); if (remEmb) remEmb.innerHTML = '';
     const remDiag = document.getElementById('rem-diag-box');
@@ -6726,83 +6749,68 @@ function renderRemarketing() {
     return;
   }
 
-  renderRemEmbudo(v1, v2, v3, v4, regs, P);
-
+  const precioDirecta = entries[0][0];   // el más alto = venta directa
+  renderRemEmbudo(entries, regs, P);
 
   const pct = n => total > 0 ? (n/total*100).toFixed(1)+'%' : '—';
-  const ing  = n => n > 0 ? fmt.s(n) : '—';
+  const palette = ['accent','teal','orange','purple','green','red'];
+  document.getElementById('rem-kpis').innerHTML = entries.map(([p,c],i) =>
+    kpiCard(`${i===0?'🎯 Directa':'🔁 Remk'} — ${_money(p)}`, `${c} ventas`, palette[i%palette.length], `${pct(c)} del total · ${fmt.s(p*c)}`)
+  ).join('');
 
-  document.getElementById('rem-kpis').innerHTML = [
-    kpiCard(`P1 — S/${P.p1}`, `${v1} ventas`, 'accent',   `${pct(v1)} del total · ${fmt.s(v1*P.p1)}`),
-    kpiCard(`P2 — S/${P.p2}`, `${v2} ventas`, 'teal',     `${pct(v2)} del total · ${fmt.s(v2*P.p2)}`),
-    kpiCard(`P3 — S/${P.p3}`, `${v3} ventas`, 'orange',   `${pct(v3)} del total · ${fmt.s(v3*P.p3)}`),
-    kpiCard(`P4 — S/${P.p4}`, `${v4} ventas`, 'purple',   `${pct(v4)} del total · ${fmt.s(v4*P.p4)}`),
-  ].join('');
-
-  // Gráfico donut
+  // Gráfico donut por precio real
   if (charts.remarketing) { charts.remarketing.destroy(); delete charts.remarketing; }
   const ctx = document.getElementById('chart-remarketing')?.getContext('2d');
   if (ctx) {
+    const donutPal = ['#2563EB','#0D9488','#D97706','#7C3AED','#059669','#DC2626','#0891B2','#CA8A04'];
     charts.remarketing = new Chart(ctx, {
       type: 'doughnut',
       data: {
-        labels: [`P1 S/${P.p1}`, `P2 S/${P.p2}`, `P3 S/${P.p3}`, `P4 S/${P.p4}`],
-        datasets: [{ data: [v1, v2, v3, v4], backgroundColor: ['#2563EB','#0D9488','#D97706','#7C3AED'], borderColor: '#fff', borderWidth: 3 }]
+        labels: entries.map(([p],i) => `${i===0?'🎯':'🔁'} ${_money(p)}`),
+        datasets: [{ data: entries.map(([,c])=>c), backgroundColor: entries.map((_,i)=>donutPal[i%donutPal.length]), borderColor: '#fff', borderWidth: 3 }]
       },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#5A6A7E', font: { size: 11 }, padding: 12 } }, tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw} ventas (${(ctx.raw/total*100).toFixed(1)}%)` } } }, cutout: '60%' }
     });
   }
 
-  // Tabla por anuncio
-  const adMap = {};
-  regs.forEach(r => {
-    if (!adMap[r.ad_id]) adMap[r.ad_id] = { v1:0,v2:0,v3:0,v4:0 };
-    adMap[r.ad_id].v1 += +r.v1||0; adMap[r.ad_id].v2 += +r.v2||0;
-    adMap[r.ad_id].v3 += +r.v3||0; adMap[r.ad_id].v4 += +r.v4||0;
-  });
-  document.getElementById('rem-tbody').innerHTML = Object.entries(adMap)
-    .map(([adId, v]) => {
+  // Tabla por anuncio: total, % directa (share del precio más alto) y desglose
+  document.getElementById('rem-tbody').innerHTML = Object.entries(perAd)
+    .map(([adId, d]) => {
       const a   = DB.anuncios.find(x => x.ad_id === adId) || {};
-      const tot = v.v1+v.v2+v.v3+v.v4;
-      const p1pct = tot > 0 ? (v.v1/tot*100).toFixed(0) : 0;
-      const barColor = p1pct >= 70 ? 'var(--green)' : p1pct >= 40 ? 'var(--orange)' : 'var(--red)';
-      return `<tr>
+      const tot = Object.values(d).reduce((s,n)=>s+n, 0);
+      const dir = d[precioDirecta] || 0;
+      const dpct = tot > 0 ? (dir/tot*100).toFixed(0) : 0;
+      const barColor = dpct >= 70 ? 'var(--green)' : dpct >= 40 ? 'var(--orange)' : 'var(--red)';
+      return { adId, html: `<tr>
         <td class="left" style="font-weight:600;max-width:150px;overflow:hidden;text-overflow:ellipsis">${a.nombre||adId}</td>
-        <td style="color:var(--accent)">${v.v1}</td>
-        <td style="color:var(--teal)">${v.v2}</td>
-        <td style="color:var(--orange)">${v.v3}</td>
-        <td style="color:var(--purple)">${v.v4}</td>
+        <td style="font-weight:600">${tot}</td>
+        <td class="muted left" style="font-size:11px">${fmtPreciosDist(d)}</td>
         <td>
           <div style="display:flex;align-items:center;gap:5px">
             <div style="width:50px;height:6px;background:var(--bg3);border-radius:3px;overflow:hidden">
-              <div style="height:100%;width:${p1pct}%;background:${barColor}"></div>
+              <div style="height:100%;width:${dpct}%;background:${barColor}"></div>
             </div>
-            <span style="font-size:11px;font-weight:700;color:${barColor}">${p1pct}%</span>
+            <span style="font-size:11px;font-weight:700;color:${barColor}">${dpct}%</span>
           </div>
         </td>
-      </tr>`;
-    }).sort((a,b) => b.localeCompare(a)).join('') || '<tr><td colspan="6" style="text-align:center;color:var(--text3)">Sin datos</td></tr>';
+      </tr>` };
+    }).sort((a,b) => b.adId.localeCompare(a.adId)).map(x=>x.html).join('') || '<tr><td colspan="4" style="text-align:center;color:var(--text3)">Sin datos</td></tr>';
 }
 
-// Embudo entre niveles de precio + aporte del remarketing vs venta directa
-function renderRemEmbudo(v1, v2, v3, v4, regs, P){
+// Embudo entre niveles de precio + aporte del remarketing vs venta directa.
+// entries = [[precio, cantidad], ...] desc por precio (el 1º = venta directa).
+function renderRemEmbudo(entries, regs, P){
   const box = document.getElementById('rem-embudo');
   if (!box) return;
   const upsells = regs.reduce((s,r)=>s+(+r.upsell_total||0),0);
-  // Ingresos por nivel
-  const iP1 = v1*(P.p1??10), iP2 = v2*(P.p2??7), iP3 = v3*(P.p3??5), iP4 = v4*(P.p4??3);
-  const directa = iP1;
-  const remark  = iP2 + iP3 + iP4 + upsells;
+  const directa = entries.length ? entries[0][0]*entries[0][1] : 0;
+  const remark  = entries.slice(1).reduce((s,[p,c])=>s+p*c, 0) + upsells;
   const totalIng = directa + remark || 1;
   const pctDir = directa/totalIng*100, pctRem = remark/totalIng*100;
 
-  // Embudo: niveles con conversión relativa al nivel anterior
-  const niveles = [
-    { lbl:`P1 · S/${P.p1}`, v:v1, col:'var(--accent)' },
-    { lbl:`P2 · S/${P.p2}`, v:v2, col:'var(--teal)' },
-    { lbl:`P3 · S/${P.p3}`, v:v3, col:'var(--orange)' },
-    { lbl:`P4 · S/${P.p4}`, v:v4, col:'var(--purple)' },
-  ].filter((n,i) => i===0 || n.v>0 || [v2,v3,v4][i-1]>0);
+  // Embudo: cada precio distinto como un escalón, con conversión relativa al anterior
+  const cols = ['var(--accent)','var(--teal)','var(--orange)','var(--purple)','var(--green)','var(--red)'];
+  const niveles = entries.map(([p,c],i) => ({ lbl:`${i===0?'🎯':'🔁'} S/${p%1===0?p:p.toFixed(2)}`, v:c, col:cols[i%cols.length] }));
   const maxV = Math.max(...niveles.map(n=>n.v), 1);
   const embudoHtml = niveles.map((n,i) => {
     const prev = i>0 ? niveles[i-1].v : null;
@@ -6831,7 +6839,7 @@ function renderRemEmbudo(v1, v2, v3, v4, regs, P){
           <div title="Remarketing (P2-P4 + upsells)" style="width:${pctRem}%;background:var(--purple);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700">${pctRem>=12?pctRem.toFixed(0)+'%':''}</div>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-          <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--accent);margin-right:5px"></span>Directa (P1)</span>
+          <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--accent);margin-right:5px"></span>🎯 Directa (precio más alto)</span>
           <b>${fmt.s(directa)} · ${pctDir.toFixed(0)}%</b>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:12px">
@@ -7049,9 +7057,8 @@ async function renderHorarios() {
       if (adFiltro && r.ad_id !== adFiltro) return false;
       return true;
     });
-    const totalV = regsFiltrados.reduce((s,r) => s+(+r.v1||0)+(+r.v2||0)+(+r.v3||0)+(+r.v4||0), 0);
-    const totalI = regsFiltrados.reduce((s,r) =>
-      s+(+r.v1||0)*P.p1+(+r.v2||0)*P.p2+(+r.v3||0)*P.p3+(+r.v4||0)*P.p4, 0);
+    const totalV = regsFiltrados.reduce((s,r) => s+regVentas(r), 0);
+    const totalI = regsFiltrados.reduce((s,r) => s+regIngresoBase(r,P), 0);
 
     document.getElementById('horarios-kpis').innerHTML = [
       kpiCard('Ventas en período', totalV, 'green', 'Total acumulado'),
@@ -8128,9 +8135,9 @@ function onDupSelChange() {
   const a   = DB.anuncios.find(x => x.ad_id === r.ad_id);
   const P   = DB.config;
   const gasto = (+r.gasto_meta||0)+(+r.gasto_tiktok||0);
-  const ing   = (+r.v1||0)*P.p1+(+r.v2||0)*P.p2+(+r.v3||0)*P.p3+(+r.v4||0)*P.p4;
+  const ing   = regIngresoBase(r,P);
   prev.style.display = 'block';
-  prev.innerHTML = `📋 <strong>${a?.nombre || r.ad_id}</strong> · Gasto: ${fmt.s(gasto)} · Ingresos: ${fmt.s(ing)} · V1:${r.v1||0} V2:${r.v2||0} V3:${r.v3||0} V4:${r.v4||0}`;
+  prev.innerHTML = `📋 <strong>${a?.nombre || r.ad_id}</strong> · Gasto: ${fmt.s(gasto)} · Ingresos: ${fmt.s(ing)} · ${regVentas(r)} ventas`;
 }
 
 async function confirmarDuplicar() {
@@ -8146,7 +8153,7 @@ async function confirmarDuplicar() {
     fecha: fechaNueva, campana: r.campana, ad_id: r.ad_id, plat: r.plat,
     gasto_meta: r.gasto_meta, impr_meta: r.impr_meta, clics_meta: r.clics_meta, chats_meta: r.chats_meta,
     gasto_tiktok: r.gasto_tiktok, impr_tiktok: r.impr_tiktok, clics_tiktok: r.clics_tiktok, chats_tiktok: r.chats_tiktok,
-    v1: r.v1, v2: r.v2, v3: r.v3, v4: r.v4, upsell_total: r.upsell_total||0,
+    ventas: regVentas(r), ingresos: regIngresoBase(r, DB.config), v1:0, v2:0, v3:0, v4:0, upsell_total: r.upsell_total||0,
     user_id: CURRENT_USER?.id, workspace_id: CURRENT_WORKSPACE?.id
   };
 
@@ -10023,8 +10030,8 @@ function _contarAlertasRegs(regs, P){
   (regs || []).forEach(r => {
     if (r.fecha < desde || r.fecha > hoy) return;
     const gasto  = (+r.gasto_meta||0) + (+r.gasto_tiktok||0);
-    const ventas = (+r.v1||0) + (+r.v2||0) + (+r.v3||0) + (+r.v4||0);
-    const ing    = (+r.v1||0)*(P.p1??10) + (+r.v2||0)*(P.p2??7) + (+r.v3||0)*(P.p3??5) + (+r.v4||0)*(P.p4??3);
+    const ventas = regVentas(r);
+    const ing    = regIngresoBase(r, P);
     const roas   = gasto > 0 ? ing/gasto : 0;
     if (gasto >= gastoMin && ventas === 0){ if (!esDesc('sin_ventas', r.ad_id, r.fecha)){ total++; red++; } }
     else if (gasto > 0 && roas < roasMin && roas > 0){ if (!esDesc('roas_bajo', r.ad_id, r.fecha)){ total++; } }
@@ -10270,34 +10277,12 @@ async function cargarCicloMap(force){
   } catch(e){ console.warn('cargarCicloMap (RPC metricas_ciclo_por_ad):', e); }
 }
 
+// Delegado a calcMetricsWithConfig (misma lógica de valor único) usando DB.config
+// y el DASH_MODE activo. Se mantiene por compatibilidad con sus llamadores.
 function calcMetrics(regs) {
-  const P = DB.config;
-  const conf = (typeof DASH_MODE !== 'undefined' && DASH_MODE === 'confirmado');
-  let gm=0,gt=0,im=0,it=0,cm=0,ct=0,chm=0,cht=0,v1=0,v2=0,v3=0,v4=0,bumpVal=0,bumpN=0;
-  regs.forEach(r => {
-    gm+=+r.gasto_meta||0; gt+=+r.gasto_tiktok||0;
-    im+=+r.impr_meta||0; it+=+r.impr_tiktok||0;
-    cm+=+r.clics_meta||0; ct+=+r.clics_tiktok||0;
-    chm+=+r.chats_meta||0; cht+=+r.chats_tiktok||0;
-    const c = CICLO_MAP.get(cicloKey(r.workspace_id, r.ad_id, r.fecha));
-    if (conf) { v1+=c?+c.v1c:0; v2+=c?+c.v2c:0; v3+=c?+c.v3c:0; v4+=c?+c.v4c:0; }
-    else      { v1+=+r.v1||0;  v2+=+r.v2||0;  v3+=+r.v3||0;  v4+=+r.v4||0; }
-    bumpVal += conf ? (c?+c.bump_val_conf:0) : (c?+c.bump_val_proy:(+r.upsell_total||0));
-    bumpN   += conf ? (c?+c.bump_n_conf:0)   : (c?+c.bump_n_proy:0);
-  });
-  const inversion=gm+gt;
-  const ingresos=v1*(P.p1??10)+v2*(P.p2??7)+v3*(P.p3??5)+v4*(P.p4??3);
-  const ventas=v1+v2+v3+v4, chats=chm+cht, impr=im+it, clics=cm+ct;
-  const profit=ingresos-inversion;
-  const roasGastoMin = P.roas_gasto_min || 1;
-  const roas = inversion >= roasGastoMin ? ingresos/inversion : 0;
-  const conv=chats>0?ventas/chats:0;
-  const ingresosConBump=ingresos+bumpVal, profitConBump=profit+bumpVal;
-  const roasConBump = inversion >= roasGastoMin ? ingresosConBump/inversion : 0;
-  return {inversion,invIGV:inversion,ingresos,ingresosBase:ingresos,upsells:bumpVal,bumpValor:bumpVal,bumpVentas:bumpN,
-    ingresosConBump,profitConBump,roasConBump,
-    ventas,chats,impr,clics,profit,roas,roasIGV:roas,conv,v1,v2,v3,v4,
-    cpv:ventas>0?inversion/ventas:0, ctr:impr>0?clics/impr:0, cpm:impr>0?inversion/impr*1000:0, cpr:chats>0?inversion/chats:0};
+  const m = calcMetricsWithConfig(regs, DB.config);
+  m.roasIGV = m.roas;
+  return m;
 }
 
 function getEstado(roas, conv, inversion=0) {
@@ -10458,9 +10443,6 @@ function getPreciosParaRegistro(reg) {
 function openConfig() {
   const P = DB.config;
   document.getElementById('cfg-p1').value = P.p1??10;
-  document.getElementById('cfg-p2').value = P.p2??7;
-  document.getElementById('cfg-p3').value = P.p3??5;
-  document.getElementById('cfg-p4').value = P.p4??3;
   // El tipo de cambio mostrado es la tasa REAL del producto activo (la que se respeta).
   // Coincide con "Tasa de cambio → USD" de Editar Producto. Si la moneda es USD, es 1.
   document.getElementById('cfg-tc').value = (CURRENT_WORKSPACE?.usd_rate ?? P.tc ?? 4.0);
@@ -10474,9 +10456,10 @@ async function saveConfig() {
   const v = id => { const x = +document.getElementById(id).value; return isNaN(x) ? null : x; };
   const newCfg = {
     p1: v('cfg-p1') ?? 10,
-    p2: v('cfg-p2') ?? 7,
-    p3: v('cfg-p3') ?? 5,
-    p4: v('cfg-p4') ?? 0,
+    // p2..p4 quedan como estaban (modelo de valor único: ya no se editan aquí).
+    p2: DB.config.p2 ?? 7,
+    p3: DB.config.p3 ?? 5,
+    p4: DB.config.p4 ?? 3,
     tc: v('cfg-tc') ?? 4.0,
     alerta_gasto_min: v('cfg-alerta-gasto') ?? 5,
     alerta_roas_min: v('cfg-alerta-roas') ?? 1,
@@ -11098,10 +11081,10 @@ async function bitaLoadGlobalYear(anio){
   regs.forEach(r => {
     const p = pm[r.workspace_id] || {p1:10,p2:7,p3:5,p4:3};
     const rate = rm[r.workspace_id] || 3.7;
-    const ing = ((+r.v1||0)*+p.p1+(+r.v2||0)*+p.p2+(+r.v3||0)*+p.p3+(+r.v4||0)*+p.p4+(+r.upsell_total||0))/rate;
+    const ing = (regIngresoBase(r, p)+(+r.upsell_total||0))/rate;
     const inv = ((+r.gasto_meta||0)+(+r.gasto_tiktok||0))/rate;
     const d = map[r.fecha] || (map[r.fecha] = {inv:0,ing:0,ventas:0});
-    d.inv += inv; d.ing += ing; d.ventas += (+r.v1||0)+(+r.v2||0)+(+r.v3||0)+(+r.v4||0);
+    d.inv += inv; d.ing += ing; d.ventas += regVentas(r);
   });
   _bitaG = { anio, map };
   return _bitaG;
@@ -11562,9 +11545,16 @@ function renderMainChart(regs) {
 }
 
 function renderDonut(M) {
-  const P=DB.config;
   if(charts.donut) charts.donut.destroy();
-  charts.donut=new Chart(document.getElementById('chart-donut').getContext('2d'),{type:'doughnut',data:{labels:[`S/${P.p1}`,`S/${P.p2}`,`S/${P.p3}`,`S/${P.p4}`],datasets:[{data:[M.v1,M.v2,M.v3,M.v4],backgroundColor:['#34D399','#4F8EF7','#FB923C','#F87171'],borderColor:'#ffffff',borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#5A6A7E',font:{size:10},padding:10}}},cutout:'65%'}});
+  // Desglose por precio real dinámico (el más alto = venta directa). Fallback: si
+  // no hay desglose (registros manuales sin crm_ventas), muestra el total como 1 tramo.
+  let entries = distPreciosEntries(M.preciosDist);
+  if(!entries.length && M.ventas>0) entries = [[0, M.ventas]];
+  const labels = entries.map(([p],i)=> p>0 ? (i===0?`🎯 S/${p%1===0?p:p.toFixed(2)}`:`🔁 S/${p%1===0?p:p.toFixed(2)}`) : 'Ventas');
+  const data   = entries.map(([,c])=>c);
+  const palette=['#34D399','#4F8EF7','#FB923C','#F87171','#A78BFA','#F472B6','#22D3EE','#FBBF24'];
+  const colors = entries.map((_,i)=>palette[i%palette.length]);
+  charts.donut=new Chart(document.getElementById('chart-donut').getContext('2d'),{type:'doughnut',data:{labels,datasets:[{data,backgroundColor:colors,borderColor:'#ffffff',borderWidth:2}]},options:{responsive:true,maintainAspectRatio:false,plugins:{legend:{position:'bottom',labels:{color:'#5A6A7E',font:{size:10},padding:10}}},cutout:'65%'}});
 }
 
 // Una venta es "sin identificador" si no tiene Ad ID real (no se puede atribuir a un anuncio).
@@ -11623,7 +11613,7 @@ function renderSinIdCard(regsSinId, desde, hasta){
   if(!card) return;
   SINID_RANGO = { desde, hasta };
   const M = calcMetrics(regsSinId);
-  const nVentas = regsSinId.reduce((s,r)=>s+(+r.v1||0)+(+r.v2||0)+(+r.v3||0)+(+r.v4||0),0);
+  const nVentas = regsSinId.reduce((s,r)=>s+regVentas(r),0);
   if(!nVentas){ card.style.display='none'; card.innerHTML=''; return; }
   card.style.display='block';
   card.innerHTML = `
@@ -12334,23 +12324,28 @@ function renderRegistro() {
     if(anuncioFiltro&&r.ad_id!==anuncioFiltro) return false;
     return true;
   });
-  // Vista confirmada: overlay de v1-v4 y Order Bump desde CICLO_MAP (solo display, no muta DB).
-  if (REG_CONF){
-    regs = regs.map(r => {
-      const c = CICLO_MAP.get(cicloKey(r.workspace_id, r.ad_id, r.fecha));
-      return { ...r, v1: c?+c.v1c:0, v2: c?+c.v2c:0, v3: c?+c.v3c:0, v4: c?+c.v4c:0, upsell_total: c?+c.bump_val_conf:0 };
-    });
-  }
+  // Overlay desde CICLO_MAP (solo display, no muta DB): adjunta el desglose por
+  // precio real (_precios) para el hover. En modo Confirmado, además reemplaza
+  // ventas/ingresos/Order Bump por los valores validados (finalizado).
+  regs = regs.map(r => {
+    const c = CICLO_MAP.get(cicloKey(r.workspace_id, r.ad_id, r.fecha));
+    if (REG_CONF){
+      return { ...r, v1:0, v2:0, v3:0, v4:0,
+        ventas: c?+c.n_conf:0, ingresos: c?+c.ing_conf:0,
+        _precios: c?c.precios_conf:null, upsell_total: c?+c.bump_val_conf:0 };
+    }
+    return { ...r, _precios: c?c.precios_proy:null };
+  });
   regs = regs.sort((a,b)=>{
     // Primero por fecha (más reciente primero)
     const fc = b.fecha.localeCompare(a.fecha);
     if (fc !== 0) return fc;
     // Dentro del mismo día: por ROAS (mejor a peor)
     const P = DB.config;
-    const ingA = (+a.v1||0)*P.p1+(+a.v2||0)*P.p2+(+a.v3||0)*P.p3+(+a.v4||0)*P.p4+(+a.upsell_total||0);
+    const ingA = regIngresoBase(a, P)+(+a.upsell_total||0);
     const gasA = (+a.gasto_meta||0)+(+a.gasto_tiktok||0);
     const roasA = gasA > 0 ? ingA/gasA : (ingA > 0 ? 999 : 0);
-    const ingB = (+b.v1||0)*P.p1+(+b.v2||0)*P.p2+(+b.v3||0)*P.p3+(+b.v4||0)*P.p4+(+b.upsell_total||0);
+    const ingB = regIngresoBase(b, P)+(+b.upsell_total||0);
     const gasB = (+b.gasto_meta||0)+(+b.gasto_tiktok||0);
     const roasB = gasB > 0 ? ingB/gasB : (ingB > 0 ? 999 : 0);
     return roasB - roasA;
@@ -12389,7 +12384,7 @@ function renderRegistro() {
   fechas.forEach(f=>{
     const dr=byFecha[f];
     let dG=0,dI=0,dV=0,dC=0;
-    dr.forEach(r=>{ const g=(+r.gasto_meta||0)+(+r.gasto_tiktok||0); const i=(+r.v1||0)*P.p1+(+r.v2||0)*P.p2+(+r.v3||0)*P.p3+(+r.v4||0)*P.p4+(+r.upsell_total||0); dG+=g;dI+=i;dV+=(+r.v1||0)+(+r.v2||0)+(+r.v3||0)+(+r.v4||0);dC+=(+r.chats_meta||0)+(+r.chats_tiktok||0); });
+    dr.forEach(r=>{ const g=(+r.gasto_meta||0)+(+r.gasto_tiktok||0); const i=regIngresoBase(r,P)+(+r.upsell_total||0); dG+=g;dI+=i;dV+=regVentas(r);dC+=(+r.chats_meta||0)+(+r.chats_tiktok||0); });
     const dR = dG >= (P.roas_gasto_min||1) ? dI/dG : 0; const dP=dI-dG; const rc=dR>=2?'var(--green)':dR>=1?'var(--orange)':'var(--red)';
     html+=`<div class="panel" style="margin-bottom:14px">
       <div style="padding:10px 14px;background:var(--bg3);border-bottom:1px solid var(--border);display:flex;align-items:center;gap:10px;flex-wrap:wrap">
@@ -12405,18 +12400,19 @@ function renderRegistro() {
         </div>
       </div>
       <div class="tbl-wrap"><table>
-        <thead><tr><th style="width:32px"></th><th>Creativo</th><th>Campaña</th><th>Plat.</th><th>Gasto</th><th>Impr.</th><th>Clics</th><th>Chats</th><th>P1</th><th>P2</th><th>P3</th><th>P4</th><th>Order Bump</th><th>Ingresos</th><th>Profit</th><th>ROAS</th><th>Estado</th><th>Acciones</th></tr></thead>
+        <thead><tr><th style="width:32px"></th><th>Creativo</th><th>Campaña</th><th>Plat.</th><th>Gasto</th><th>Impr.</th><th>Clics</th><th>Chats</th><th>Ventas</th><th>Order Bump</th><th>Ingresos</th><th>Profit</th><th>ROAS</th><th>Estado</th><th>Acciones</th></tr></thead>
         <tbody>${dr.map(r=>{
           const g=(+r.gasto_meta||0)+(+r.gasto_tiktok||0);
           const impr=(+r.impr_meta||0)+(+r.impr_tiktok||0);
           const clics=(+r.clics_meta||0)+(+r.clics_tiktok||0);
           const chats=(+r.chats_meta||0)+(+r.chats_tiktok||0);
-          const ing=(+r.v1||0)*P.p1+(+r.v2||0)*P.p2+(+r.v3||0)*P.p3+(+r.v4||0)*P.p4+(+r.upsell_total||0);
+          const ing=regIngresoBase(r,P)+(+r.upsell_total||0);
           const profit=ing-g;
           const roasGastoMin = P.roas_gasto_min || 1;
           const roas = g >= roasGastoMin ? ing/g : 0;
-          const ventas=(+r.v1||0)+(+r.v2||0)+(+r.v3||0)+(+r.v4||0);
+          const ventas=regVentas(r);
           const conv=chats>0?ventas/chats:0;
+          const desglose=fmtPreciosDist(r._precios);
           const a=DB.anuncios.find(x=>x.ad_id===r.ad_id)||{};
           const e=getEstado(roas,conv,g);
           const sel=SELECTED_REG_IDS.has(r.id);
@@ -12427,7 +12423,7 @@ function renderRegistro() {
             <td class="muted left" style="font-size:10px;max-width:100px;overflow:hidden;text-overflow:ellipsis;font-family:var(--font)">${r.campana||'—'}</td>
             <td><span class="tag ${r.plat==='Meta'?'tag-meta':'tag-tiktok'}">${r.plat||'Meta'}</span></td>
             <td>${fmt.s(g)}</td><td>${fmt.num(impr)}</td><td>${fmt.num(clics)}</td><td>${fmt.num(chats)}</td>
-            <td>${r.v1||0}</td><td>${r.v2||0}</td><td>${r.v3||0}</td><td>${r.v4||0}</td>
+            <td style="font-weight:600;${desglose?'text-decoration:underline dotted var(--text3);text-underline-offset:3px;cursor:help':''}"${desglose?` title="${desglose.replace(/"/g,'&quot;')}"`:''}>${ventas}</td>
             <td style="color:var(--purple)">${(+r.upsell_total||0)>0?fmt.s(+r.upsell_total):'—'}</td>
             <td style="color:var(--green)">${fmt.s(ing)}</td>
             <td style="color:${profit>=0?'var(--teal)':'var(--red)'}">${fmt.s(profit)}</td>
@@ -12462,7 +12458,7 @@ function openNuevoRegistro() {
   sel.innerHTML='<option value="">Selecciona</option>';
   DB.campanas.forEach(c=>sel.innerHTML+=`<option value="${c.nombre}">${c.nombre}</option>`);
   document.getElementById('nr-fecha').value=today();
-  ['nr-gasto-meta','nr-impr-meta','nr-clics-meta','nr-chats-meta','nr-gasto-tiktok','nr-impr-tiktok','nr-clics-tiktok','nr-chats-tiktok','nr-v1','nr-v2','nr-v3','nr-v4','nr-u1','nr-u2','nr-u3','nr-u4'].forEach(id=>document.getElementById(id).value=0);
+  ['nr-gasto-meta','nr-impr-meta','nr-clics-meta','nr-chats-meta','nr-gasto-tiktok','nr-impr-tiktok','nr-clics-tiktok','nr-chats-tiktok','nr-ventas','nr-ingresos','nr-u1','nr-u2','nr-u3','nr-u4'].forEach(id=>document.getElementById(id).value=0);
   updateAnunciosSel(); updatePreview(); renderPriceChips();
   openModal('modal-registro');
 }
@@ -12488,10 +12484,8 @@ function editRegistro(id) {
   document.getElementById('nr-impr-tiktok').value=r.impr_tiktok||0;
   document.getElementById('nr-clics-tiktok').value=r.clics_tiktok||0;
   document.getElementById('nr-chats-tiktok').value=r.chats_tiktok||0;
-  document.getElementById('nr-v1').value=r.v1||0;
-  document.getElementById('nr-v2').value=r.v2||0;
-  document.getElementById('nr-v3').value=r.v3||0;
-  document.getElementById('nr-v4').value=r.v4||0;
+  document.getElementById('nr-ventas').value=regVentas(r);
+  document.getElementById('nr-ingresos').value=regIngresoBase(r, DB.config);
   // Upsell: si hay upsell_total lo ponemos en u1, los demás en 0
   document.getElementById('nr-u1').value=r.upsell_total||0;
   document.getElementById('nr-u2').value=0;
@@ -12520,11 +12514,6 @@ function updateAnunciosSel() {
 }
 
 function updatePreview() {
-  const P=DB.config;
-  const v1=+document.getElementById('nr-v1').value||0;
-  const v2=+document.getElementById('nr-v2').value||0;
-  const v3=+document.getElementById('nr-v3').value||0;
-  const v4=+document.getElementById('nr-v4').value||0;
   const u1=+document.getElementById('nr-u1').value||0;
   const u2=+document.getElementById('nr-u2').value||0;
   const u3=+document.getElementById('nr-u3').value||0;
@@ -12532,7 +12521,7 @@ function updatePreview() {
   const upsells=u1+u2+u3+u4;
   const gm=+document.getElementById('nr-gasto-meta').value||0;
   const gt=+document.getElementById('nr-gasto-tiktok').value||0;
-  const ingBase=v1*(P.p1??10)+v2*(P.p2??7)+v3*(P.p3??5)+v4*(P.p4??3);
+  const ingBase=+document.getElementById('nr-ingresos').value||0;
   const ing=ingBase+upsells;
   const gasto=gm+gt;
   
@@ -12568,10 +12557,9 @@ async function saveRegistro() {
     impr_tiktok:+document.getElementById('nr-impr-tiktok').value||0,
     clics_tiktok:+document.getElementById('nr-clics-tiktok').value||0,
     chats_tiktok:+document.getElementById('nr-chats-tiktok').value||0,
-    v1:+document.getElementById('nr-v1').value||0,
-    v2:+document.getElementById('nr-v2').value||0,
-    v3:+document.getElementById('nr-v3').value||0,
-    v4:+document.getElementById('nr-v4').value||0,
+    ventas:+document.getElementById('nr-ventas').value||0,
+    ingresos:+document.getElementById('nr-ingresos').value||0,
+    v1:0, v2:0, v3:0, v4:0,
     upsell_total: (+document.getElementById('nr-u1').value||0)
                 + (+document.getElementById('nr-u2').value||0)
                 + (+document.getElementById('nr-u3').value||0)
@@ -12716,14 +12704,11 @@ function parseCSV(text) {
   const grupMap={};
   rows.forEach(r=>{
     const k=`${r.fecha}||${r.adId}`;
-    if(!grupMap[k]) grupMap[k]={fecha:r.fecha,adId:r.adId,prod:r.prod,v1:0,v2:0,v3:0,v4:0,upsellTotal:0};
+    if(!grupMap[k]) grupMap[k]={fecha:r.fecha,adId:r.adId,prod:r.prod,ventas:0,ingresos:0,upsellTotal:0};
     const g=grupMap[k];
-    // Usar precios del producto correspondiente para clasificar
+    // Modelo de valor único: cada venta suma su precio real.
     const vr=Math.round(r.valor*100)/100;
-    const activosCat=[[+P.p1,0],[+P.p2,1],[+P.p3,2],[+P.p4,3]].filter(([p])=>p>0);
-    const mExCat=activosCat.find(([p])=>Math.abs(vr-p)<0.50);
-    const idxCat=mExCat?mExCat[1]:activosCat.reduce((bi,[p,i])=>Math.abs(vr-p)<Math.abs(vr-activosCat[bi][0])?i:bi,0);
-    if(idxCat===0)g.v1++;else if(idxCat===1)g.v2++;else if(idxCat===2)g.v3++;else g.v4++;
+    if(vr>0){ g.ventas++; g.ingresos+=vr; }
     // Acumular upsells
     g.upsellTotal += r.up1 + r.up2 + r.up3 + r.up4;
   });
@@ -12741,8 +12726,8 @@ function parseCSV(text) {
 
   const tbody=document.getElementById('import-tbody');
   tbody.innerHTML=groups.map((g,i)=>{
-    const total=g.v1+g.v2+g.v3+g.v4;
-    const ing=g.v1*P.p1+g.v2*P.p2+g.v3*P.p3+g.v4*P.p4+g.upsellTotal;
+    const total=g.ventas;
+    const ing=g.ingresos+g.upsellTotal;
     const existe=DB.registros.find(x=>x.ad_id===g.adId&&x.fecha===g.fecha);
     const estadoHtml=existe
       ?`<span class="badge accent">🔄 Actualizar</span>`
@@ -12752,7 +12737,6 @@ function parseCSV(text) {
       <td>${fmt.date(g.fecha)}</td>
       <td class="muted" style="font-size:10px">${g.adId}</td>
       <td class="muted left">${g.prod.substring(0,28)}</td>
-      <td>${g.v1}</td><td>${g.v2}</td><td>${g.v3}</td><td>${g.v4}</td>
       <td><strong>${total}</strong></td>
       <td style="color:var(--green)">${fmt.s(ing)}${g.upsellTotal>0?` <span style="font-size:9px;color:var(--teal)">(+${fmt.s(g.upsellTotal)} ups)</span>`:''}</td>
       <td>${estadoHtml}</td>
@@ -12783,12 +12767,12 @@ async function importarTodo() {
     const plat=anuncio?.plat||'Meta';
     if(existe){
       // Ya existe: actualizar ventas y campaña si estaba vacía
-      const dataUpdate={v1:g.v1,v2:g.v2,v3:g.v3,v4:g.v4,upsell_total:g.upsellTotal||0};
+      const dataUpdate={ventas:g.ventas,ingresos:g.ingresos,v1:0,v2:0,v3:0,v4:0,upsell_total:g.upsellTotal||0};
       if(!existe.campana&&campana) dataUpdate.campana=campana;
       toUpdate.push({id:existe.id, data:dataUpdate});
     } else {
       // No existe: crear nuevo con campaña del catálogo
-      toCreate.push({fecha:g.fecha,campana,ad_id:g.adId,plat,gasto_meta:0,impr_meta:0,clics_meta:0,chats_meta:0,gasto_tiktok:0,impr_tiktok:0,clics_tiktok:0,chats_tiktok:0,v1:g.v1,v2:g.v2,v3:g.v3,v4:g.v4,upsell_total:g.upsellTotal||0,user_id:CURRENT_USER?.id,workspace_id:CURRENT_WORKSPACE?.id});
+      toCreate.push({fecha:g.fecha,campana,ad_id:g.adId,plat,gasto_meta:0,impr_meta:0,clics_meta:0,chats_meta:0,gasto_tiktok:0,impr_tiktok:0,clics_tiktok:0,chats_tiktok:0,ventas:g.ventas,ingresos:g.ingresos,v1:0,v2:0,v3:0,v4:0,upsell_total:g.upsellTotal||0,user_id:CURRENT_USER?.id,workspace_id:CURRENT_WORKSPACE?.id});
     }
   });
   if(!toCreate.length&&!toUpdate.length) return;
@@ -13567,16 +13551,16 @@ function getExportData() {
   const regRows = regs.sort((a,b)=>b.fecha.localeCompare(a.fecha)).map(r => {
     const a = DB.anuncios.find(x=>x.ad_id===r.ad_id)||{};
     const gasto = (+r.gasto_meta||0)+(+r.gasto_tiktok||0);
-    const ing   = (+r.v1||0)*P.p1+(+r.v2||0)*P.p2+(+r.v3||0)*P.p3+(+r.v4||0)*P.p4;
+    const ing   = regIngresoBase(r,P);
     const roas  = gasto>0 ? +(ing/gasto).toFixed(2) : 0;
-    const ventas = (+r.v1||0)+(+r.v2||0)+(+r.v3||0)+(+r.v4||0);
+    const ventas = regVentas(r);
     return { Fecha: fmt.date(r.fecha), Campaña: r.campana||'—', Creativo: a.nombre||r.ad_id,
       Plataforma: r.plat||'Meta', 'Gasto S/': +gasto.toFixed(2),
-      
+
       Impresiones: (+r.impr_meta||0)+(+r.impr_tiktok||0),
       Clics: (+r.clics_meta||0)+(+r.clics_tiktok||0),
       Chats: (+r.chats_meta||0)+(+r.chats_tiktok||0),
-      'V.P1': r.v1||0, 'V.P2': r.v2||0, 'V.P3': r.v3||0, 'V.P4': r.v4||0,
+      Ventas: ventas,
       'Ingresos S/': +ing.toFixed(2), 'Profit S/': +(ing-gasto).toFixed(2), ROAS: roas,
       'CPA S/': ventas>0 ? +(gasto/ventas).toFixed(2) : '' };
   });
@@ -13834,8 +13818,8 @@ function calcAlertas() {
     regsDelDia.forEach(r => {
       const a     = DB.anuncios.find(x=>x.ad_id===r.ad_id)||{};
       const gasto = (+r.gasto_meta||0)+(+r.gasto_tiktok||0);
-      const ventas= (+r.v1||0)+(+r.v2||0)+(+r.v3||0)+(+r.v4||0);
-      const ing   = (+r.v1||0)*P.p1+(+r.v2||0)*P.p2+(+r.v3||0)*P.p3+(+r.v4||0)*P.p4;
+      const ventas= regVentas(r);
+      const ing   = regIngresoBase(r,P);
       const roas  = gasto>0?ing/gasto:0;
       const nombre= a.nombre||r.ad_id;
       const esHoy = fecha===hoy;
