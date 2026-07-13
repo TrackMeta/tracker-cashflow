@@ -863,7 +863,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div class="panel-header"><span class="panel-title">Top anuncios</span><span style="font-size:11px;color:var(--text2)">Por ROAS acumulado</span></div>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>#</th><th>Creativo</th><th>Campaña</th><th>Plat.</th><th>Inversión</th><th>Impr.</th><th>Clics</th><th>CTR</th><th>CPM</th><th>CPC</th><th>Chats</th><th>CPR</th><th>Ventas</th><th>Ingresos</th><th>Upsells</th><th>Profit</th><th>ROAS</th><th>CPA</th><th>Conv%</th><th>Estado</th><th>Sat.</th></tr></thead>
+        <thead><tr><th>#</th><th>Creativo</th><th>Campaña</th><th>Plat.</th><th>Inversión</th><th>Impr.</th><th>Clics</th><th>CTR</th><th>CPM</th><th>CPC</th><th>Chats</th><th>CPR</th><th>Ventas</th><th>Ingresos</th><th>Ventas extra</th><th>Profit</th><th>ROAS</th><th>CPA</th><th>Conv%</th><th>Estado</th><th>Sat.</th></tr></thead>
         <tbody id="dash-tbody"></tbody>
       </table>
     </div>
@@ -1046,7 +1046,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
             <th>ROAS</th>
             <th>Ventas</th>
             <th>Conv%</th>
-            <th>Upsells</th>
+            <th>Ventas extra</th>
             <th>% del total</th>
           </tr>
         </thead>
@@ -1244,7 +1244,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
             <th>Ventas</th>
             <th>CPA</th>
             <th>Conv%</th>
-            <th>Upsells</th>
+            <th>Ventas extra</th>
             <th>% del total</th>
           </tr>
         </thead>
@@ -1432,7 +1432,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div class="panel-header"><span class="panel-title">Anuncios de esta campaña</span></div>
     <div class="tbl-wrap">
       <table>
-        <thead><tr><th>Creativo</th><th>Días</th><th>Inversión</th><th>Impr.</th><th>Clics</th><th>CTR</th><th>CPM</th><th>CPC</th><th>Chats</th><th>CPR</th><th>Ventas</th><th>Ingresos</th><th>Upsells</th><th>Profit</th><th>ROAS</th><th>CPA</th><th>Conv%</th><th>Estado</th><th>Sat.</th></tr></thead>
+        <thead><tr><th>Creativo</th><th>Días</th><th>Inversión</th><th>Impr.</th><th>Clics</th><th>CTR</th><th>CPM</th><th>CPC</th><th>Chats</th><th>CPR</th><th>Ventas</th><th>Ingresos</th><th>Ventas extra</th><th>Profit</th><th>ROAS</th><th>CPA</th><th>Conv%</th><th>Estado</th><th>Sat.</th></tr></thead>
         <tbody id="campana-tbody"></tbody>
       </table>
     </div>
@@ -2873,7 +2873,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
         <div style="margin-bottom:10px;padding:8px 10px;background:var(--orange-dim);border-radius:8px;font-size:11.5px">⚠️ <b>Cada bot vive en SU propio Google Sheet</b> — y cada Sheet necesita <b>su propio script</b> pegado dentro y <b>su propia URL /exec</b>. La misma URL no sirve para dos bots aunque el código sea idéntico.</div>
         <div style="display:grid;gap:8px">
           <div><b style="color:var(--accent)">1.</b> <b>Haz público el Sheet de este bot</b> (solo lectura): ábrelo → botón <b>Compartir</b> → "Cualquier persona con el enlace" → <b>Lector</b>. Copia la URL del navegador y pégala arriba en <i>URL del Google Sheet</i>. Verifica con <b>🧪 Probar conexión</b>.</div>
-          <div><b style="color:var(--accent)">2.</b> <b>Columnas que la app lee</b> (encabezados en la fila 1): <code>Ad ID</code>, <code>Fecha y hora</code> (con fecha y hora, ej. 2026-07-09T14:30:00) y <code>Valor</code>. Opcionales: <code>Producto</code>, <code>Nombre del cliente</code>, <code>Numero de celular</code>, <code>Upsell 1..4</code>.</div>
+          <div><b style="color:var(--accent)">2.</b> <b>Columnas que la app lee</b> (encabezados en la fila 1): <code>Ad ID</code>, <code>Fecha y hora</code> (con fecha y hora, ej. 2026-07-09T14:30:00) y <code>Valor</code>. Opcionales: <code>Producto</code>, <code>Nombre del cliente</code>, <code>Numero de celular</code>, <code>Venta extra 1..4</code> (también se acepta el nombre antiguo <code>Upsell 1..4</code>).</div>
           <div><b style="color:var(--accent)">3.</b> <b>Instala el script en ESE Sheet</b>: dentro del Sheet → <b>Extensiones → Apps Script</b> → borra el contenido que haya → pega el script → 💾 Guardar (Ctrl+S).
             <div style="margin-top:6px"><button class="btn btn-ghost btn-sm" type="button" onclick="copyScriptV4()">📋 Copiar script del Sheet (v4)</button> <span id="fuente-script-copy-estado" style="font-size:11px;color:var(--text3)"></span></div>
           </div>
@@ -3010,13 +3010,13 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <div class="field"><label>Ingreso total (S/)</label><input type="number" id="nr-ingresos" value="0" min="0" step="0.01" oninput="updatePreview()"></div>
     </div>
 
-    <!-- Upsells -->
-    <div class="modal-section" style="margin-top:10px">💰 Upsells (S/) — opcional</div>
+    <!-- Ventas extra -->
+    <div class="modal-section" style="margin-top:10px">💰 Ventas extra (S/) — opcional</div>
     <div class="form-row form-4" style="margin-top:8px">
-      <div class="field"><label>Upsell 1</label><input type="number" id="nr-u1" value="0" step="0.01" oninput="updatePreview()"></div>
-      <div class="field"><label>Upsell 2</label><input type="number" id="nr-u2" value="0" step="0.01" oninput="updatePreview()"></div>
-      <div class="field"><label>Upsell 3</label><input type="number" id="nr-u3" value="0" step="0.01" oninput="updatePreview()"></div>
-      <div class="field"><label>Upsell 4</label><input type="number" id="nr-u4" value="0" step="0.01" oninput="updatePreview()"></div>
+      <div class="field"><label>Venta extra 1</label><input type="number" id="nr-u1" value="0" step="0.01" oninput="updatePreview()"></div>
+      <div class="field"><label>Venta extra 2</label><input type="number" id="nr-u2" value="0" step="0.01" oninput="updatePreview()"></div>
+      <div class="field"><label>Venta extra 3</label><input type="number" id="nr-u3" value="0" step="0.01" oninput="updatePreview()"></div>
+      <div class="field"><label>Venta extra 4</label><input type="number" id="nr-u4" value="0" step="0.01" oninput="updatePreview()"></div>
     </div>
 
     <!-- Preview -->
@@ -3377,7 +3377,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
               <th style="padding:6px 10px;text-align:left">Fecha y Hora</th>
               <th style="padding:6px 10px;text-align:left">Valor</th>
               <th style="padding:6px 10px;text-align:left">Producto</th>
-              <th style="padding:6px 10px;border-radius:0 6px 0 0;text-align:left">Upsell 1...4</th>
+              <th style="padding:6px 10px;border-radius:0 6px 0 0;text-align:left">Venta extra 1...4</th>
             </tr>
           </thead>
           <tbody>
@@ -3548,10 +3548,12 @@ async function reconstruirRegistros() {
         const iFecha = headers.indexOf('fecha y hora');
         const iValor = headers.indexOf('valor');
         const iProdH = headers.findIndex(h => h.includes('producto'));
-        const iUp1   = headers.indexOf('upsell 1');
-        const iUp2   = headers.indexOf('upsell 2');
-        const iUp3   = headers.indexOf('upsell 3');
-        const iUp4   = headers.indexOf('upsell 4');
+        // Acepta la columna como "Upsell N" o "Venta extra N" (mismo dato).
+        const upIdx = n => { let i = headers.indexOf('upsell '+n); if(i<0) i = headers.indexOf('venta extra '+n); return i; };
+        const iUp1   = upIdx(1);
+        const iUp2   = upIdx(2);
+        const iUp3   = upIdx(3);
+        const iUp4   = upIdx(4);
 
         if (iAdId < 0 || iFecha < 0) {
           showError('No se encontraron columnas Ad ID o Fecha y Hora');
@@ -3627,7 +3629,7 @@ async function reconstruirRegistros() {
           btn.disabled=false; btn.textContent='📊 Reconstruir desde CSV'; return;
         }
 
-        const confirm1 = confirm(`⚠️ Esto actualizará ${registros.length} registros de TODOS los productos que tengan Ad IDs en este CSV.\n\nSolo se actualizarán las columnas de ventas (Ventas, Ingresos, Upsells).\nEl gasto de Meta Ads NO se tocará.\n\n¿Continuar?`);
+        const confirm1 = confirm(`⚠️ Esto actualizará ${registros.length} registros de TODOS los productos que tengan Ad IDs en este CSV.\n\nSolo se actualizarán las columnas de ventas (Ventas, Ingresos, Ventas extra).\nEl gasto de Meta Ads NO se tocará.\n\n¿Continuar?`);
         if (!confirm1) { btn.disabled=false; btn.textContent='📊 Reconstruir desde CSV'; return; }
 
         btn.textContent = `⏳ Actualizando ${registros.length} registros...`;
@@ -3889,8 +3891,8 @@ function doPost(e) {
 function procesarFila(sheet, row) {
   var headers = sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0].map(function(h){return h.toString().toLowerCase().trim();});
   var iAdId=findCol(headers,['ad id','ad_id']), iFecha=findCol(headers,['fecha y hora','fecha']), iValor=findCol(headers,['valor','value']);
-  var iUp1=findCol(headers,['upsell 1','upsell1']), iUp2=findCol(headers,['upsell 2','upsell2']);
-  var iUp3=findCol(headers,['upsell 3','upsell3']), iUp4=findCol(headers,['upsell 4','upsell4']);
+  var iUp1=findCol(headers,['upsell 1','upsell1','venta extra 1','ventaextra1']), iUp2=findCol(headers,['upsell 2','upsell2','venta extra 2','ventaextra2']);
+  var iUp3=findCol(headers,['upsell 3','upsell3','venta extra 3','ventaextra3']), iUp4=findCol(headers,['upsell 4','upsell4','venta extra 4','ventaextra4']);
   if (iAdId<0||iFecha<0) return;
   var row_data=sheet.getRange(row,1,1,sheet.getLastColumn()).getValues()[0];
   var valor=parseFloat((row_data[iValor]||'0').toString().replace(/[^0-9.]/g,''))||0;
@@ -3924,7 +3926,7 @@ function syncCompleto(forzar) {
   if(!forzar&&currentHash===lastHash){console.log('Sin cambios');return;}
   var headers=sheet.getRange(1,1,1,sheet.getLastColumn()).getValues()[0].map(function(h){return h.toString().toLowerCase().trim();});
   var iAdId=findCol(headers,['ad id','ad_id']), iFecha=findCol(headers,['fecha y hora','fecha']), iValor=findCol(headers,['valor','value']);
-  var iUp1=findCol(headers,['upsell 1','upsell1']),iUp2=findCol(headers,['upsell 2','upsell2']),iUp3=findCol(headers,['upsell 3','upsell3']),iUp4=findCol(headers,['upsell 4','upsell4']);
+  var iUp1=findCol(headers,['upsell 1','upsell1','venta extra 1','ventaextra1']),iUp2=findCol(headers,['upsell 2','upsell2','venta extra 2','ventaextra2']),iUp3=findCol(headers,['upsell 3','upsell3','venta extra 3','ventaextra3']),iUp4=findCol(headers,['upsell 4','upsell4','venta extra 4','ventaextra4']);
   if(iAdId<0||iFecha<0) return;
   var data=sheet.getRange(2,1,lastRow-1,sheet.getLastColumn()).getValues();
   var grupos={}, crm=[], adWsCache={}, preciosCache={};
@@ -4638,10 +4640,10 @@ function _parseSheetCSV(text) {
   const iTel   = findH(['numero de celular','telefono','phone','celular']);
   const iProd  = findH(['producto','product']);
   const iCli   = findH(['nombre del cliente','nombre cliente','id cliente','cliente','nombre','customer name','customer','id']);
-  const iUp1   = findH(['upsell 1','upsell1']);
-  const iUp2   = findH(['upsell 2','upsell2']);
-  const iUp3   = findH(['upsell 3','upsell3']);
-  const iUp4   = findH(['upsell 4','upsell4']);
+  const iUp1   = findH(['upsell 1','upsell1','venta extra 1','ventaextra1']);
+  const iUp2   = findH(['upsell 2','upsell2','venta extra 2','ventaextra2']);
+  const iUp3   = findH(['upsell 3','upsell3','venta extra 3','ventaextra3']);
+  const iUp4   = findH(['upsell 4','upsell4','venta extra 4','ventaextra4']);
   const iUid   = findH(['_uid','uid']);   // ID estable que escribe el Apps Script (puede no existir aún)
   const parseVal = raw => parseFloat((raw||'').toString().replace(/S\/\s*/i,'').replace(/[^0-9.]/g,'')) || 0;
   const rows = [];
@@ -5726,7 +5728,7 @@ async function renderGlobal() {
               <div style="font-size:14px;font-weight:700;font-family:var(--mono)">${d.m.ventas}</div>
             </div>
           </div>
-          ${d.m.upsells>0?`<div style="margin-top:8px;padding:6px 8px;background:var(--purple-dim);border-radius:6px;font-size:11px;color:var(--purple);font-weight:600">💜 Upsells: ${fmtMoney(d.m.upsells, code)}</div>`:''}
+          ${d.m.upsells>0?`<div style="margin-top:8px;padding:6px 8px;background:var(--purple-dim);border-radius:6px;font-size:11px;color:var(--purple);font-weight:600">💜 Ventas extra:${fmtMoney(d.m.upsells, code)}</div>`:''}
         </div>`;
       }).join('');
 
@@ -6718,7 +6720,7 @@ function renderMejorAnuncio() {
             <div><span style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase">Inversión</span><div style="font-size:20px;font-weight:700;font-family:var(--mono);color:var(--orange)">${fmt.s(ganador.m.inversion)}</div></div>
             <div><span style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase">Profit</span><div style="font-size:20px;font-weight:700;font-family:var(--mono);color:var(--teal)">${fmt.s(ganador.m.profit)}</div></div>
             <div><span style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase">Ventas</span><div style="font-size:20px;font-weight:700;font-family:var(--mono)">${ganador.m.ventas}</div></div>
-            ${ganador.m.upsells>0?`<div><span style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase">Upsells</span><div style="font-size:20px;font-weight:700;font-family:var(--mono);color:var(--purple)">${fmt.s(ganador.m.upsells)}</div></div>`:''}
+            ${ganador.m.upsells>0?`<div><span style="font-size:10px;color:var(--text3);font-weight:700;text-transform:uppercase">Ventas extra</span><div style="font-size:20px;font-weight:700;font-family:var(--mono);color:var(--purple)">${fmt.s(ganador.m.upsells)}</div></div>`:''}
           </div>
         </div>
         <div style="text-align:center;padding:16px 20px;background:var(--bg3);border-radius:var(--radius);border:1px solid var(--border)">
@@ -6735,7 +6737,7 @@ function renderMejorAnuncio() {
       <div class="panel-header"><span class="panel-title">Ranking completo</span></div>
       <div class="tbl-wrap">
         <table>
-          <thead><tr><th>#</th><th>Creativo</th><th>ROAS</th><th>Ingresos</th><th>Upsells</th><th>Inversión</th><th>Profit</th><th>Ventas</th><th>vs período ant.</th></tr></thead>
+          <thead><tr><th>#</th><th>Creativo</th><th>ROAS</th><th>Ingresos</th><th>Ventas extra</th><th>Inversión</th><th>Profit</th><th>Ventas</th><th>vs período ant.</th></tr></thead>
           <tbody>
             ${ranking.map((r, i) => {
               const rc = r.m.roas>=2?'var(--green)':r.m.roas>=1?'var(--orange)':'var(--red)';
@@ -6884,14 +6886,14 @@ function renderRemEmbudo(entries, regs, P, dirSet){
         <div style="font-weight:700;font-size:13px;margin-bottom:8px">💰 Remarketing vs venta directa</div>
         <div style="display:flex;height:22px;border-radius:6px;overflow:hidden;margin-bottom:8px">
           <div title="Venta directa (P1)" style="width:${pctDir}%;background:var(--accent);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700">${pctDir>=12?pctDir.toFixed(0)+'%':''}</div>
-          <div title="Remarketing (P2-P4 + upsells)" style="width:${pctRem}%;background:var(--purple);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700">${pctRem>=12?pctRem.toFixed(0)+'%':''}</div>
+          <div title="Remarketing (precios menores + ventas extra)" style="width:${pctRem}%;background:var(--purple);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700">${pctRem>=12?pctRem.toFixed(0)+'%':''}</div>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
           <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--accent);margin-right:5px"></span>🎯 Directa</span>
           <b>${fmt.s(directa)} · ${pctDir.toFixed(0)}%</b>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:12px">
-          <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--purple);margin-right:5px"></span>Remarketing${upsells>0?' + upsells':''}</span>
+          <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--purple);margin-right:5px"></span>Remarketing${upsells>0?' + ventas extra':''}</span>
           <b style="color:var(--purple)">${fmt.s(remark)} · ${pctRem.toFixed(0)}%</b>
         </div>
         <div style="font-size:10.5px;color:var(--text3);margin-top:8px">El remarketing aporta <b style="color:var(--purple)">${fmt.s(remark)}</b> de ingresos extra sobre la venta directa.</div>
@@ -7613,7 +7615,7 @@ function renderVuCurva(adId) {
       ${[
         ['Inversión total', fmt.s(mTotal.inversion), 'var(--orange)'],
         ['Ingresos totales',fmt.s(mTotal.ingresos),  'var(--green)'],
-        ['Upsells',         fmt.s(mTotal.upsells),   'var(--purple)'],
+        ['Ventas extra',    fmt.s(mTotal.upsells),   'var(--purple)'],
         ['Profit total',    fmt.s(mTotal.profit),    mTotal.profit >= 0 ? 'var(--green)' : 'var(--red)'],
         ['ROAS promedio',   fmt.roas(mTotal.roas),   mTotal.roas >= roasMin ? 'var(--teal)' : 'var(--red)'],
         ['Ventas totales',  mTotal.ventas,            'var(--text)'],
@@ -12346,7 +12348,7 @@ async function renderOrderBumps(){
   document.getElementById('ob-ranking').innerHTML = ranking.map(([adId,a])=>{
     const an = DB.anuncios.find(x=>x.ad_id===adId)||{};
     return `<tr><td class="left">${an.nombre||adId}</td><td>${a.n}</td><td style="color:var(--green)">${fmt.s(a.conf)}</td><td style="color:var(--text2)">${fmt.s(a.proy)}</td></tr>`;
-  }).join('') || `<tr><td colspan="4" class="muted">Sin Ventas extra todavía. Se llenan al sincronizar ventas con la columna "Upsell 1".</td></tr>`;
+  }).join('') || `<tr><td colspan="4" class="muted">Sin Ventas extra todavía. Se llenan al sincronizar ventas con la columna "Venta extra 1" (o "Upsell 1").</td></tr>`;
   document.getElementById('ob-pendientes').innerHTML = pend.slice(0,200).map(b=>{
     const an = DB.anuncios.find(x=>x.ad_id===b.ad_id)||{};
     return `<tr><td>${fmt.date(b.fecha)}</td><td class="left">${an.nombre||b.ad_id}</td><td class="left muted">${b.cliente||'—'}</td><td style="color:var(--purple)">${fmt.s(+b.bump_monto||0)}</td>
@@ -12578,7 +12580,7 @@ function updatePreview() {
   
   document.getElementById('nr-preview').innerHTML=
     `<span>Ingresos: <strong style="color:var(--green)">${fmt.s(ing)}</strong></span>
-     ${upsells>0?`<span>Upsells: <strong style="color:var(--purple)">${fmt.s(upsells)}</strong></span>`:''}
+     ${upsells>0?`<span>Ventas extra: <strong style="color:var(--purple)">${fmt.s(upsells)}</strong></span>`:''}
      
      <span>Profit: <strong style="color:${profit>=0?'var(--green)':'var(--red)'}">${fmt.s(profit)}</strong></span>
      <span>ROAS: <strong>${roas}</strong></span>
@@ -12695,10 +12697,10 @@ function parseCSV(text) {
   const fechaIdx = iFecha >= 0 ? iFecha : findIdx(['fecha y hora','fecha','date']);
   const valorIdx = iValor >= 0 ? iValor : findIdx(['valor','value','monto']);
   const prodIdx  = iProd  >= 0 ? iProd  : findIdx(['producto','product']);
-  const up1Idx   = iUp1   >= 0 ? iUp1   : findIdx(['upsell 1','upsell1']);
-  const up2Idx   = iUp2   >= 0 ? iUp2   : findIdx(['upsell 2','upsell2']);
-  const up3Idx   = iUp3   >= 0 ? iUp3   : findIdx(['upsell 3','upsell3']);
-  const up4Idx   = iUp4   >= 0 ? iUp4   : findIdx(['upsell 4','upsell4']);
+  const up1Idx   = iUp1   >= 0 ? iUp1   : findIdx(['upsell 1','upsell1','venta extra 1','ventaextra1']);
+  const up2Idx   = iUp2   >= 0 ? iUp2   : findIdx(['upsell 2','upsell2','venta extra 2','ventaextra2']);
+  const up3Idx   = iUp3   >= 0 ? iUp3   : findIdx(['upsell 3','upsell3','venta extra 3','ventaextra3']);
+  const up4Idx   = iUp4   >= 0 ? iUp4   : findIdx(['upsell 4','upsell4','venta extra 4','ventaextra4']);
 
   if (adIdIdx < 0 || fechaIdx < 0) {
     showError(`No se encontraron columnas clave.\nHeaders detectados: ${headers.join(', ')}`);
@@ -12768,7 +12770,7 @@ function parseCSV(text) {
   const totalUpsells=groups.reduce((s,g)=>s+g.upsellTotal,0);
 
   let msg=`✅ ${rows.length} ventas válidas → ${groups.length} combinaciones: ${nuevos} nuevas, ${actualizados} actualizan registros existentes`;
-  if(hasUpsells) msg+=` · 💰 Upsells detectados: ${fmt.s(totalUpsells)}`;
+  if(hasUpsells) msg+=` · 💰 Ventas extra detectadas: ${fmt.s(totalUpsells)}`;
   if(saltadas>0) msg+=` · ⚠️ ${saltadas} filas ignoradas por fecha inválida o sin valor`;
   document.getElementById('import-msg').textContent=msg;
 
@@ -12786,7 +12788,7 @@ function parseCSV(text) {
       <td class="muted" style="font-size:10px">${g.adId}</td>
       <td class="muted left">${g.prod.substring(0,28)}</td>
       <td><strong>${total}</strong></td>
-      <td style="color:var(--green)">${fmt.s(ing)}${g.upsellTotal>0?` <span style="font-size:9px;color:var(--teal)">(+${fmt.s(g.upsellTotal)} ups)</span>`:''}</td>
+      <td style="color:var(--green)">${fmt.s(ing)}${g.upsellTotal>0?` <span style="font-size:9px;color:var(--teal)">(+${fmt.s(g.upsellTotal)} extra)</span>`:''}</td>
       <td>${estadoHtml}</td>
     </tr>`;
   }).join('');
@@ -14115,7 +14117,7 @@ async function renderCompararProductos() {
             </div>
           </div>
 
-          ${d.m.upsells > 0 ? `<div style="margin-top:8px;padding:5px 8px;background:var(--purple-dim);border-radius:6px;font-size:11px;color:var(--purple);font-weight:600">💜 Upsells: ${fmt.s(d.m.upsells)}</div>` : ''}
+          ${d.m.upsells > 0 ? `<div style="margin-top:8px;padding:5px 8px;background:var(--purple-dim);border-radius:6px;font-size:11px;color:var(--purple);font-weight:600">💜 Ventas extra:${fmt.s(d.m.upsells)}</div>` : ''}
         </div>
       </div>`;
     }).join('');
