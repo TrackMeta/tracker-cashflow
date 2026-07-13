@@ -2908,9 +2908,12 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 <div class="modal-overlay" id="modal-config">
   <div class="modal">
     <div class="modal-header"><span class="modal-title">⚙️ Configuración</span><button class="modal-close" onclick="closeModal('modal-config')">×</button></div>
-    <div class="modal-section">💰 Precio de referencia</div>
+    <div class="modal-section">🎯 Precios de venta directa</div>
     <div class="form-row form-2" style="margin-top:8px">
-      <div class="field"><label>Precio objetivo (S/)</label><input type="number" id="cfg-p1"><span style="font-size:10px;color:var(--text3);margin-top:3px;display:block">Precio principal del producto. Se usa como referencia para el CPA (costo por venta) y el score. Los ingresos reales salen del valor de cada venta del Sheet, no de aquí.</span></div>
+      <div class="field"><label>Precio directo 1 (🎯) — S/</label><input type="number" id="cfg-dir1" step="0.01"><span style="font-size:10px;color:var(--text3);margin-top:3px;display:block">Tu precio de venta directa (el original). Las ventas a este precio se marcan 🎯; el resto, 🔁 remarketing. También es la referencia del CPA y el score.</span></div>
+      <div class="field"><label>Precio directo 2 (🎯) — S/ · opcional</label><input type="number" id="cfg-dir2" step="0.01"><span style="font-size:10px;color:var(--text3);margin-top:3px;display:block">Si tienes un segundo precio que también cuenta como venta directa, ponlo aquí. Déjalo en 0 si solo tienes uno.</span></div>
+    </div>
+    <div class="form-row form-2" style="margin-top:8px">
       <div class="field"><label>Tipo de cambio → USD</label><input type="number" id="cfg-tc" step="0.1"><span style="font-size:10px;color:var(--text3);margin-top:3px;display:block">Es la misma tasa que ves en Editar Producto. Cambiarla aquí la actualiza en ambos lados.</span></div>
     </div>
     <div class="modal-section" style="margin-top:14px">🚨 Umbrales de alerta</div>
@@ -6104,16 +6107,32 @@ function _ingRegDe(r, P) {
   return regIngresoBase(r, P) + (+r.upsell_total||0);
 }
 // Desglose por precio real para tooltips/análisis: "🎯 S/10 ×13 · 🔁 S/7 ×4 · 🔁 S/5 ×6".
-// El precio más alto = venta directa (🎯); los menores = remarketing (🔁).
 function distPreciosEntries(dist){
   if(!dist) return [];
   return Object.entries(dist).map(([p,c])=>[+p,+c]).filter(([p,c])=>c>0 && isFinite(p)).sort((a,b)=>b[0]-a[0]);
 }
 function _money(n){ return 'S/'+(n%1===0?n:n.toFixed(2)); }
+// Precios marcados como venta directa (🎯) en Configuración. Puede haber 1 o 2.
+// Vacío → fallback: el precio más alto observado es la directa.
+function preciosDirectosSet(){
+  const pd = DB.config && DB.config.precios_directos;
+  let arr = [];
+  if (Array.isArray(pd)) arr = pd;
+  else if (typeof pd === 'string' && pd.trim()) { try { arr = JSON.parse(pd); } catch(e){ arr = pd.split(',');} }
+  return arr.map(Number).filter(x=>x>0);
+}
+// ¿El precio es venta directa? Si hay precios directos configurados, por pertenencia
+// (tolerancia 0.5); si no, es directa el más alto de `entries` (fallback).
+function esPrecioDirecto(precio, dirSet, entries){
+  precio = +precio;
+  if (dirSet && dirSet.length) return dirSet.some(d => Math.abs(precio - d) < 0.5);
+  return !!(entries && entries.length) && precio === entries[0][0];
+}
 function fmtPreciosDist(dist){
   const es = distPreciosEntries(dist);
   if(!es.length) return '';
-  return es.map(([p,c],i)=>`${i===0?'🎯':'🔁'} ${_money(p)} ×${c}`).join('  ·  ');
+  const dir = preciosDirectosSet();
+  return es.map(([p,c])=>`${esPrecioDirecto(p,dir,es)?'🎯':'🔁'} ${_money(p)} ×${c}`).join('  ·  ');
 }
 function _calcTendencia(adId, desde, hasta) {
   // Regresión lineal del ROAS diario PONDERADA por gasto (un día con S/2 de gasto
@@ -6749,13 +6768,14 @@ async function renderRemarketing() {
     return;
   }
 
-  const precioDirecta = entries[0][0];   // el más alto = venta directa
-  renderRemEmbudo(entries, regs, P);
+  const dirSet = preciosDirectosSet();
+  const esDir = p => esPrecioDirecto(p, dirSet, entries);
+  renderRemEmbudo(entries, regs, P, dirSet);
 
   const pct = n => total > 0 ? (n/total*100).toFixed(1)+'%' : '—';
   const palette = ['accent','teal','orange','purple','green','red'];
   document.getElementById('rem-kpis').innerHTML = entries.map(([p,c],i) =>
-    kpiCard(`${i===0?'🎯 Directa':'🔁 Remk'} — ${_money(p)}`, `${c} ventas`, palette[i%palette.length], `${pct(c)} del total · ${fmt.s(p*c)}`)
+    kpiCard(`${esDir(p)?'🎯 Directa':'🔁 Remk'} — ${_money(p)}`, `${c} ventas`, palette[i%palette.length], `${pct(c)} del total · ${fmt.s(p*c)}`)
   ).join('');
 
   // Gráfico donut por precio real
@@ -6766,7 +6786,7 @@ async function renderRemarketing() {
     charts.remarketing = new Chart(ctx, {
       type: 'doughnut',
       data: {
-        labels: entries.map(([p],i) => `${i===0?'🎯':'🔁'} ${_money(p)}`),
+        labels: entries.map(([p]) => `${esDir(p)?'🎯':'🔁'} ${_money(p)}`),
         datasets: [{ data: entries.map(([,c])=>c), backgroundColor: entries.map((_,i)=>donutPal[i%donutPal.length]), borderColor: '#fff', borderWidth: 3 }]
       },
       options: { responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { color: '#5A6A7E', font: { size: 11 }, padding: 12 } }, tooltip: { callbacks: { label: ctx => ` ${ctx.label}: ${ctx.raw} ventas (${(ctx.raw/total*100).toFixed(1)}%)` } } }, cutout: '60%' }
@@ -6778,7 +6798,7 @@ async function renderRemarketing() {
     .map(([adId, d]) => {
       const a   = DB.anuncios.find(x => x.ad_id === adId) || {};
       const tot = Object.values(d).reduce((s,n)=>s+n, 0);
-      const dir = d[precioDirecta] || 0;
+      const dir = Object.entries(d).reduce((s,[p,n])=> esDir(+p) ? s+n : s, 0);
       const dpct = tot > 0 ? (dir/tot*100).toFixed(0) : 0;
       const barColor = dpct >= 70 ? 'var(--green)' : dpct >= 40 ? 'var(--orange)' : 'var(--red)';
       return { adId, html: `<tr>
@@ -6798,19 +6818,20 @@ async function renderRemarketing() {
 }
 
 // Embudo entre niveles de precio + aporte del remarketing vs venta directa.
-// entries = [[precio, cantidad], ...] desc por precio (el 1º = venta directa).
-function renderRemEmbudo(entries, regs, P){
+// entries = [[precio, cantidad], ...] desc por precio. dirSet = precios directos (🎯).
+function renderRemEmbudo(entries, regs, P, dirSet){
   const box = document.getElementById('rem-embudo');
   if (!box) return;
+  const esDir = p => esPrecioDirecto(p, dirSet, entries);
   const upsells = regs.reduce((s,r)=>s+(+r.upsell_total||0),0);
-  const directa = entries.length ? entries[0][0]*entries[0][1] : 0;
-  const remark  = entries.slice(1).reduce((s,[p,c])=>s+p*c, 0) + upsells;
+  const directa = entries.reduce((s,[p,c])=> esDir(p) ? s+p*c : s, 0);
+  const remark  = entries.reduce((s,[p,c])=> esDir(p) ? s : s+p*c, 0) + upsells;
   const totalIng = directa + remark || 1;
   const pctDir = directa/totalIng*100, pctRem = remark/totalIng*100;
 
   // Embudo: cada precio distinto como un escalón, con conversión relativa al anterior
   const cols = ['var(--accent)','var(--teal)','var(--orange)','var(--purple)','var(--green)','var(--red)'];
-  const niveles = entries.map(([p,c],i) => ({ lbl:`${i===0?'🎯':'🔁'} S/${p%1===0?p:p.toFixed(2)}`, v:c, col:cols[i%cols.length] }));
+  const niveles = entries.map(([p,c],i) => ({ lbl:`${esDir(p)?'🎯':'🔁'} S/${p%1===0?p:p.toFixed(2)}`, v:c, col:cols[i%cols.length] }));
   const maxV = Math.max(...niveles.map(n=>n.v), 1);
   const embudoHtml = niveles.map((n,i) => {
     const prev = i>0 ? niveles[i-1].v : null;
@@ -6839,7 +6860,7 @@ function renderRemEmbudo(entries, regs, P){
           <div title="Remarketing (P2-P4 + upsells)" style="width:${pctRem}%;background:var(--purple);display:flex;align-items:center;justify-content:center;color:#fff;font-size:10px;font-weight:700">${pctRem>=12?pctRem.toFixed(0)+'%':''}</div>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:12px;margin-bottom:4px">
-          <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--accent);margin-right:5px"></span>🎯 Directa (precio más alto)</span>
+          <span><span style="display:inline-block;width:9px;height:9px;border-radius:2px;background:var(--accent);margin-right:5px"></span>🎯 Directa</span>
           <b>${fmt.s(directa)} · ${pctDir.toFixed(0)}%</b>
         </div>
         <div style="display:flex;justify-content:space-between;font-size:12px">
@@ -10442,7 +10463,9 @@ function getPreciosParaRegistro(reg) {
 // ════════════════════════════════════════════════
 function openConfig() {
   const P = DB.config;
-  document.getElementById('cfg-p1').value = P.p1??10;
+  const dir = preciosDirectosSet();
+  document.getElementById('cfg-dir1').value = dir[0] ?? (P.p1??10);
+  document.getElementById('cfg-dir2').value = dir[1] ?? 0;
   // El tipo de cambio mostrado es la tasa REAL del producto activo (la que se respeta).
   // Coincide con "Tasa de cambio → USD" de Editar Producto. Si la moneda es USD, es 1.
   document.getElementById('cfg-tc').value = (CURRENT_WORKSPACE?.usd_rate ?? P.tc ?? 4.0);
@@ -10454,8 +10477,13 @@ function openConfig() {
 
 async function saveConfig() {
   const v = id => { const x = +document.getElementById(id).value; return isNaN(x) ? null : x; };
+  // Precios de venta directa (🎯): 1 o 2. El 1º también hace de precio de referencia (p1) para CPA/score.
+  const dir1 = v('cfg-dir1') ?? 10;
+  const dir2 = v('cfg-dir2') ?? 0;
+  const preciosDirectos = [dir1, dir2].filter(x => x > 0);
   const newCfg = {
-    p1: v('cfg-p1') ?? 10,
+    p1: dir1,
+    precios_directos: preciosDirectos,
     // p2..p4 quedan como estaban (modelo de valor único: ya no se editan aquí).
     p2: DB.config.p2 ?? 7,
     p3: DB.config.p3 ?? 5,
@@ -11550,7 +11578,8 @@ function renderDonut(M) {
   // no hay desglose (registros manuales sin crm_ventas), muestra el total como 1 tramo.
   let entries = distPreciosEntries(M.preciosDist);
   if(!entries.length && M.ventas>0) entries = [[0, M.ventas]];
-  const labels = entries.map(([p],i)=> p>0 ? (i===0?`🎯 S/${p%1===0?p:p.toFixed(2)}`:`🔁 S/${p%1===0?p:p.toFixed(2)}`) : 'Ventas');
+  const _dir = preciosDirectosSet();
+  const labels = entries.map(([p])=> p>0 ? `${esPrecioDirecto(p,_dir,entries)?'🎯':'🔁'} S/${p%1===0?p:p.toFixed(2)}` : 'Ventas');
   const data   = entries.map(([,c])=>c);
   const palette=['#34D399','#4F8EF7','#FB923C','#F87171','#A78BFA','#F472B6','#22D3EE','#FBBF24'];
   const colors = entries.map((_,i)=>palette[i%palette.length]);
