@@ -767,7 +767,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div class="prod-card" onclick="openConfig()">
       <div class="prod-ico" style="background:var(--orange-dim);color:var(--orange)">🚨</div>
       <div class="prod-name">Umbrales de alerta</div>
-      <div class="prod-meta">Precios, ROAS mínimo, gasto y saturación</div>
+      <div class="prod-meta">ROAS mínimo, gasto, saturación y tipo de cambio</div>
       <div class="prod-actions"><span></span><span class="prod-open">Abrir →</span></div>
     </div>
     <div class="prod-card" style="cursor:default">
@@ -2818,6 +2818,12 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
       <div class="field"><label>Impuesto % (IGV/IVA)</label><input type="number" id="ws-tax" step="0.5" min="0" placeholder="18"></div>
       <div class="field"><label>Fuente (bot)</label><select id="ws-fuente"></select></div>
     </div>
+    <div class="modal-section" style="margin-top:14px">🎯 Precios de venta directa</div>
+    <div style="font-size:11px;color:var(--text3);margin:4px 0 8px">Las ventas a estos precios se marcan 🎯 directa; el resto, 🔁 remarketing. El 1º es también la referencia del CPA/score. Los ingresos reales salen del valor de cada venta del Sheet.</div>
+    <div class="form-row form-2">
+      <div class="field"><label>Precio directo 1 (🎯) — S/</label><input type="number" id="ws-dir1" step="0.01" min="0" placeholder="10"></div>
+      <div class="field"><label>Precio directo 2 (🎯) — opcional</label><input type="number" id="ws-dir2" step="0.01" min="0" placeholder="0"></div>
+    </div>
     <input type="hidden" id="ws-edit-id" value="">
     <div style="display:flex;align-items:center;gap:8px;margin-top:14px">
       <button class="btn btn-ghost" id="ws-delete-btn" style="display:none;color:var(--red);border-color:rgba(225,29,72,0.3)" onclick="eliminarProductoActual()">🗑️ Eliminar producto</button>
@@ -2908,11 +2914,8 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
 <div class="modal-overlay" id="modal-config">
   <div class="modal">
     <div class="modal-header"><span class="modal-title">⚙️ Configuración</span><button class="modal-close" onclick="closeModal('modal-config')">×</button></div>
-    <div class="modal-section">🎯 Precios de venta directa</div>
-    <div class="form-row form-2" style="margin-top:8px">
-      <div class="field"><label>Precio directo 1 (🎯) — S/</label><input type="number" id="cfg-dir1" step="0.01"><span style="font-size:10px;color:var(--text3);margin-top:3px;display:block">Tu precio de venta directa (el original). Las ventas a este precio se marcan 🎯; el resto, 🔁 remarketing. También es la referencia del CPA y el score.</span></div>
-      <div class="field"><label>Precio directo 2 (🎯) — S/ · opcional</label><input type="number" id="cfg-dir2" step="0.01"><span style="font-size:10px;color:var(--text3);margin-top:3px;display:block">Si tienes un segundo precio que también cuenta como venta directa, ponlo aquí. Déjalo en 0 si solo tienes uno.</span></div>
-    </div>
+    <div class="modal-section">💵 Tipo de cambio</div>
+    <div class="alert alert-info" style="margin-top:8px;font-size:11px">🎯 Los <b>precios de venta directa</b> ahora se configuran por producto en <b>⚙️ Configuración del producto</b> (botón del producto en la barra lateral).</div>
     <div class="form-row form-2" style="margin-top:8px">
       <div class="field"><label>Tipo de cambio → USD</label><input type="number" id="cfg-tc" step="0.1"><span style="font-size:10px;color:var(--text3);margin-top:3px;display:block">Es la misma tasa que ves en Editar Producto. Cambiarla aquí la actualiza en ambos lados.</span></div>
     </div>
@@ -5325,12 +5328,14 @@ function openNuevoWorkspace() {
   document.getElementById('ws-nombre-input').value = '';
   document.getElementById('ws-edit-id').value = '';
   populateWsModalSelects(null);
+  document.getElementById('ws-dir1').value = 10;
+  document.getElementById('ws-dir2').value = 0;
   const del = document.getElementById('ws-delete-btn'); if (del) del.style.display = 'none';
   document.getElementById('ws-dropdown').classList.add('hidden');
   openModal('modal-workspace');
 }
 
-function editWorkspace(wsId) {
+async function editWorkspace(wsId) {
   const ws = DB.workspaces.find(w => w.id === wsId);
   if (!ws) return;
   document.getElementById('ws-modal-title').textContent = '⚙️ Configuración del producto';
@@ -5338,6 +5343,12 @@ function editWorkspace(wsId) {
   document.getElementById('ws-nombre-input').value = ws.nombre;
   document.getElementById('ws-edit-id').value = wsId;
   populateWsModalSelects(ws);
+  // Precios de venta directa: del config del producto (activo → DB.config; otro → fetch).
+  let cfgRow = (CURRENT_WORKSPACE?.id === wsId) ? DB.config : null;
+  if (!cfgRow) { try { cfgRow = (await api.get('config', `workspace_id=eq.${wsId}&select=p1,precios_directos&limit=1`))[0]; } catch(e){} }
+  const dir = parsePreciosDirectos(cfgRow?.precios_directos);
+  document.getElementById('ws-dir1').value = dir[0] ?? (cfgRow?.p1 ?? 10);
+  document.getElementById('ws-dir2').value = dir[1] ?? 0;
   // Eliminar producto vive aquí (administración del producto), no en la navegación
   const del = document.getElementById('ws-delete-btn');
   if (del) del.style.display = (DB.workspaces.length > 1) ? 'inline-flex' : 'none';
@@ -5396,6 +5407,10 @@ async function saveWorkspace() {
   const usd_rate = currency_code === 'USD' ? 1 : (+document.getElementById('ws-usd-rate').value || 3.7);
   const tax_pct  = +document.getElementById('ws-tax').value || 0;
   const fuente_id = document.getElementById('ws-fuente').value || null;
+  // Precios de venta directa (🎯): 1 o 2. El 1º hace de precio de referencia (p1).
+  const dir1 = +document.getElementById('ws-dir1').value || 10;
+  const dir2 = +document.getElementById('ws-dir2').value || 0;
+  const preciosDirectos = [dir1, dir2].filter(x => x > 0);
   const wsData = { nombre, emoji, currency_code, usd_rate, tax_pct, fuente_id };
   try {
     setSyncStatus('loading', 'Guardando...');
@@ -5409,15 +5424,24 @@ async function saveWorkspace() {
         // Configuración muestre el mismo valor que acabamos de guardar aquí.
         if (DB.config && usd_rate) DB.config.tc = usd_rate;
       }
+      // Guardar precios directos en la config de ESTE producto
+      const cfgPatch = { p1: dir1, precios_directos: preciosDirectos };
+      let cfgId = (CURRENT_WORKSPACE?.id === editId && DB.config?.id) ? DB.config.id : null;
+      if (!cfgId) { try { cfgId = (await api.get('config', `workspace_id=eq.${editId}&select=id&limit=1`))[0]?.id; } catch(e){} }
+      try {
+        if (cfgId) await api.patch('config', cfgId, cfgPatch);
+        else await api.post('config', { ...cfgPatch, workspace_id: editId, user_id: CURRENT_USER?.id });
+        if (CURRENT_WORKSPACE?.id === editId && DB.config) Object.assign(DB.config, cfgPatch);
+      } catch(eCfg) { console.warn('No se pudieron guardar los precios directos:', eCfg); }
     } else {
       const res = await api.post('workspaces', { ...wsData, user_id: CURRENT_USER?.id });
       DB.workspaces.push(res[0]);
       CURRENT_WORKSPACE = res[0];
       localStorage.setItem('tracker_workspace', res[0].id);
-      // Crear config por defecto con p4=3 para que el sync clasifique correctamente desde el primer día
+      // Crear config por defecto (p1/precios_directos desde los campos del formulario)
       try {
         await api.post('config', {
-          p1: 10, p2: 7, p3: 5, p4: 3,
+          p1: dir1, precios_directos: preciosDirectos, p2: 7, p3: 5, p4: 3,
           igv: 0.18, tc: 4.0, sat_caida: 0.30, sat_dias: 3,
           alerta_gasto_min: 5, alerta_roas_min: 1, roas_gasto_min: 1,
           workspace_id: res[0].id, user_id: CURRENT_USER?.id
@@ -6112,14 +6136,17 @@ function distPreciosEntries(dist){
   return Object.entries(dist).map(([p,c])=>[+p,+c]).filter(([p,c])=>c>0 && isFinite(p)).sort((a,b)=>b[0]-a[0]);
 }
 function _money(n){ return 'S/'+(n%1===0?n:n.toFixed(2)); }
-// Precios marcados como venta directa (🎯) en Configuración. Puede haber 1 o 2.
-// Vacío → fallback: el precio más alto observado es la directa.
-function preciosDirectosSet(){
-  const pd = DB.config && DB.config.precios_directos;
+// Parsea el valor crudo de config.precios_directos (jsonb array o texto) a números>0.
+function parsePreciosDirectos(pd){
   let arr = [];
   if (Array.isArray(pd)) arr = pd;
   else if (typeof pd === 'string' && pd.trim()) { try { arr = JSON.parse(pd); } catch(e){ arr = pd.split(',');} }
   return arr.map(Number).filter(x=>x>0);
+}
+// Precios marcados como venta directa (🎯) del producto activo. Puede haber 1 o 2.
+// Vacío → fallback: el precio más alto observado es la directa.
+function preciosDirectosSet(){
+  return parsePreciosDirectos(DB.config && DB.config.precios_directos);
 }
 // ¿El precio es venta directa? Si hay precios directos configurados, por pertenencia
 // (tolerancia 0.5); si no, es directa el más alto de `entries` (fallback).
@@ -10463,9 +10490,6 @@ function getPreciosParaRegistro(reg) {
 // ════════════════════════════════════════════════
 function openConfig() {
   const P = DB.config;
-  const dir = preciosDirectosSet();
-  document.getElementById('cfg-dir1').value = dir[0] ?? (P.p1??10);
-  document.getElementById('cfg-dir2').value = dir[1] ?? 0;
   // El tipo de cambio mostrado es la tasa REAL del producto activo (la que se respeta).
   // Coincide con "Tasa de cambio → USD" de Editar Producto. Si la moneda es USD, es 1.
   document.getElementById('cfg-tc').value = (CURRENT_WORKSPACE?.usd_rate ?? P.tc ?? 4.0);
@@ -10477,14 +10501,9 @@ function openConfig() {
 
 async function saveConfig() {
   const v = id => { const x = +document.getElementById(id).value; return isNaN(x) ? null : x; };
-  // Precios de venta directa (🎯): 1 o 2. El 1º también hace de precio de referencia (p1) para CPA/score.
-  const dir1 = v('cfg-dir1') ?? 10;
-  const dir2 = v('cfg-dir2') ?? 0;
-  const preciosDirectos = [dir1, dir2].filter(x => x > 0);
   const newCfg = {
-    p1: dir1,
-    precios_directos: preciosDirectos,
-    // p2..p4 quedan como estaban (modelo de valor único: ya no se editan aquí).
+    // Precios (p1..p4 y precios_directos) se editan en Configuración del producto: aquí se preservan.
+    p1: DB.config.p1 ?? 10,
     p2: DB.config.p2 ?? 7,
     p3: DB.config.p3 ?? 5,
     p4: DB.config.p4 ?? 3,
