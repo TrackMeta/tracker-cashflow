@@ -12311,10 +12311,16 @@ async function resetVentasRango(){
     const rDel = await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas?workspace_id=in.(${inList})&fecha=gte.${desde}&fecha=lte.${hasta}`,
       { method:'DELETE', headers: { ...api._h(), 'Prefer':'return=minimal' } });
     if (!rDel.ok) throw new Error(`crm_ventas: HTTP ${rDel.status}`);
-    // 2) Poner en 0 las ventas del registro diario (sin tocar el gasto de Meta)
+    // 2) Poner en 0 las ventas del registro diario (sin tocar el gasto de Meta).
+    // Valor único: ventas/ingresos son la fuente real; v1..v4 solo legacy.
     const rReg = await fetch(`${SUPABASE_URL}/rest/v1/registros?workspace_id=in.(${inList})&fecha=gte.${desde}&fecha=lte.${hasta}`,
-      { method:'PATCH', headers: { ...api._h(), 'Prefer':'return=minimal' }, body: JSON.stringify({ v1:0, v2:0, v3:0, v4:0, upsell_total:0 }) });
+      { method:'PATCH', headers: { ...api._h(), 'Prefer':'return=minimal' }, body: JSON.stringify({ ventas:0, ingresos:0, v1:0, v2:0, v3:0, v4:0, upsell_total:0 }) });
     if (!rReg.ok) throw new Error(`registros: HTTP ${rReg.status}`);
+    // 3) Quitar el blindaje de "corregido a mano" del rango: el reset es para
+    // re-sincronizar desde cero; si queda corregido_manual=true el sync saltaría
+    // esas filas y quedarían en 0 para siempre. No-fatal si la columna no existe.
+    await fetch(`${SUPABASE_URL}/rest/v1/registros?workspace_id=in.(${inList})&fecha=gte.${desde}&fecha=lte.${hasta}&corregido_manual=eq.true`,
+      { method:'PATCH', headers: { ...api._h(), 'Prefer':'return=minimal' }, body: JSON.stringify({ corregido_manual:false }) }).catch(()=>{});
     await loadAll();
     setSyncStatus('ok','Sincronizado ✓');
     showSuccess(`✅ Ventas de ${prodTxt} (${rangoTxt}) borradas. Ahora puedes re-sincronizar a mano.`);
