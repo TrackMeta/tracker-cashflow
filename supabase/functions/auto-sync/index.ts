@@ -129,6 +129,19 @@ function normalizarProducto(nombre: string, wsNames: string[]) {
 const nDaysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
 const enc = encodeURIComponent;
 
+// ── Modelo de valor único (espejo de regVentas/regIngresoBase del cliente) ──
+// `ventas`/`ingresos` son la fuente de verdad; v1..v4 solo quedan como fallback
+// para filas pre-migración 0011 que aún no tienen el agregado nuevo.
+function regVentasR(r: any): number {
+  if (r && r.ventas !== undefined && r.ventas !== null) return +r.ventas || 0;
+  return (+r?.v1 || 0) + (+r?.v2 || 0) + (+r?.v3 || 0) + (+r?.v4 || 0);
+}
+function regIngresoBaseR(r: any, cfg: any): number {
+  if (r && r.ingresos !== undefined && r.ingresos !== null) return +r.ingresos || 0;
+  return (+r?.v1 || 0) * (+(cfg?.p1 ?? 10)) + (+r?.v2 || 0) * (+(cfg?.p2 ?? 7))
+       + (+r?.v3 || 0) * (+(cfg?.p3 ?? 5)) + (+r?.v4 || 0) * (+(cfg?.p4 ?? 3));
+}
+
 // ── Sincroniza un Sheet (una fuente) ──
 // days=5 (auto-sync inteligente): solo últimos 5 días para capturar ajustes tardíos de Meta.
 // days=90 (sync manual completo). days=0 = sin límite (Total).
@@ -144,13 +157,10 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
   const wsNames = job.wsList.map((w) => w.nombre || "");
   const wsNombreToId: Record<string, string> = {};
   const adIdToWs: Record<string, string> = {};
-  const wsCfg: Record<string, any> = {};
   for (const ws of job.wsList) {
     wsNombreToId[ws.nombre || ""] = ws.id;
     const ads = await sb("GET", `anuncios?workspace_id=eq.${ws.id}&select=ad_id`);
     (ads || []).forEach((a: any) => { adIdToWs[a.ad_id] = ws.id; });
-    const cfg = await sb("GET", `config?workspace_id=eq.${ws.id}&select=p1,p2,p3,p4&limit=1`);
-    wsCfg[ws.id] = (cfg && cfg[0]) || { p1: 10, p2: 7, p3: 5, p4: 3 };
   }
   const allAdIds = new Set(Object.keys(adIdToWs));
   // Acepta por Ad ID registrado O por nombre de producto que coincida con un workspace
@@ -170,14 +180,12 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
     const prodNorm = normalizarProducto(r.producto || "", wsNames);
     const wsId = wsNombreToId[prodNorm] || adIdToWs[r.adId] || job.wsList[0]?.id;
     if (!wsId) continue;
-    const P = wsCfg[wsId] || { p1: 10, p2: 7, p3: 5, p4: 3 };
     const key = `${r.fecha}||${r.adId}||${prodNorm}`;
-    if (!grupos[key]) grupos[key] = { fecha: r.fecha, adId: r.adId, v1: 0, v2: 0, v3: 0, v4: 0, upsell: 0, wsId };
+    if (!grupos[key]) grupos[key] = { fecha: r.fecha, adId: r.adId, ventas: 0, ingresos: 0, upsell: 0, wsId };
     const g = grupos[key];
-    const activos: [number, number][] = [[+P.p1, 0], [+P.p2, 1], [+P.p3, 2], [+P.p4, 3]].filter(([p]) => p > 0);
-    const exacto = activos.find(([p]) => Math.abs(r.valor - p) < 0.5);
-    const idx = exacto ? exacto[1] : activos.reduce((bi, [p, i]) => Math.abs(r.valor - p) < Math.abs(r.valor - activos[bi][0]) ? i : bi, 0);
-    if (idx === 0) g.v1++; else if (idx === 1) g.v2++; else if (idx === 2) g.v3++; else g.v4++;
+    // Modelo de valor único: cada venta suma su precio real (sin tramos P1..P4),
+    // igual que el sync manual del cliente.
+    if (r.valor > 0) { g.ventas++; g.ingresos += r.valor; }
     g.upsell += r.up1 + r.up2 + r.up3 + r.up4;
     if (r.hora && r.valor > 0) crmRows.push({ fecha: r.fecha, ad_id: r.adId, hora: r.hora, precio: r.valor, telefono: r.telefono || null, producto: r.producto || null, cliente: r.cliente || null, workspace_id: wsId, user_id: job.userId, fuente_uid: r.uid || null, bump_monto: (+r.up1 || 0), bump_ciclo: ((+r.up1 || 0) > 0 ? "pendiente" : null) });
   }
@@ -187,7 +195,7 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
   for (const g of Object.values(grupos) as any[]) {
     const k = `${g.wsId}||${g.adId}||${g.fecha}`;
     if (!regMap[k]) regMap[k] = { ...g };
-    else { regMap[k].v1 += g.v1; regMap[k].v2 += g.v2; regMap[k].v3 += g.v3; regMap[k].v4 += g.v4; regMap[k].upsell += g.upsell; }
+    else { regMap[k].ventas += g.ventas; regMap[k].ingresos += g.ingresos; regMap[k].upsell += g.upsell; }
   }
   const registros = Object.values(regMap) as any[];
 
@@ -202,7 +210,7 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
   for (let i = 0; i < registros.length; i += 50) {
     const lote = registros.slice(i, i + 50);
     await sb("POST", "registros?on_conflict=workspace_id,ad_id,fecha", lote.map((r) => ({
-      fecha: r.fecha, ad_id: r.adId, v1: 0, v2: 0, v3: 0, v4: 0, upsell_total: 0,
+      fecha: r.fecha, ad_id: r.adId, ventas: 0, ingresos: 0, v1: 0, v2: 0, v3: 0, v4: 0, upsell_total: 0,
       gasto_meta: 0, impr_meta: 0, clics_meta: 0, chats_meta: 0,
       gasto_tiktok: 0, impr_tiktok: 0, clics_tiktok: 0, chats_tiktok: 0,
       workspace_id: r.wsId, user_id: job.userId,
@@ -210,7 +218,7 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
     for (const r of lote) {
       if (protegidos.has(`${r.wsId}||${r.adId}||${r.fecha}`)) continue;
       await sb("PATCH", `registros?workspace_id=eq.${r.wsId}&fecha=eq.${r.fecha}&ad_id=eq.${enc(r.adId)}`,
-        { v1: r.v1, v2: r.v2, v3: r.v3, v4: r.v4, upsell_total: r.upsell }, "return=minimal").catch(() => {});
+        { ventas: r.ventas, ingresos: r.ingresos, v1: 0, v2: 0, v3: 0, v4: 0, upsell_total: r.upsell }, "return=minimal").catch(() => {});
     }
   }
 
@@ -219,12 +227,12 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
   // upsell en 0. NO se toca el gasto (viene de Meta), solo las ventas del Sheet.
   const regMapKeys = new Set(registros.map((r) => `${r.wsId}||${r.adId}||${r.fecha}`));
   for (const ws of job.wsList) {
-    const conVentas = await sb("GET", `registros?workspace_id=eq.${ws.id}&fecha=gte.${fechaMin}&or=(v1.gt.0,v2.gt.0,v3.gt.0,v4.gt.0,upsell_total.gt.0)&select=ad_id,fecha`);
+    const conVentas = await sb("GET", `registros?workspace_id=eq.${ws.id}&fecha=gte.${fechaMin}&or=(ventas.gt.0,ingresos.gt.0,v1.gt.0,v2.gt.0,v3.gt.0,v4.gt.0,upsell_total.gt.0)&select=ad_id,fecha`);
     for (const reg of (conVentas || [])) {
       const k = `${ws.id}||${reg.ad_id}||${reg.fecha}`;
       if (regMapKeys.has(k) || protegidos.has(k)) continue;
       await sb("PATCH", `registros?workspace_id=eq.${ws.id}&ad_id=eq.${enc(reg.ad_id)}&fecha=eq.${reg.fecha}`,
-        { v1: 0, v2: 0, v3: 0, v4: 0, upsell_total: 0 }, "return=minimal").catch(() => {});
+        { ventas: 0, ingresos: 0, v1: 0, v2: 0, v3: 0, v4: 0, upsell_total: 0 }, "return=minimal").catch(() => {});
     }
   }
 
@@ -374,7 +382,7 @@ async function syncMeta(fuente: any, wsList: any[]) {
         const msg = acts.find((a: any) => ["onsite_conversion.messaging_conversation_started_7d", "onsite_conversion.messaging_first_reply", "onsite_conversion.total_messaging_connection"].includes(a.action_type));
         await sb("POST", "registros?on_conflict=workspace_id,ad_id,fecha", [{
           workspace_id: wsId, user_id: fuente.user_id, ad_id: row.ad_id, fecha: row.date_start,
-          gasto_meta: 0, impr_meta: 0, clics_meta: 0, chats_meta: 0, v1: 0, v2: 0, v3: 0, v4: 0, upsell_total: 0,
+          gasto_meta: 0, impr_meta: 0, clics_meta: 0, chats_meta: 0, ventas: 0, ingresos: 0, v1: 0, v2: 0, v3: 0, v4: 0, upsell_total: 0,
         }], "resolution=ignore-duplicates,return=minimal").catch(() => {});
         await sb("PATCH", `registros?workspace_id=eq.${wsId}&ad_id=eq.${enc(row.ad_id)}&fecha=eq.${row.date_start}`, {
           gasto_meta: parseFloat(row.spend) || 0, impr_meta: parseInt(row.impressions) || 0,
@@ -394,13 +402,13 @@ async function consolidar(wsId: string, ws: any): Promise<string[]> {
   const rate = (ws.currency_code === "USD") ? 1 : (+ws.usd_rate || 3.7);
   const emoji = ws.emoji || "📦";
   const cfg = (await sb("GET", `config?workspace_id=eq.${wsId}&select=p1,p2,p3,p4&limit=1`))?.[0] || { p1: 10, p2: 7, p3: 5, p4: 3 };
-  const regs = await sb("GET", `registros?workspace_id=eq.${wsId}&fecha=gte.${desde}&select=fecha,gasto_meta,gasto_tiktok,v1,v2,v3,v4,upsell_total`);
+  const regs = await sb("GET", `registros?workspace_id=eq.${wsId}&fecha=gte.${desde}&select=fecha,gasto_meta,gasto_tiktok,ventas,ingresos,v1,v2,v3,v4,upsell_total`);
   const estados = await sb("GET", `dia_estado?workspace_id=eq.${wsId}&fecha=gte.${desde}`);
   const agg: Record<string, { gasto: number; ing: number }> = {};
   (regs || []).forEach((r: any) => {
     const a = agg[r.fecha] || (agg[r.fecha] = { gasto: 0, ing: 0 });
     a.gasto += (+r.gasto_meta || 0) + (+r.gasto_tiktok || 0);
-    a.ing += (+r.v1 || 0) * (+cfg.p1) + (+r.v2 || 0) * (+cfg.p2) + (+r.v3 || 0) * (+cfg.p3) + (+r.v4 || 0) * (+cfg.p4) + (+r.upsell_total || 0);
+    a.ing += regIngresoBaseR(r, cfg) + (+r.upsell_total || 0);
   });
   const estMap: Record<string, any> = {}; (estados || []).forEach((e: any) => { estMap[e.fecha] = e; });
   const alertas: string[] = [];
@@ -671,10 +679,15 @@ async function reportData(userId: string, desde: string, hasta: string) {
   const perWs: any[] = [];
   for (const ws of (workspaces || [])) {
     const cfg = (await sb("GET", `config?workspace_id=eq.${ws.id}&select=p1,p2,p3,p4&limit=1`))?.[0] || { p1: 10, p2: 7, p3: 5, p4: 3 };
-    const regs = await sb("GET", `registros?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&select=fecha,gasto_meta,gasto_tiktok,v1,v2,v3,v4,upsell_total`) || [];
-    let inv = 0, up = 0, v1 = 0, v2 = 0, v3 = 0, v4 = 0;
-    regs.forEach((r: any) => { inv += (+r.gasto_meta || 0) + (+r.gasto_tiktok || 0); v1 += +r.v1 || 0; v2 += +r.v2 || 0; v3 += +r.v3 || 0; v4 += +r.v4 || 0; up += +r.upsell_total || 0; });
-    const ingReg = v1 * (+cfg.p1) + v2 * (+cfg.p2) + v3 * (+cfg.p3) + v4 * (+cfg.p4) + up; // fallback
+    const regs = await sb("GET", `registros?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&select=fecha,gasto_meta,gasto_tiktok,ventas,ingresos,v1,v2,v3,v4,upsell_total`) || [];
+    let inv = 0, up = 0, v1 = 0, v2 = 0, v3 = 0, v4 = 0, venReg = 0, ingBase = 0;
+    regs.forEach((r: any) => {
+      inv += (+r.gasto_meta || 0) + (+r.gasto_tiktok || 0);
+      v1 += +r.v1 || 0; v2 += +r.v2 || 0; v3 += +r.v3 || 0; v4 += +r.v4 || 0;
+      venReg += regVentasR(r); ingBase += regIngresoBaseR(r, cfg);
+      up += +r.upsell_total || 0;
+    });
+    const ingReg = ingBase + up; // fallback (valor único; v1..v4 solo en filas pre-migración)
     const ic = ingMap[ws.id] || {};
     const ingProy = ic.ing_proyectado != null ? +ic.ing_proyectado : ingReg;
     const ingConf = +ic.ing_confirmado || 0;
@@ -685,7 +698,7 @@ async function reportData(userId: string, desde: string, hasta: string) {
     const diasData = [...new Set(regs.map((r: any) => r.fecha))] as string[];
     let prov = 0; diasData.forEach((f) => { const c = consMap[f] !== undefined ? consMap[f] : (f < diaPeru(-2)); if (!c) prov++; });
     const bmp = bumpMap[ws.id] || { valProy: 0, nProy: 0, valConf: 0, nConf: 0 };
-    perWs.push({ ws, inv, ingProy, ingConf, v1, v2, v3, v4, ventas: v1 + v2 + v3 + v4, rate, prov, nTotal, nConf, dias: diasData.length,
+    perWs.push({ ws, inv, ingProy, ingConf, v1, v2, v3, v4, ventas: venReg, rate, prov, nTotal, nConf, dias: diasData.length,
       bumpValProy: bmp.valProy, bumpNProy: bmp.nProy, bumpValConf: bmp.valConf, bumpNConf: bmp.nConf });
   }
   return { perWs, fuenteName };
@@ -776,8 +789,11 @@ function formatReport(titulo: string, periodoTxt: string, data: any) {
       msg += `\n🛒 *Order Bumps:* ${fMoney(w.bumpValProy, code)} (${w.bumpNProy})`;
       msg += `\n💰 *Profit + Bump:* ${fMoney(profL + w.bumpValProy, code)}  ·  📈 ${fRoas(roasB)}`;
     }
-    msg += `\nP1 *${w.v1}* | P2 *${w.v2}*`;
-    msg += `\nP3 *${w.v3}* | P4 *${w.v4}*`;
+    // Desglose P1–P4 solo para filas legacy pre-migración (valor único ya no usa tramos)
+    if ((w.v1 + w.v2 + w.v3 + w.v4) > 0) {
+      msg += `\nP1 *${w.v1}* | P2 *${w.v2}*`;
+      msg += `\nP3 *${w.v3}* | P4 *${w.v4}*`;
+    }
   });
 
   // ── ALERTAS ──
@@ -869,12 +885,12 @@ async function cmdMejores(userId: string, desde: string, hasta: string) {
     const cfg = (await sb("GET", `config?workspace_id=eq.${ws.id}&select=p1,p2,p3,p4&limit=1`))?.[0] || { p1: 10, p2: 7, p3: 5, p4: 3 };
     const ads = await sb("GET", `anuncios?workspace_id=eq.${ws.id}&select=ad_id,nombre`);
     const nm: Record<string, string> = {}; (ads || []).forEach((a: any) => { nm[a.ad_id] = a.nombre || a.ad_id; });
-    const regs = await sb("GET", `registros?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&select=ad_id,gasto_meta,gasto_tiktok,v1,v2,v3,v4,upsell_total`);
+    const regs = await sb("GET", `registros?workspace_id=eq.${ws.id}&fecha=gte.${desde}&fecha=lte.${hasta}&select=ad_id,gasto_meta,gasto_tiktok,ventas,ingresos,v1,v2,v3,v4,upsell_total`);
     const byAd: Record<string, { g: number; ing: number }> = {};
     (regs || []).forEach((r: any) => {
       const a = byAd[r.ad_id] || (byAd[r.ad_id] = { g: 0, ing: 0 });
       a.g += (+r.gasto_meta || 0) + (+r.gasto_tiktok || 0);
-      a.ing += (+r.v1 || 0) * (+cfg.p1) + (+r.v2 || 0) * (+cfg.p2) + (+r.v3 || 0) * (+cfg.p3) + (+r.v4 || 0) * (+cfg.p4) + (+r.upsell_total || 0);
+      a.ing += regIngresoBaseR(r, cfg) + (+r.upsell_total || 0);
     });
     for (const [adId, a] of Object.entries(byAd)) {
       if (a.g < 1) continue;
