@@ -10320,9 +10320,24 @@ function cicloKey(wsId, adId, fecha){ return `${wsId}||${adId}||${fecha}`; }
 async function cargarCicloMap(force){
   if (!force && CICLO_MAP.size && Date.now()-_cicloAt < 30000) return;
   try {
-    const rows = await api.post('rpc/metricas_ciclo_por_ad', { p_desde: '2000-01-01', p_hasta: '2999-12-31' });
+    // PostgREST corta la respuesta en ~1000 filas (db-max-rows), y este RPC devuelve
+    // UNA fila por (ws, ad, fecha) de toda la historia → se pasa del tope enseguida.
+    // Las filas que quedaban fuera no rompían nada visible: el lookup daba undefined
+    // y esas ventas confirmadas sumaban 0, así que el círculo del Hub mostraba menos
+    // ventas de las realmente validadas. Por eso se pagina, igual que api.getAll.
+    // El RPC no trae ORDER BY: el orden se fija acá porque sin orden estable
+    // limit/offset puede repetir u omitir filas entre páginas.
+    const ord = 'order=fecha.asc,workspace_id.asc,ad_id.asc';
     const m = new Map();
-    (rows||[]).forEach(r => m.set(cicloKey(r.workspace_id, r.ad_id, r.fecha), r));
+    let offset = 0;
+    while (true) {
+      const rows = await api.post(`rpc/metricas_ciclo_por_ad?${ord}&limit=1000&offset=${offset}`,
+                                  { p_desde: '2000-01-01', p_hasta: '2999-12-31' }) || [];
+      rows.forEach(r => m.set(cicloKey(r.workspace_id, r.ad_id, r.fecha), r));
+      if (rows.length < 1000) break;
+      offset += 1000;
+      if (offset > 100000) break;   // tope de seguridad, igual que api.getAll
+    }
     CICLO_MAP = m; _cicloAt = Date.now();
   } catch(e){ console.warn('cargarCicloMap (RPC metricas_ciclo_por_ad):', e); }
 }
