@@ -233,7 +233,16 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
   // Freno PRINCIPAL (más preciso que el %): solo se pone en 0 una fecha que el Sheet
   // SÍ trajo en esta lectura. Si no tiene NADA de ese día, no se distingue "borraste
   // la venta" de "ese mes está archivado en otra pestaña" → no se toca.
+  // EXCEPCIÓN por antigüedad: un mes archivado es siempre viejo, así que dentro de los
+  // últimos ESPEJO_DIAS_CONFIABLES días sí se confía en la ausencia (borrar la única
+  // venta de un día reciente vuelve a bajarlo a 0 solo). Exige que el Sheet haya traído
+  // algo en esa ventana: si la pestaña activa solo tiene datos viejos, la ausencia de
+  // días recientes no prueba nada y se vaciarían todos. Espejo de index.html (~4446).
+  const ESPEJO_DIAS_CONFIABLES = 15;
+  const limiteConfiable = nDaysAgo(ESPEJO_DIAS_CONFIABLES);
   const fechasEnSheet = new Set(recientes.map((r: any) => r.fecha));
+  const sheetTieneRecientes = recientes.some((r: any) => r.fecha >= limiteConfiable);
+  const borrableAusente = (f: string) => sheetTieneRecientes && f >= limiteConfiable;
   const regMapKeys = new Set(registros.map((r) => `${r.wsId}||${r.adId}||${r.fecha}`));
   for (const ws of job.wsList) {
     // sbAll y no sb: con >1000 días-con-ventas el tope de PostgREST truncaba la
@@ -241,7 +250,8 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
     const todos = await sbAll(`registros?workspace_id=eq.${ws.id}&fecha=gte.${fechaMin}&or=(ventas.gt.0,ingresos.gt.0,v1.gt.0,v2.gt.0,v3.gt.0,v4.gt.0,upsell_total.gt.0)&select=ad_id,fecha`);
     const aCero = todos.filter((reg: any) => {
       const k = `${ws.id}||${reg.ad_id}||${reg.fecha}`;
-      return fechasEnSheet.has(reg.fecha) && !regMapKeys.has(k) && !protegidos.has(k);
+      return (fechasEnSheet.has(reg.fecha) || borrableAusente(reg.fecha)) &&
+             !regMapKeys.has(k) && !protegidos.has(k);
     });
     if (todos.length > 0 && aCero.length / todos.length > 0.60) {
       console.warn(`Espejo de registros OMITIDO en ws ${ws.id} (anomalía): pondría en 0 ${aCero.length}/${todos.length} días con ventas`);

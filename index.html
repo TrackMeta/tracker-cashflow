@@ -4458,17 +4458,30 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
     // Freno PRINCIPAL (más preciso que el %): solo se pone en 0 una fecha que el
     // Sheet SÍ trajo en esta lectura. Si el Sheet no tiene NADA de ese día, no hay
     // forma de distinguir "borraste la venta" de "ese mes está archivado en otra
-    // pestaña" → no se toca. El costo es que borrar la ÚNICA venta de un día en el
-    // Sheet ya no lo baja a 0 solo (se corrige a mano en Registro Diario); barato
-    // al lado de perder meses enteros.
+    // pestaña" → no se toca.
+    //
+    // EXCEPCIÓN por antigüedad: un mes archivado es SIEMPRE viejo — nadie archiva
+    // la semana pasada. Así que dentro de los últimos ESPEJO_DIAS_CONFIABLES días
+    // sí se confía en la ausencia, y borrar la ÚNICA venta de un día reciente
+    // vuelve a bajarlo a 0 solo. Fuera de esa ventana, el histórico es intocable.
+    //
+    // La excepción exige que el Sheet HAYA traído algo en esa ventana
+    // (`sheetTieneRecientes`): si la pestaña activa solo tiene datos viejos, la
+    // ausencia de días recientes no prueba nada y sin este chequeo se vaciarían
+    // todos los días recientes — el mismo bug que este freno vino a tapar, pero
+    // del otro lado del calendario.
+    const ESPEJO_DIAS_CONFIABLES = 15;
+    const limiteConfiable = nDaysAgo(ESPEJO_DIAS_CONFIABLES);
     const fechasEnSheet = new Set(allRowsRecientes.map(r => r.fecha));
+    const sheetTieneRecientes = allRowsRecientes.some(r => r.fecha >= limiteConfiable);
+    const borrableAusente = f => sheetTieneRecientes && f >= limiteConfiable;
     const regMapKeys = new Set(registros.map(r => `${r.wsId}||${r.adId}||${r.fecha}`));
     const wsIdsReg = [...new Set(registros.map(r => r.wsId))];
     for (const wsId of wsIdsReg) {
       const conVentas = await api.getAll('registros',
         `workspace_id=eq.${wsId}&fecha=gte.${fechaMinima}&fecha=lte.${fechaMaxima}&or=(ventas.gt.0,ingresos.gt.0,v1.gt.0,v2.gt.0,v3.gt.0,v4.gt.0,upsell_total.gt.0)&select=ad_id,fecha`).catch(()=>[]);
       const aCero = conVentas.filter(reg =>
-        fechasEnSheet.has(reg.fecha) &&
+        (fechasEnSheet.has(reg.fecha) || borrableAusente(reg.fecha)) &&
         !regMapKeys.has(`${wsId}||${reg.ad_id}||${reg.fecha}`) &&
         !protegidos.has(`${wsId}||${reg.ad_id}||${reg.fecha}`));
       if (conVentas.length > 0 && aCero.length / conVentas.length > 0.60) {
