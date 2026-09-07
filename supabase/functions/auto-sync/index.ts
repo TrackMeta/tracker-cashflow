@@ -10,8 +10,11 @@
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL")!;
 const SERVICE_KEY  = Deno.env.get("ADMIN_SERVICE_KEY") ?? Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
 const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
-// Marcador de versión: aparece en cada respuesta JSON. Si no aparece, el deploy es viejo.
-const FN_VERSION = "2026-06-21-autosync-intervalo";
+// Marcador de versión: aparece en cada respuesta JSON. BUMPEARLO EN CADA CAMBIO —
+// el deploy es manual (copiar/pegar en el Dashboard, el CLI da 403), así que esta
+// cadena es la ÚNICA forma de saber si lo que está arriba es el código nuevo o el
+// viejo. Estuvo congelada desde junio y por eso un `?ping` no distinguía versiones.
+const FN_VERSION = "2026-09-07-multibot-lotes";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
