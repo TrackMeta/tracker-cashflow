@@ -225,12 +225,29 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
   // Espejo de métricas: si un (ws,ad,fecha) tenía ventas en el rango pero ya NO
   // aparece en el Sheet (venta borrada o movida a otro Ad ID), poner v1..v4 y
   // upsell en 0. NO se toca el gasto (viene de Meta), solo las ventas del Sheet.
+  // Guarda anti-anomalía — la MISMA que ya protegía el borrado de crm_ventas (más
+  // abajo). Omite el espejo si pondría en 0 más del 60% de los días-con-ventas del
+  // rango. Sin este freno, un Sheet que ya no conserva los meses viejos (el gviz lee
+  // UNA sola pestaña, la activa) vaciaba el histórico entero; fue lo que borró
+  // marzo–junio 2026 en el cliente. Espejo del fix en index.html (~4446).
+  // Freno PRINCIPAL (más preciso que el %): solo se pone en 0 una fecha que el Sheet
+  // SÍ trajo en esta lectura. Si no tiene NADA de ese día, no se distingue "borraste
+  // la venta" de "ese mes está archivado en otra pestaña" → no se toca.
+  const fechasEnSheet = new Set(recientes.map((r: any) => r.fecha));
   const regMapKeys = new Set(registros.map((r) => `${r.wsId}||${r.adId}||${r.fecha}`));
   for (const ws of job.wsList) {
-    const conVentas = await sb("GET", `registros?workspace_id=eq.${ws.id}&fecha=gte.${fechaMin}&or=(ventas.gt.0,ingresos.gt.0,v1.gt.0,v2.gt.0,v3.gt.0,v4.gt.0,upsell_total.gt.0)&select=ad_id,fecha`);
-    for (const reg of (conVentas || [])) {
+    // sbAll y no sb: con >1000 días-con-ventas el tope de PostgREST truncaba la
+    // lista y el % del freno se calculaba sobre un denominador falso.
+    const todos = await sbAll(`registros?workspace_id=eq.${ws.id}&fecha=gte.${fechaMin}&or=(ventas.gt.0,ingresos.gt.0,v1.gt.0,v2.gt.0,v3.gt.0,v4.gt.0,upsell_total.gt.0)&select=ad_id,fecha`);
+    const aCero = todos.filter((reg: any) => {
       const k = `${ws.id}||${reg.ad_id}||${reg.fecha}`;
-      if (regMapKeys.has(k) || protegidos.has(k)) continue;
+      return fechasEnSheet.has(reg.fecha) && !regMapKeys.has(k) && !protegidos.has(k);
+    });
+    if (todos.length > 0 && aCero.length / todos.length > 0.60) {
+      console.warn(`Espejo de registros OMITIDO en ws ${ws.id} (anomalía): pondría en 0 ${aCero.length}/${todos.length} días con ventas`);
+      continue;
+    }
+    for (const reg of aCero) {
       await sb("PATCH", `registros?workspace_id=eq.${ws.id}&ad_id=eq.${enc(reg.ad_id)}&fecha=eq.${reg.fecha}`,
         { ventas: 0, ingresos: 0, v1: 0, v2: 0, v3: 0, v4: 0, upsell_total: 0 }, "return=minimal").catch(() => {});
     }
