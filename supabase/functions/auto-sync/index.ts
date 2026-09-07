@@ -127,6 +127,16 @@ function normalizarProducto(nombre: string, wsNames: string[]) {
 }
 
 const nDaysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - n); return d.toISOString().slice(0, 10); };
+
+// ── MULTI-BOT POR PRODUCTO (espejo de index.html) ──
+// `workspaces.fuente_ids` (uuid[], migración 0015) es la verdad de qué Sheets
+// alimentan a un producto; `fuente_id` queda como bot principal. Nunca comparar
+// `w.fuente_id === f.id` directo: con 2+ bots por producto se pierde el resto.
+function wsFuenteIds(w: any): string[] {
+  const arr = Array.isArray(w?.fuente_ids) ? w.fuente_ids.filter(Boolean) : [];
+  if (arr.length) return arr;
+  return w?.fuente_id ? [w.fuente_id] : [];   // fallback si 0015 aún no corrió
+}
 const enc = encodeURIComponent;
 
 // ── Modelo de valor único (espejo de regVentas/regIngresoBase del cliente) ──
@@ -545,7 +555,7 @@ async function procesarUsuario(userId: string, conMeta: boolean, sheetDays = 5) 
   const fechaMin = sheetDays > 0 ? nDaysAgo(sheetDays) : "2000-01-01";
   const lecturas: any[] = [];
   for (const f of (fuentes || [])) {
-    const wsList = (workspaces || []).filter((w: any) => w.fuente_id === f.id);
+    const wsList = (workspaces || []).filter((w: any) => wsFuenteIds(w).includes(f.id));
     // Con una sola fuente cubre todos los productos (incluye los sin asignar). Con
     // 2+ fuentes cada una toca SOLO sus productos: si no tiene ninguno, NO sincroniza
     // (así su espejo no pone en 0 las ventas de los otros bots que no están en su Sheet).

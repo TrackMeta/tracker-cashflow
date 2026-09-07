@@ -2816,7 +2816,11 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     </div>
     <div class="form-row form-2" style="margin-top:10px">
       <div class="field"><label>Impuesto % (IGV/IVA)</label><input type="number" id="ws-tax" step="0.5" min="0" placeholder="18"></div>
-      <div class="field"><label>Fuente (bot)</label><select id="ws-fuente"></select></div>
+      <div class="field">
+        <label>Bots que alimentan este producto</label>
+        <div id="ws-fuentes" style="max-height:96px;overflow-y:auto;background:var(--bg3);border:1px solid var(--border2);border-radius:8px;padding:6px 8px;display:flex;flex-direction:column;gap:4px"></div>
+        <div style="font-size:10px;color:var(--text3);margin-top:3px">Podés marcar varios (p. ej. el bot activo + un Sheet de archivo). Las ventas de todos se suman.</div>
+      </div>
     </div>
     <div class="modal-section" style="margin-top:14px">🎯 Precios de venta directa</div>
     <div style="font-size:11px;color:var(--text3);margin:4px 0 8px">Las ventas a estos precios se marcan 🎯 directa; el resto, 🔁 remarketing. El 1º es también la referencia del CPA/score. Los ingresos reales salen del valor de cada venta del Sheet.</div>
@@ -4152,7 +4156,7 @@ async function actualizarConsolidacion(wsIds) {
 async function _autoAsignarHuerfanos() {
   const fuentesConSheet = (DB.fuentes || []).filter(f => f.sheets_url);
   if (fuentesConSheet.length < 2) return;
-  const huerfanos = DB.workspaces.filter(w => !w.fuente_id);
+  const huerfanos = wsSinFuente();
   if (!huerfanos.length) return;
 
   // Ad IDs registrados por producto (para matchear por Ad ID además de por nombre).
@@ -4183,8 +4187,7 @@ async function _autoAsignarHuerfanos() {
     });
     if (bots.length === 1) {
       try {
-        await api.patch('workspaces', ws.id, { fuente_id: bots[0].f.id });
-        ws.fuente_id = bots[0].f.id;
+        await wsAsignarFuente(ws, bots[0].f.id);
         asignados.push(`${ws.nombre} → ${bots[0].f.emoji || '🤖'} ${bots[0].f.nombre}`);
       } catch(e) {}
     }
@@ -4208,7 +4211,7 @@ async function syncGoogleSheets() {
     ? fuentesConSheet.map(f => ({
         nombre: f.nombre || 'Fuente',
         url: f.sheets_url,
-        wsList: DB.workspaces.filter(w => w.fuente_id === f.id)
+        wsList: wsDeFuente(f.id)
       }))
     : ((DB.config.sheets_url || DB.config.sheets_id)
         ? [{ nombre: 'Principal', url: DB.config.sheets_url || DB.config.sheets_id, wsList: DB.workspaces }]
@@ -4225,7 +4228,7 @@ async function syncGoogleSheets() {
   // Con varias fuentes, los productos sin fuente asignada (huérfanos) no pertenecen a
   // ningún bot → no se sincronizan. Avisar para que el usuario los asigne.
   if (fuentesConSheet.length > 1) {
-    const huerfanos = DB.workspaces.filter(w => !w.fuente_id);
+    const huerfanos = wsSinFuente();
     if (huerfanos.length) showError(`⚠️ ${huerfanos.length} producto(s) sin fuente asignada no se sincronizan: ${huerfanos.slice(0, 4).map(w => w.nombre).join(', ')}${huerfanos.length > 4 ? '…' : ''}. Asígnalos a un bot en el editor de producto.`);
   }
 
@@ -5363,6 +5366,42 @@ async function callAdminFn(payload) {
 // ════════════════════════════════════════════════
 let SELECTED_WS_IDS = new Set(); // para dashboard global
 
+// ── MULTI-BOT POR PRODUCTO ──────────────────────────────────────────────────
+// `workspaces.fuente_ids` (uuid[], migración 0015) es la fuente de verdad de qué
+// Sheets alimentan a un producto. `fuente_id` se conserva como bot PRINCIPAL:
+// escribir de vuelta al Sheet (borrar/editar una fila) necesita UNA respuesta, no
+// una lista. Al guardar se mantienen los dos: fuente_id = fuente_ids[0].
+// Toda decisión de "¿qué productos sincroniza esta fuente?" DEBE pasar por estos
+// helpers y nunca comparar `w.fuente_id === f.id` directo.
+function wsFuenteIds(ws){
+  if (!ws) return [];
+  const arr = Array.isArray(ws.fuente_ids) ? ws.fuente_ids.filter(Boolean) : [];
+  if (arr.length) return arr;
+  return ws.fuente_id ? [ws.fuente_id] : [];   // fallback si 0015 aún no corrió
+}
+function wsDeFuente(fuenteId){
+  return (DB.workspaces || []).filter(w => wsFuenteIds(w).includes(fuenteId));
+}
+function wsSinFuente(){
+  return (DB.workspaces || []).filter(w => !wsFuenteIds(w).length);
+}
+// Escrituras: mantienen la lista (verdad) y el principal (fuente_ids[0]) coherentes.
+// El catch cubre que la migración 0015 no esté aplicada todavía — sin él, guardar un
+// producto fallaría por "columna fuente_ids inexistente" (ya pasó con 0013).
+async function wsGuardarFuentes(ws, ids){
+  ids = [...new Set((ids || []).filter(Boolean))];
+  const principal = ids[0] || null;
+  try {
+    await api.patch('workspaces', ws.id, { fuente_id: principal, fuente_ids: ids });
+    ws.fuente_ids = ids;
+  } catch(e) {
+    await api.patch('workspaces', ws.id, { fuente_id: principal });
+  }
+  ws.fuente_id = principal;
+}
+const wsAsignarFuente = (ws, fId) => wsGuardarFuentes(ws, [...wsFuenteIds(ws), fId]);
+const wsQuitarFuente  = (ws, fId) => wsGuardarFuentes(ws, wsFuenteIds(ws).filter(x => x !== fId));
+
 function renderWorkspaceSelector() {
   if (!CURRENT_WORKSPACE) return;
   document.getElementById('ws-emoji').textContent  = CURRENT_WORKSPACE.emoji || '📦';
@@ -5416,10 +5455,17 @@ function populateWsModalSelects(ws) {
   curSel.value = ws?.currency_code && CURRENCIES[ws.currency_code] ? ws.currency_code : 'PEN';
   document.getElementById('ws-usd-rate').value = ws?.usd_rate ?? 3.7;
   document.getElementById('ws-tax').value = ws?.tax_pct ?? 18;
-  const fSel = document.getElementById('ws-fuente');
-  fSel.innerHTML = '<option value="">— Sin fuente —</option>' +
-    (DB.fuentes || []).map(f => `<option value="${f.id}">${f.emoji || '🤖'} ${f.nombre}</option>`).join('');
-  fSel.value = ws?.fuente_id || (DB.fuentes?.[0]?.id || '');
+  // Multi-bot: casillas en vez de un select. En un producto NUEVO se premarca el
+  // primer bot (mismo default que antes); editando, lo que ya tenga asignado.
+  const fBox = document.getElementById('ws-fuentes');
+  const marcados = new Set(ws ? wsFuenteIds(ws) : (DB.fuentes?.[0] ? [DB.fuentes[0].id] : []));
+  fBox.innerHTML = (DB.fuentes || []).length
+    ? DB.fuentes.map(f => `
+      <label style="display:flex;align-items:center;gap:7px;font-size:12.5px;cursor:pointer">
+        <input type="checkbox" class="ws-fuente-chk" value="${f.id}" ${marcados.has(f.id) ? 'checked' : ''} style="accent-color:var(--accent)">
+        <span>${f.emoji || '🤖'} ${f.nombre}</span>
+      </label>`).join('')
+    : '<div style="font-size:11.5px;color:var(--text3)">Todavía no hay bots configurados.</div>';
 }
 
 function openNuevoWorkspace() {
@@ -5506,16 +5552,23 @@ async function saveWorkspace() {
   const currency_code = document.getElementById('ws-currency').value || 'PEN';
   const usd_rate = currency_code === 'USD' ? 1 : (+document.getElementById('ws-usd-rate').value || 3.7);
   const tax_pct  = +document.getElementById('ws-tax').value || 0;
-  const fuente_id = document.getElementById('ws-fuente').value || null;
+  // Multi-bot: la lista es la verdad; el principal (fuente_ids[0]) es el que se usa
+  // para escribir de vuelta al Sheet mientras la etapa 3 no mueva eso a la venta.
+  const fuente_ids = [...document.querySelectorAll('#ws-fuentes .ws-fuente-chk:checked')].map(c => c.value);
+  const fuente_id  = fuente_ids[0] || null;
   // Precios de venta directa (🎯): 1 o 2. El 1º hace de precio de referencia (p1).
   const dir1 = +document.getElementById('ws-dir1').value || 10;
   const dir2 = +document.getElementById('ws-dir2').value || 0;
   const preciosDirectos = [dir1, dir2].filter(x => x > 0);
-  const wsData = { nombre, emoji, currency_code, usd_rate, tax_pct, fuente_id };
+  const wsData = { nombre, emoji, currency_code, usd_rate, tax_pct, fuente_id, fuente_ids };
+  // Reintento sin `fuente_ids` si la migración 0015 no está aplicada todavía: sin
+  // esto, guardar un producto fallaría por columna inexistente (ya pasó con 0013).
+  const wsSinIds = () => { const d = { ...wsData }; delete d.fuente_ids; return d; };
   try {
     setSyncStatus('loading', 'Guardando...');
     if (editId) {
-      const res = await api.patch('workspaces', editId, wsData);
+      const res = await api.patch('workspaces', editId, wsData)
+        .catch(() => api.patch('workspaces', editId, wsSinIds()));
       const idx = DB.workspaces.findIndex(w => w.id === editId);
       if (idx >= 0) DB.workspaces[idx] = res[0];
       if (CURRENT_WORKSPACE?.id === editId) {
@@ -5534,7 +5587,8 @@ async function saveWorkspace() {
         if (CURRENT_WORKSPACE?.id === editId && DB.config) Object.assign(DB.config, cfgPatch);
       } catch(eCfg) { console.warn('No se pudieron guardar los precios directos:', eCfg); }
     } else {
-      const res = await api.post('workspaces', { ...wsData, user_id: CURRENT_USER?.id });
+      const res = await api.post('workspaces', { ...wsData, user_id: CURRENT_USER?.id })
+        .catch(() => api.post('workspaces', { ...wsSinIds(), user_id: CURRENT_USER?.id }));
       DB.workspaces.push(res[0]);
       CURRENT_WORKSPACE = res[0];
       localStorage.setItem('tracker_workspace', res[0].id);
@@ -9048,10 +9102,7 @@ async function migrarFuentes() {
     });
     const f = res[0];
     DB.fuentes = [f];
-    await Promise.all(DB.workspaces.filter(w => !w.fuente_id).map(w =>
-      api.patch('workspaces', w.id, { fuente_id: f.id })
-        .then(() => { w.fuente_id = f.id; }).catch(() => {})
-    ));
+    await Promise.all(wsSinFuente().map(w => wsAsignarFuente(w, f.id).catch(() => {})));
     console.info('Migración de fuentes completada: "Bot Principal" creada');
   } catch(e) { console.warn('migrarFuentes:', e); }
 }
@@ -9108,7 +9159,7 @@ function renderFuentesPanel() {
     return;
   }
   lista.innerHTML = fuentes.map(f => {
-    const nProds  = DB.workspaces.filter(w => w.fuente_id === f.id).length;
+    const nProds  = wsDeFuente(f.id).length;
     const cuentas = Array.isArray(f.meta_cuentas) ? f.meta_cuentas : [];
     const pago = nextDueDateJS(f.pago_vence);
     let pagoChip = '';
@@ -9486,13 +9537,16 @@ async function deleteFuente() {
   const id = document.getElementById('fuente-edit-id').value;
   const f = (DB.fuentes || []).find(x => x.id === id);
   if (!f) return;
-  const nProds = DB.workspaces.filter(w => w.fuente_id === id).length;
+  const nProds = wsDeFuente(id).length;
   if (!confirm(`⚠️ ¿Eliminar la fuente "${f.nombre}"?\n\n${nProds} producto(s) quedarán sin fuente (sus datos NO se borran). Tendrás que reasignarlos a otra fuente.`)) return;
   try {
     setSyncStatus('loading', 'Eliminando...');
     await api.delete('fuentes', id);
     DB.fuentes = DB.fuentes.filter(x => x.id !== id);
-    DB.workspaces.forEach(w => { if (w.fuente_id === id) w.fuente_id = null; });
+    // Se PERSISTE la desasignación: `fuente_ids` es un array sin FK, así que nadie
+    // lo limpia por nosotros y quedarían ids de una fuente borrada (el sync armaría
+    // jobs fantasma). Antes esto solo se hacía en memoria.
+    for (const w of wsDeFuente(id)) await wsQuitarFuente(w, id).catch(() => {});
     setSyncStatus('ok', 'Sincronizado ✓');
     closeModal('modal-fuente');
     renderFuentesPanel();
@@ -15702,7 +15756,7 @@ init();
   async function concFetchSheetVentas(){
     const fuentesConSheet = (DB.fuentes||[]).filter(f => f.sheets_url);
     const jobs = fuentesConSheet.length
-      ? fuentesConSheet.map(f => ({ url:f.sheets_url, fuenteId:f.id, scriptUrl:f.script_url||'', wsList: DB.workspaces.filter(w => w.fuente_id === f.id) }))
+      ? fuentesConSheet.map(f => ({ url:f.sheets_url, fuenteId:f.id, scriptUrl:f.script_url||'', wsList: wsDeFuente(f.id) }))
       : ((DB.config.sheets_url || DB.config.sheets_id) ? [{ url: DB.config.sheets_url || DB.config.sheets_id, fuenteId:null, scriptUrl:DB.config.script_url||'', wsList: DB.workspaces }] : []);
     // Solo con una fuente se abarca todo; con 2+ cada job rutea por su propio Sheet
     // (los ad_id conocidos igual resuelven vía adIdToWs global) para no reclamar
