@@ -114,7 +114,12 @@ function parseSheetCSV(text: string) {
   return rows;
 }
 
-const limpiar = (s: string) => (s || "").toLowerCase().normalize("NFD").replace(/[̀-ͯ]/g, "").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
+// OJO: el rango de acentos combinantes va con ESCAPES (̀-ͯ), nunca con los
+// caracteres literales. El deploy de la edge es copiar/pegar y si el texto viaja mal
+// codificado (UTF-8 leído como ANSI) cada carácter se parte en dos bytes, el rango
+// queda invertido y la función no arranca: "Invalid regular expression: Range out of
+// order in character class". Ya rompió un deploy (7 sep 2026). En ASCII es inmune.
+const limpiar = (s: string) => (s || "").toLowerCase().normalize("NFD").replace(/[\u0300-\u036F]/g, "").replace(/[^a-z0-9\s]/g, " ").replace(/\s+/g, " ").trim();
 function similitud(a: string, b: string) {
   const wa = limpiar(a).split(" ").filter((w) => w.length > 2);
   const wb = new Set(limpiar(b).split(" ").filter((w) => w.length > 2));

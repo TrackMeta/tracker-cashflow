@@ -16033,7 +16033,7 @@ init();
   // match por prefijo ≥5 letras ("Rodrig…" truncado por el banco ≈ "Rodrigo").
   // 1.0 si todos los tokens del más corto aparecen en el otro.
   function _concNameSim(a, b){
-    const norm = s => String(s||'').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'')
+    const norm = s => String(s||'').toLowerCase().normalize('NFD').replace(/[\u0300-\u036F]/g,'')
       .replace(/[^a-zñ ]/gi,' ').replace(/\s+/g,' ').trim();
     a = norm(a); b = norm(b);
     if(!a || !b) return 0;
