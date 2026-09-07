@@ -114,7 +114,7 @@ function parseSheetCSV(text: string) {
   return rows;
 }
 
-// OJO: el rango de acentos combinantes va con ESCAPES (̀-ͯ), nunca con los
+// OJO: el rango de acentos combinantes va con ESCAPES (\u0300-\u036F), nunca con los
 // caracteres literales. El deploy de la edge es copiar/pegar y si el texto viaja mal
 // codificado (UTF-8 leído como ANSI) cada carácter se parte en dos bytes, el rango
 // queda invertido y la función no arranca: "Invalid regular expression: Range out of
