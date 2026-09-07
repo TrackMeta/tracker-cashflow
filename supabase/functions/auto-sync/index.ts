@@ -132,6 +132,17 @@ const nDaysAgo = (n: number) => { const d = new Date(); d.setDate(d.getDate() - 
 // `workspaces.fuente_ids` (uuid[], migración 0015) es la verdad de qué Sheets
 // alimentan a un producto; `fuente_id` queda como bot principal. Nunca comparar
 // `w.fuente_id === f.id` directo: con 2+ bots por producto se pierde el resto.
+// Existe ya `crm_ventas.fuente_id` (migracion 0017)? Se prueba UNA vez y se cachea:
+// pedir una columna inexistente en un select devuelve 400 y los .catch(()=>[]) lo
+// convertirian en "no hay ventas" -- un fallo silencioso, peor que el error.
+let _crmFuenteIdOk: boolean | null = null;
+async function crmTieneFuenteId(): Promise<boolean> {
+  if (_crmFuenteIdOk !== null) return _crmFuenteIdOk;
+  try { await sb("GET", "crm_ventas?select=fuente_id&limit=1"); _crmFuenteIdOk = true; }
+  catch (_e) { _crmFuenteIdOk = false; console.warn("crm_ventas.fuente_id no existe (migracion 0017 pendiente)"); }
+  return _crmFuenteIdOk;
+}
+
 function wsFuenteIds(w: any): string[] {
   const arr = Array.isArray(w?.fuente_ids) ? w.fuente_ids.filter(Boolean) : [];
   if (arr.length) return arr;
@@ -159,7 +170,7 @@ function regIngresoBaseR(r: any, cfg: any): number {
 // Antes leía Y escribía, así que con varias fuentes la 2ª PISABA los (ws,ad,fecha)
 // de la 1ª (el PATCH de registros manda el total absoluto del día, no incrementos).
 // Espejo del split en index.html (`_leerSheetJob` / `_escribirSync`).
-async function leerSheet(job: { url: string; wsList: any[]; userId: string }, days = 90) {
+async function leerSheet(job: { url: string; wsList: any[]; userId: string; fuenteId?: string | null }, days = 90) {
   const sheetId = (job.url.match(/\/d\/([a-zA-Z0-9_-]+)/) || [])[1] || job.url;
   const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`);
   if (!res.ok) throw new Error(`Sheet ${job.url} no accesible (${res.status})`);
@@ -201,7 +212,7 @@ async function leerSheet(job: { url: string; wsList: any[]; userId: string }, da
     // igual que el sync manual del cliente.
     if (r.valor > 0) { g.ventas++; g.ingresos += r.valor; }
     g.upsell += r.up1 + r.up2 + r.up3 + r.up4;
-    if (r.hora && r.valor > 0) crmRows.push({ fecha: r.fecha, ad_id: r.adId, hora: r.hora, precio: r.valor, telefono: r.telefono || null, producto: r.producto || null, cliente: r.cliente || null, workspace_id: wsId, user_id: job.userId, fuente_uid: r.uid || null, bump_monto: (+r.up1 || 0), bump_ciclo: ((+r.up1 || 0) > 0 ? "pendiente" : null) });
+    if (r.hora && r.valor > 0) crmRows.push({ fecha: r.fecha, ad_id: r.adId, hora: r.hora, precio: r.valor, telefono: r.telefono || null, producto: r.producto || null, cliente: r.cliente || null, workspace_id: wsId, user_id: job.userId, fuente_id: job.fuenteId || null, fuente_uid: r.uid || null, bump_monto: (+r.up1 || 0), bump_ciclo: ((+r.up1 || 0) > 0 ? "pendiente" : null) });
   }
 
   // Consolidar por wsId+adId+fecha
@@ -323,6 +334,10 @@ async function escribirSync(lecturas: any[], userId: string, fechaMin: string) {
     const nowISO = new Date().toISOString();
     const hkey = (wsId: string, adId: string, hora: string, precio: number) =>
       `${wsId}|${adId}|${new Date(hora).getTime()}|${Math.round((+precio) * 100)}`;
+    // Si la migracion 0017 no corrio, mandar `fuente_id` haria fallar los INSERT con 400.
+    // `undefined` desaparece al serializar a JSON, asi que el payload no lleva la columna.
+    const okFid = await crmTieneFuenteId();
+    const fid = (r: any) => okFid ? (r.fuente_id || null) : undefined;
     const push = (m: Map<string, any[]>, k: string, v: any) => { let a = m.get(k); if (!a) { a = []; m.set(k, a); } a.push(v); };
 
     // Estado actual en BD del rango
@@ -330,7 +345,7 @@ async function escribirSync(lecturas: any[], userId: string, fechaMin: string) {
     const exNoUid = new Map<string, any[]>();     // clave natural -> filas sin uid
     let totUidEnBD = 0;
     for (const wsId of wsIds) {
-      const ex = await sbAll(`crm_ventas?workspace_id=eq.${wsId}&fecha=gte.${fechaMin}&select=id,ad_id,hora,precio,ciclo,historial,producto,cliente,telefono,fuente_uid,workspace_id`);
+      const ex = await sbAll(`crm_ventas?workspace_id=eq.${wsId}&fecha=gte.${fechaMin}&select=id,ad_id,hora,precio,ciclo,historial,producto,cliente,telefono,fuente_uid,workspace_id${okFid ? ",fuente_id" : ""}`);
       for (const e of (ex || [])) {
         if (e.fuente_uid) { exByUid.set(e.fuente_uid, e); totUidEnBD++; }
         else push(exNoUid, hkey(wsId, e.ad_id, e.hora, +e.precio), e);
@@ -353,24 +368,30 @@ async function escribirSync(lecturas: any[], userId: string, fechaMin: string) {
         if ((e.telefono || null) !== (r.telefono || null)) cambios.telefono = r.telefono || null;
         if ((e.cliente || null) !== (r.cliente || null)) cambios.cliente = r.cliente || null;
         if ((e.producto || null) !== (r.producto || null)) cambios.producto = r.producto || null;
+        // Autocuracion del bot de la venta: 0017 deja fuente_id NULL cuando el producto
+        // tiene varias fuentes. Aca si se sabe (la fila la trajo ESTE Sheet). Va aparte de
+        // `cambios`: no es edicion del usuario, no entra al historial ni reabre validacion.
+        const sello = (okFid && r.fuente_id && e.fuente_id !== r.fuente_id) ? { fuente_id: r.fuente_id } : null;
         if (Object.keys(cambios).length) {
           const hist = Array.isArray(e.historial) ? e.historial : [];
           hist.push({ t: nowISO, accion: "Editada en Sheets", detalle: Object.keys(cambios).join(", ") });
           if (cambios.ad_id !== undefined || cambios.precio !== undefined) { cambios.ciclo = "pendiente"; cambios.estado_verif = "pendiente"; }
           cambios.sincronizado_at = nowISO; cambios.historial = hist;
-          await sb("PATCH", `crm_ventas?id=eq.${e.id}`, cambios, "return=minimal").catch(() => {});
+          await sb("PATCH", `crm_ventas?id=eq.${e.id}`, { ...cambios, ...(sello || {}) }, "return=minimal").catch(() => {});
+        } else if (sello) {
+          await sb("PATCH", `crm_ventas?id=eq.${e.id}`, sello, "return=minimal").catch(() => {});
         }
       } else {
         // adoptar una fila legacy (sin uid) por clave natural, o insertar nueva
         const cand = exNoUid.get(hkey(r.workspace_id, r.ad_id, r.hora, +r.precio));
         const adopt = cand && cand.length ? cand.shift() : null;
         if (adopt) {
-          await sb("PATCH", `crm_ventas?id=eq.${adopt.id}`, { fuente_uid: r.fuente_uid, sincronizado_at: nowISO }, "return=minimal").catch(() => {});
+          await sb("PATCH", `crm_ventas?id=eq.${adopt.id}`, { fuente_uid: r.fuente_uid, fuente_id: fid(r), sincronizado_at: nowISO }, "return=minimal").catch(() => {});
         } else {
           await sb("POST", "crm_ventas", [{
             fecha: r.fecha, ad_id: r.ad_id, hora: r.hora, precio: r.precio,
             telefono: r.telefono, producto: r.producto, cliente: r.cliente,
-            workspace_id: r.workspace_id, user_id: job.userId, fuente_uid: r.fuente_uid,
+            workspace_id: r.workspace_id, user_id: job.userId, fuente_id: fid(r), fuente_uid: r.fuente_uid,
             ciclo: "pendiente", estado_verif: "pendiente", origen: "auto", sincronizado_at: nowISO,
             bump_monto: (+r.bump_monto || 0), bump_ciclo: (r.bump_ciclo || null),
           }], "return=minimal").catch(() => {});
@@ -562,7 +583,7 @@ async function procesarUsuario(userId: string, conMeta: boolean, sheetDays = 5) 
     const wsForJob = wsList.length ? wsList : (multiFuente ? [] : workspaces);
     if (f.sheets_url && wsForJob.length) {
       try {
-        lecturas.push(await leerSheet({ url: f.sheets_url, wsList: wsForJob, userId }, sheetDays));
+        lecturas.push(await leerSheet({ url: f.sheets_url, wsList: wsForJob, userId, fuenteId: f.id }, sheetDays));
       } catch (e) { console.error("leerSheet", f.nombre, e); }
     }
     if (conMeta) {

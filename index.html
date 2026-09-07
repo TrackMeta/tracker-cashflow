@@ -2679,6 +2679,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <input type="hidden" id="edit-venta-id">
     <input type="hidden" id="edit-venta-uid">
     <input type="hidden" id="edit-venta-ws">
+    <input type="hidden" id="edit-venta-fuente">
     <div class="field" style="margin-bottom:10px">
       <label>Ad ID <span style="color:var(--text3);font-weight:400">(asígnalo para mover la venta a su anuncio)</span></label>
       <input type="text" id="edit-venta-adid" placeholder="Ej. 120210000000123456">
@@ -4211,10 +4212,11 @@ async function syncGoogleSheets() {
     ? fuentesConSheet.map(f => ({
         nombre: f.nombre || 'Fuente',
         url: f.sheets_url,
+        fuenteId: f.id,          // se estampa en cada venta (crm_ventas.fuente_id)
         wsList: wsDeFuente(f.id)
       }))
     : ((DB.config.sheets_url || DB.config.sheets_id)
-        ? [{ nombre: 'Principal', url: DB.config.sheets_url || DB.config.sheets_id, wsList: DB.workspaces }]
+        ? [{ nombre: 'Principal', url: DB.config.sheets_url || DB.config.sheets_id, fuenteId: null, wsList: DB.workspaces }]
         : []);
   // Con UNA sola fuente es seguro abarcar todos los productos (incluye los que aún
   // no tienen fuente asignada — modo transición). Con 2+ fuentes NO se hace fallback:
@@ -4400,7 +4402,10 @@ async function _leerSheetJob(job, ui, fechaMinima, fechaMaxima) {
       g.upsell += r.up1 + r.up2 + r.up3 + r.up4;
 
       if (r.hora && r.valor > 0) {
-        crmRows.push({ fecha: r.fecha, ad_id: r.adId, hora: r.hora, precio: r.valor, telefono: r.telefono || null, producto: r.producto || null, cliente: r.cliente || null, workspace_id: wsId, user_id: CURRENT_USER?.id, fuente_uid: r.uid || null, bump_monto: (+r.up1 || 0), bump_ciclo: ((+r.up1 || 0) > 0 ? 'pendiente' : null) });
+        // `fuente_id` = el bot de ESTA lectura. Es el único momento en que se sabe
+        // con certeza de qué Sheet salió la venta; deducirlo después del producto
+        // falla cuando el producto tiene varios bots.
+        crmRows.push({ fecha: r.fecha, ad_id: r.adId, hora: r.hora, precio: r.valor, telefono: r.telefono || null, producto: r.producto || null, cliente: r.cliente || null, workspace_id: wsId, user_id: CURRENT_USER?.id, fuente_id: job.fuenteId || null, fuente_uid: r.uid || null, bump_monto: (+r.up1 || 0), bump_ciclo: ((+r.up1 || 0) > 0 ? 'pendiente' : null) });
       }
     }
 
@@ -4565,6 +4570,11 @@ async function _escribirSync(lecturas, ui, fechaMinima, fechaMaxima) {
     // participan del borrado en espejo (se adoptan cuando el Apps Script les ponga uid).
     if (crmRows.length) {
       const nowISO = new Date().toISOString();
+      // Si la migración 0017 no corrió, mandar `fuente_id` haría fallar los INSERT con
+      // HTTP 400 y las ventas no entrarían. `undefined` desaparece al serializar a JSON,
+      // así que con esto el payload simplemente no lleva la columna.
+      const okFid = await crmTieneFuenteId();
+      const fid = r => okFid ? (r.fuente_id || null) : undefined;
       const push = (m, k, v) => { let a = m.get(k); if (!a) { a = []; m.set(k, a); } a.push(v); };
       const hkey = (wsId, adId, hora, precio) => `${wsId}|${adId}|${new Date(hora).getTime()}|${Math.round((+precio)*100)}`;
       const wsIds = [...new Set(crmRows.map(r => r.workspace_id))];
@@ -4575,7 +4585,7 @@ async function _escribirSync(lecturas, ui, fechaMinima, fechaMaxima) {
       let totUidEnBD = 0;
       for (const wsId of wsIds) {
         const ex = await api.getAll('crm_ventas',
-          `workspace_id=eq.${wsId}&fecha=gte.${fechaMinima}&fecha=lte.${fechaMaxima}&select=id,ad_id,hora,precio,ciclo,historial,producto,cliente,telefono,fuente_uid`).catch(()=>[]);
+          `workspace_id=eq.${wsId}&fecha=gte.${fechaMinima}&fecha=lte.${fechaMaxima}&select=id,ad_id,hora,precio,ciclo,historial,producto,cliente,telefono,fuente_uid${okFid ? ',fuente_id' : ''}`).catch(()=>[]);
         for (const e of ex) {
           if (e.fuente_uid) { exByUid.set(e.fuente_uid, e); totUidEnBD++; }
           else push(exNoUid, hkey(wsId, e.ad_id, e.hora, +e.precio), e);
@@ -4599,23 +4609,31 @@ async function _escribirSync(lecturas, ui, fechaMinima, fechaMaxima) {
           if ((e.telefono||null) !== (r.telefono||null)) cambios.telefono = r.telefono || null;
           if ((e.cliente||null) !== (r.cliente||null)) cambios.cliente = r.cliente || null;
           if ((e.producto||null) !== (r.producto||null)) cambios.producto = r.producto || null;
+          // Autocuración del bot de la venta. La migración 0017 deja `fuente_id` en NULL
+          // cuando el producto tiene varias fuentes (retroactivamente no hay forma de
+          // saberlo); acá SÍ se sabe, porque la fila la trajo ESTE Sheet. Un sync "Total"
+          // termina de sellar el histórico. Va aparte de `cambios` a propósito: no es una
+          // edición del usuario, así que no entra al historial ni reabre la validación.
+          const sello = (okFid && r.fuente_id && e.fuente_id !== r.fuente_id) ? { fuente_id: r.fuente_id } : null;
           if (Object.keys(cambios).length) {
             const hist = Array.isArray(e.historial) ? e.historial : [];
             hist.push({ t: nowISO, accion: 'Editada en Sheets', detalle: Object.keys(cambios).join(', ') });
             if (cambios.ad_id !== undefined || cambios.precio !== undefined) { cambios.ciclo = 'pendiente'; cambios.estado_verif = 'pendiente'; }
             cambios.sincronizado_at = nowISO; cambios.historial = hist;
-            await api.patch('crm_ventas', e.id, cambios).catch(()=>{});
+            await api.patch('crm_ventas', e.id, { ...cambios, ...(sello || {}) }).catch(()=>{});
+          } else if (sello) {
+            await api.patch('crm_ventas', e.id, sello).catch(()=>{});
           }
         } else {
           const cand = exNoUid.get(hkey(r.workspace_id, r.ad_id, r.hora, +r.precio));
           const adopt = cand && cand.length ? cand.shift() : null;
           if (adopt) {
-            await api.patch('crm_ventas', adopt.id, { fuente_uid: r.fuente_uid, sincronizado_at: nowISO }).catch(()=>{});
+            await api.patch('crm_ventas', adopt.id, { fuente_uid: r.fuente_uid, fuente_id: fid(r), sincronizado_at: nowISO }).catch(()=>{});
           } else {
             try {
               const res = await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas`, {
                 method: 'POST', headers: { ...api._h(), 'Prefer': 'return=minimal' },
-                body: JSON.stringify([{ fecha:r.fecha, ad_id:r.ad_id, hora:r.hora, precio:r.precio, telefono:r.telefono, producto:r.producto, cliente:r.cliente, workspace_id:r.workspace_id, user_id:CURRENT_USER?.id, fuente_uid:r.fuente_uid, ciclo:'pendiente', estado_verif:'pendiente', origen:'sheets', sincronizado_at:nowISO, bump_monto:(+r.bump_monto||0), bump_ciclo:(r.bump_ciclo||null) }])
+                body: JSON.stringify([{ fecha:r.fecha, ad_id:r.ad_id, hora:r.hora, precio:r.precio, telefono:r.telefono, producto:r.producto, cliente:r.cliente, workspace_id:r.workspace_id, user_id:CURRENT_USER?.id, fuente_id:fid(r), fuente_uid:r.fuente_uid, ciclo:'pendiente', estado_verif:'pendiente', origen:'sheets', sincronizado_at:nowISO, bump_monto:(+r.bump_monto||0), bump_ciclo:(r.bump_ciclo||null) }])
               });
               if (res.ok) _crmOk++; else if (!_crmErr) _crmErr = `HTTP ${res.status}: ${(await res.text()).slice(0,300)}`;
             } catch(e) { if (!_crmErr) _crmErr = String(e.message||e); }
@@ -4643,7 +4661,7 @@ async function _escribirSync(lecturas, ui, fechaMinima, fechaMaxima) {
         for (let i = 0; i < nuevos.length; i += 100) {
           const lote = nuevos.slice(i, i + 100).map(r => ({
             fecha:r.fecha, ad_id:r.ad_id, hora:r.hora, precio:r.precio, telefono:r.telefono, producto:r.producto, cliente:r.cliente,
-            workspace_id:r.workspace_id, user_id:CURRENT_USER?.id, ciclo:'pendiente', estado_verif:'pendiente', origen:'sheets', sincronizado_at:nowISO,
+            workspace_id:r.workspace_id, user_id:CURRENT_USER?.id, fuente_id:fid(r), ciclo:'pendiente', estado_verif:'pendiente', origen:'sheets', sincronizado_at:nowISO,
             bump_monto:(+r.bump_monto||0), bump_ciclo:(r.bump_ciclo||null)
           }));
           try {
@@ -5401,6 +5419,19 @@ async function wsGuardarFuentes(ws, ids){
 }
 const wsAsignarFuente = (ws, fId) => wsGuardarFuentes(ws, [...wsFuenteIds(ws), fId]);
 const wsQuitarFuente  = (ws, fId) => wsGuardarFuentes(ws, wsFuenteIds(ws).filter(x => x !== fId));
+
+// ¿Existe ya `crm_ventas.fuente_id` (migración 0017)? Se prueba UNA vez y se cachea.
+// Hace falta porque pedir una columna inexistente en un `select` devuelve HTTP 400, y
+// los `.catch(()=>[])` de la cola de Conciliación y del sync lo convertirían en "no hay
+// ventas" — un fallo silencioso, peor que el error. Con esto el select se arma según lo
+// que la base realmente tiene.
+let _crmFuenteIdOk = null;
+async function crmTieneFuenteId(){
+  if (_crmFuenteIdOk !== null) return _crmFuenteIdOk;
+  try { await api.get('crm_ventas', 'select=fuente_id&limit=1'); _crmFuenteIdOk = true; }
+  catch(e) { _crmFuenteIdOk = false; console.info('crm_ventas.fuente_id no existe todavía (migración 0017 pendiente)'); }
+  return _crmFuenteIdOk;
+}
 
 function renderWorkspaceSelector() {
   if (!CURRENT_WORKSPACE) return;
@@ -11859,12 +11890,33 @@ function renderSinIdCard(regsSinId, desde, hasta){
 // con "uid no encontrado". Fallback global solo en modo legado (sin fuentes con script).
 function _scriptUrlDeWorkspace(wsId){
   const ws = (DB.workspaces||[]).find(w=>w.id===wsId);
-  const f  = ws && (DB.fuentes||[]).find(x=>x.id===ws.fuente_id);
-  if (f && f.script_url) return f.script_url;
+  // Con multi-bot el producto puede tener varias fuentes con script. Si hay UNA sola
+  // no hay ambigüedad; si hay varias no se puede elegir sin saber de qué Sheet salió
+  // la venta → mejor devolver '' y avisar que escribirle al Sheet equivocado, que
+  // falla con "uid no encontrado". Para eso existe `_scriptUrlDeVenta`.
+  const conScriptWs = wsFuenteIds(ws)
+    .map(id => (DB.fuentes||[]).find(x=>x.id===id))
+    .filter(f => f && f.script_url);
+  if (conScriptWs.length === 1) return conScriptWs[0].script_url;
+  if (conScriptWs.length > 1)   return '';
   const conScript = (DB.fuentes||[]).filter(x=>x.script_url);
   if (conScript.length === 1) return conScript[0].script_url;
   if (!conScript.length) return DB.config?.script_url || '';
   return '';
+}
+
+// Script del bot de ESTA VENTA. Es el resolver correcto desde la migración 0017:
+// `crm_ventas.fuente_id` guarda de qué Sheet salió cada venta, así que ya no hace
+// falta deducirlo del producto — deducción que con un producto en varios bots
+// devuelve el Sheet equivocado (el Apps Script está ligado al Sheet donde se pegó,
+// así que el uid no existe ahí y el borrado/edición falla).
+// Orden: script explícito de la fila → fuente de la venta → principal del producto.
+function _scriptUrlDeVenta(v){
+  if (!v) return '';
+  if (v.script_url) return v.script_url;
+  const f = v.fuente_id ? (DB.fuentes||[]).find(x => x.id === v.fuente_id) : null;
+  if (f && f.script_url) return f.script_url;
+  return _scriptUrlDeWorkspace(v.workspace_id);
 }
 
 // Escribe campos de vuelta a la fila del Sheet por su _uid (Apps Script action:'update').
@@ -11916,7 +11968,10 @@ async function renderSinIdList(){
 function abrirEditarVenta(v){
   document.getElementById('edit-venta-id').value   = v.id;
   document.getElementById('edit-venta-uid').value  = v.fuente_uid || '';
-  document.getElementById('edit-venta-ws').value   = CURRENT_WORKSPACE?.id || '';
+  // El producto y el bot salen de LA VENTA, no del workspace activo: una venta vieja
+  // puede pertenecer a otro bot del mismo producto (Sheet de archivo).
+  document.getElementById('edit-venta-ws').value     = v.workspace_id || CURRENT_WORKSPACE?.id || '';
+  document.getElementById('edit-venta-fuente').value = v.fuente_id || '';
   document.getElementById('edit-venta-adid').value = (v.ad_id && v.ad_id!=='SIN_ID') ? v.ad_id : '';
   document.getElementById('edit-venta-tel').value  = v.telefono || '';
   document.getElementById('edit-venta-cli').value  = v.cliente || '';
@@ -11941,7 +11996,8 @@ async function guardarEditarVenta(){
   btn.disabled = true; msg.style.color='var(--text2)'; msg.textContent='Guardando en el Sheet y en la app...';
 
   // 1) Escribir de vuelta al Sheet (fuente de verdad) por uid.
-  const scriptUrl = _scriptUrlDeWorkspace(wsId);
+  const fuenteId  = document.getElementById('edit-venta-fuente').value || null;
+  const scriptUrl = _scriptUrlDeVenta({ workspace_id: wsId, fuente_id: fuenteId });
   const fields = { adId: adId, telefono: tel, cliente: cli, producto: prod };
   if(!isNaN(precio)) fields.valor = precio;
   const r = await actualizarVentaEnSheet(scriptUrl, uid, fields);
@@ -15632,7 +15688,7 @@ init();
     try{
       // Paginar: PostgREST corta en ~1000 filas. Traemos toda la cola en páginas.
       const fechaQ = (CONC.desde?`&fecha=gte.${CONC.desde}`:'') + (CONC.hasta?`&fecha=lte.${CONC.hasta}`:'');
-      const sel = 'select=id,fecha,ad_id,hora,precio,workspace_id,telefono,producto,cliente,origen,estado_verif,ciclo,sincronizado_at,conciliado_at,historial,fuente_uid';
+      const sel = 'select=id,fecha,ad_id,hora,precio,workspace_id,telefono,producto,cliente,origen,estado_verif,ciclo,sincronizado_at,conciliado_at,historial,fuente_uid' + (await crmTieneFuenteId() ? ',fuente_id' : '');
       // Traemos pendiente + en_proceso por separado con eq.* (comprobado que funciona;
       // in.() y a veces neq encadenado devolvían 0). Cada uno paginado.
       const traer = async (cic) => {
@@ -15650,7 +15706,7 @@ init();
       // Mapa workspace → fuente, para resolver el script de borrado del Sheet por venta.
       const wsFuente = {}; (DB.workspaces||[]).forEach(w => { wsFuente[w.id] = w.fuente_id; });
       CONC.ventas = rows.map(r=>({ ...r, _dt:new Date(r.hora), estado:_evToEstado(r.estado_verif), pago:null, candidatos:[],
-        manual: r.estado_verif==='manual', modificado:_esModificada(r), fuente_id: wsFuente[r.workspace_id],
+        manual: r.estado_verif==='manual', modificado:_esModificada(r), fuente_id: r.fuente_id || wsFuente[r.workspace_id],
         historial: Array.isArray(r.historial)?r.historial:[] })).sort((a,b)=>a._dt-b._dt);
       CONC.huerfanos = CONC.huerfanos||[]; CONC.papelera = CONC.papelera||[]; CONC.descartadas = [];
       CONC.filtro='todos';
@@ -15683,14 +15739,14 @@ init();
   // Carga las ventas DESCARTADAS (ciclo=descartado) del periodo a la cola, para poder verlas/restaurarlas.
   window.concVerDescartadas = async function(){
     const fechaQ = (CONC.desde?`&fecha=gte.${CONC.desde}`:'') + (CONC.hasta?`&fecha=lte.${CONC.hasta}`:'');
-    const sel = 'select=id,fecha,ad_id,hora,precio,workspace_id,telefono,producto,cliente,origen,estado_verif,ciclo,sincronizado_at,conciliado_at,historial,fuente_uid';
+    const sel = 'select=id,fecha,ad_id,hora,precio,workspace_id,telefono,producto,cliente,origen,estado_verif,ciclo,sincronizado_at,conciliado_at,historial,fuente_uid' + (await crmTieneFuenteId() ? ',fuente_id' : '');
     const rows = await api.get('crm_ventas', `ciclo=eq.descartado&${sel}&order=fecha.desc&limit=2000${fechaQ}${userScopeQ()}`).catch(()=>[]);
     if(!rows.length){ if(typeof showSuccess==='function') showSuccess('No hay ventas descartadas en este periodo'); return; }
     const existentes = new Set(CONC.ventas.map(v=>String(v.id)));
     const wsFuente = {}; (DB.workspaces||[]).forEach(w => { wsFuente[w.id] = w.fuente_id; });
     rows.forEach(r=>{ if(existentes.has(String(r.id))) return;
       CONC.ventas.push({ ...r, _dt:new Date(r.hora), estado:'descartado', pago:null, candidatos:[], manual:true,
-        fuente_id: wsFuente[r.workspace_id], historial: Array.isArray(r.historial)?r.historial:[] });
+        fuente_id: r.fuente_id || wsFuente[r.workspace_id], historial: Array.isArray(r.historial)?r.historial:[] });
     });
     CONC.ventas.sort((a,b)=>a._dt-b._dt);
     CONC.filtro = 'descartado';
@@ -16370,16 +16426,12 @@ init();
   // Resuelve la URL del script de un registro: la de SU fuente. Con 2+ scripts
   // distintos NO se adivina: borrar contra el script de otro bot devuelve deleted:0
   // y la venta "reaparece" al siguiente sync. Fallback global solo en modo legado.
-  function _concScriptUrlDe(v){
-    if (v.script_url) return v.script_url;
-    const fs = DB.fuentes || [];
-    const f = fs.find(f => f.id === v.fuente_id);
-    if (f && f.script_url) return f.script_url;
-    const conScript = fs.filter(f => f.script_url);
-    if (conScript.length === 1) return conScript[0].script_url;   // un solo script → sin ambigüedad
-    if (!conScript.length) return DB.config?.script_url || '';    // legado (sin fuentes con script)
-    return '';   // 2+ scripts y fuente desconocida → mejor avisar que borrar a ciegas
-  }
+  // Delegado al resolver global (`_scriptUrlDeVenta`): antes duplicaba esta lógica y
+  // las dos copias podían divergir. El orden es el mismo — script explícito de la fila,
+  // fuente de la venta (crm_ventas.fuente_id), y recién ahí el principal del producto.
+  // Con 2+ scripts y fuente desconocida devuelve '' a propósito: mejor avisar que
+  // borrar a ciegas en el Sheet equivocado.
+  function _concScriptUrlDe(v){ return _scriptUrlDeVenta(v); }
 
   // Borrado REAL en el/los Sheet(s) vía Apps Script. Cada registro va al script de SU bot.
   window.concVaciarPapelera = async function(){
