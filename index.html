@@ -9620,6 +9620,17 @@ async function deleteFuente() {
     // lo limpia por nosotros y quedarían ids de una fuente borrada (el sync armaría
     // jobs fantasma). Antes esto solo se hacía en memoria.
     for (const w of wsDeFuente(id)) await wsQuitarFuente(w, id).catch(() => {});
+    // Lo mismo con las VENTAS: `crm_ventas.fuente_id` tampoco tiene FK, así que sin
+    // esto quedan apuntando a una fuente que ya no existe. Esas ventas no pueden
+    // resolver su script de Sheet (`_scriptUrlDeVenta` no encuentra la fuente) y no se
+    // pueden borrar ni editar desde la app. Ponerlo en NULL las devuelve al fallback
+    // por producto, que sí funciona cuando el producto tiene un solo bot.
+    if (await crmTieneFuenteId()) {
+      await fetch(`${SUPABASE_URL}/rest/v1/crm_ventas?fuente_id=eq.${id}`, {
+        method: 'PATCH', headers: { ...api._h(), 'Prefer': 'return=minimal' },
+        body: JSON.stringify({ fuente_id: null })
+      }).catch(() => {});
+    }
     setSyncStatus('ok', 'Sincronizado ✓');
     closeModal('modal-fuente');
     renderFuentesPanel();
