@@ -5403,6 +5403,13 @@ function wsDeFuente(fuenteId){
 function wsSinFuente(){
   return (DB.workspaces || []).filter(w => !wsFuenteIds(w).length);
 }
+// El bot de un producto SOLO si es inequívoco (tiene uno). Con varios devuelve null
+// a propósito: rellenar con el principal haría que `_scriptUrlDeVenta` respondiera
+// con confianza el Sheet equivocado, anulando su propio freno de ambigüedad.
+function wsFuenteUnica(ws){
+  const ids = wsFuenteIds(ws);
+  return ids.length === 1 ? ids[0] : null;
+}
 // Escrituras: mantienen la lista (verdad) y el principal (fuente_ids[0]) coherentes.
 // El catch cubre que la migración 0015 no esté aplicada todavía — sin él, guardar un
 // producto fallaría por "columna fuente_ids inexistente" (ya pasó con 0013).
@@ -5827,9 +5834,13 @@ async function renderGlobal() {
     renderGlobalInsights(wsData, totalProfit, profitDiaUsd);
 
     // Tabla comparativa — agrupada por fuente con subtotales (USD + moneda local)
+    // Con multi-bot un producto puede alimentarse de varias fuentes, así que "agrupar
+    // por fuente" no tiene una respuesta única. Se agrupa por el bot PRINCIPAL
+    // (fuente_ids[0], determinista) y la fila avisa cuánto suma de otros bots — si no,
+    // el subtotal del grupo se leería como si todo viniera de ese bot.
     const gruposF = new Map();
     for (const d of wsData) {
-      const fid = d.ws.fuente_id || '_sin';
+      const fid = wsFuenteIds(d.ws)[0] || '_sin';
       if (!gruposF.has(fid)) {
         const f = (DB.fuentes || []).find(x => x.id === fid);
         gruposF.set(fid, { nombre: f ? `${f.emoji||'🤖'} ${f.nombre}` : '🤖 Sin fuente', items: [] });
@@ -5842,8 +5853,15 @@ async function renderGlobal() {
       const roasColor = d.m.roas>=2?'var(--green)':d.m.roas>=1?'var(--orange)':'var(--red)';
       const code = wsCurrencyCode(d.ws);
       const loc = n => code === 'USD' ? '' : `<div style="font-size:9px;color:var(--text3)">${fmtMoney(n, code)}</div>`;
+      // Aviso de multi-bot: el producto está en este grupo por su bot principal, pero
+      // sus números incluyen las ventas de los otros. Sin esto el subtotal engaña.
+      const otros = wsFuenteIds(d.ws).slice(1)
+        .map(id => (DB.fuentes || []).find(x => x.id === id)).filter(Boolean);
+      const chipBots = otros.length
+        ? ` <span title="También recibe ventas de: ${otros.map(f => f.nombre).join(', ')}" style="font-size:9px;font-weight:700;color:var(--accent);background:var(--bg3);border-radius:8px;padding:1px 5px">+${otros.length} bot${otros.length===1?'':'s'}</span>`
+        : '';
       return `<tr>
-        <td class="left" style="font-weight:600">${d.ws.emoji||'📦'} ${d.ws.nombre} <span style="font-size:9px;color:var(--text3)">${code}</span></td>
+        <td class="left" style="font-weight:600">${d.ws.emoji||'📦'} ${d.ws.nombre} <span style="font-size:9px;color:var(--text3)">${code}</span>${chipBots}</td>
         <td>${fmt.d(d.usd.inversion)}${loc(d.m.inversion)}</td>
         <td style="color:var(--green);font-weight:600">${fmt.d(d.usd.ingresos)}${loc(d.m.ingresos)}</td>
         <td style="color:${d.m.profit>=0?'var(--teal)':'var(--red)'};font-weight:600">${fmt.d(d.usd.profit)}${loc(d.m.profit)}</td>
@@ -15703,8 +15721,10 @@ init();
         return out;
       };
       const rows = [...(await traer('pendiente')), ...(await traer('en_proceso'))];
-      // Mapa workspace → fuente, para resolver el script de borrado del Sheet por venta.
-      const wsFuente = {}; (DB.workspaces||[]).forEach(w => { wsFuente[w.id] = w.fuente_id; });
+      // Fallback del bot solo si el producto tiene UNO (ver wsFuenteUnica): con varios, la
+      // venta sin fuente_id queda sin bot y el resolver avisa en vez de escribir al Sheet
+      // equivocado. Un sync Total sella el fuente_id del histórico y esto deja de aplicar.
+      const wsFuente = {}; (DB.workspaces||[]).forEach(w => { wsFuente[w.id] = wsFuenteUnica(w); });
       CONC.ventas = rows.map(r=>({ ...r, _dt:new Date(r.hora), estado:_evToEstado(r.estado_verif), pago:null, candidatos:[],
         manual: r.estado_verif==='manual', modificado:_esModificada(r), fuente_id: r.fuente_id || wsFuente[r.workspace_id],
         historial: Array.isArray(r.historial)?r.historial:[] })).sort((a,b)=>a._dt-b._dt);
@@ -15743,7 +15763,7 @@ init();
     const rows = await api.get('crm_ventas', `ciclo=eq.descartado&${sel}&order=fecha.desc&limit=2000${fechaQ}${userScopeQ()}`).catch(()=>[]);
     if(!rows.length){ if(typeof showSuccess==='function') showSuccess('No hay ventas descartadas en este periodo'); return; }
     const existentes = new Set(CONC.ventas.map(v=>String(v.id)));
-    const wsFuente = {}; (DB.workspaces||[]).forEach(w => { wsFuente[w.id] = w.fuente_id; });
+    const wsFuente = {}; (DB.workspaces||[]).forEach(w => { wsFuente[w.id] = wsFuenteUnica(w); });
     rows.forEach(r=>{ if(existentes.has(String(r.id))) return;
       CONC.ventas.push({ ...r, _dt:new Date(r.hora), estado:'descartado', pago:null, candidatos:[], manual:true,
         fuente_id: r.fuente_id || wsFuente[r.workspace_id], historial: Array.isArray(r.historial)?r.historial:[] });

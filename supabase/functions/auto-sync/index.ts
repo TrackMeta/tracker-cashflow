@@ -1120,7 +1120,7 @@ async function tgRunCommand(userId: string, cfg: any, chatId: string, cmd: strin
     const q = arg.toLowerCase();
     const filtrado = cmd === "/producto"
       ? data.perWs.filter((w: any) => (w.ws.nombre || "").toLowerCase().includes(q))
-      : data.perWs.filter((w: any) => (data.fuenteName[w.ws.fuente_id] || "").toLowerCase().includes(q));
+      : data.perWs.filter((w: any) => wsFuenteIds(w.ws).some((id: string) => (data.fuenteName[id] || "").toLowerCase().includes(q)));   // multi-bot: matchea CUALQUIERA de sus bots, no solo el principal
     if (!filtrado.length) { await tgSend(cfg.tg_token, chatId, `No encontré "${arg}".`); return; }
     const estPB = await tokenStatusLine(userId).catch(() => "");
     await tgSend(cfg.tg_token, chatId, formatReport(`📊 *${cmd === "/producto" ? "PRODUCTO" : "BOT"}: ${arg}*`, `${fFechaCorta(desde)} → ${fFechaCorta(hasta)}`, { perWs: filtrado, fuenteName: data.fuenteName }) + estPB, reportKb());
