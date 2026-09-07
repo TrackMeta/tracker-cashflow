@@ -4248,14 +4248,23 @@ async function syncGoogleSheets() {
 
   let totVentas = 0, totRegs = 0, totCrm = 0;
   const totWs = new Set();
+  // Rango único para todas las fuentes: el merge y el espejo necesitan juzgar la
+  // misma ventana, si no una fuente pondría en 0 días que otra no llegó a leer.
+  const fechaMinima = syncDesde || nDaysAgo(90);
+  const fechaMaxima = syncHasta || today();
   try {
+    // 1) LEER todas las fuentes (sin escribir nada todavía).
+    const lecturas = [];
     for (const job of jobs) {
       label.textContent  = `Leyendo ${job.nombre}...`;
       status.textContent = `Conectando con Google Sheets (${job.nombre})...`;
-      const r = await _syncOneSheet(job, { status, label }, syncDesde, syncHasta);
-      totVentas += r.ventas; totRegs += r.registros; totCrm += r.crm;
-      r.wsIds.forEach(id => totWs.add(id));
+      lecturas.push(await _leerSheetJob(job, { status, label }, fechaMinima, fechaMaxima));
     }
+    // 2) SUMAR entre fuentes y escribir UNA vez. Antes cada fuente escribía por su
+    //    cuenta y la última pisaba a las anteriores en los (ws,ad,fecha) compartidos.
+    const r = await _escribirSync(lecturas, { status, label }, fechaMinima, fechaMaxima);
+    totVentas = r.ventas; totRegs = r.registros; totCrm = r.crm;
+    r.wsIds.forEach(id => totWs.add(id));
 
     // Actualizar estado de consolidación de los días afectados
     label.textContent = 'Actualizando estados de día...';
@@ -4292,7 +4301,13 @@ async function syncGoogleSheets() {
 }
 
 // Procesa UN Sheet, enrutando filas solo entre los workspaces de su fuente
-async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
+// FASE DE LECTURA — lee UN Sheet y devuelve lo que trae, sin escribir nada.
+// Antes esta función leía Y escribía, así que con varias fuentes la 2ª PISABA los
+// (ws,ad,fecha) de la 1ª: el PATCH de registros manda totales absolutos, no
+// incrementos. Con un producto por bot no se notaba; con varios bots por producto
+// perdía ventas. Ahora todas las lecturas se suman en `_escribirSync` y se escribe
+// una sola vez por (ws,ad,fecha).
+async function _leerSheetJob(job, ui, fechaMinima, fechaMaxima) {
   const { status, label } = ui;
   const sheetIdMatch = job.url.match(/\/d\/([a-zA-Z0-9_-]+)/);
   const sheetId = sheetIdMatch ? sheetIdMatch[1] : job.url;
@@ -4314,12 +4329,11 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
       window._syncDebug.push({ fuente: job.nombre, sheetId, motivo, http: res?.status, largoCSV: (csvText||'').length, muestra });
       console.warn(`Sync "${job.nombre}": ${motivo}`, { sheetId, muestra });
       showError(`"${job.nombre}": ${motivo}`);
-      return { ventas: 0, registros: 0, crm: 0, wsIds: [], vacio: true, motivo };
+      return { registros: [], crmRows: [], fechasSheet: [], ventasLeidas: 0, vacio: true, motivo };
     }
 
-    // ── Filtro de fecha según el rango elegido por el usuario ──
-    const fechaMinima = syncDesde || nDaysAgo(90);
-    const fechaMaxima = syncHasta || today();
+    // ── Filtro de fecha (el rango ya viene resuelto por el caller, igual para todas
+    // las fuentes: así el merge y el espejo trabajan sobre una ventana única) ──
     const allRowsRecientes = allRows.filter(r => r.fecha >= fechaMinima && r.fecha <= fechaMaxima);
 
     status.textContent = `Procesando ${allRowsRecientes.length} ventas (${fechaMinima} → ${fechaMaxima})...`;
@@ -4349,7 +4363,7 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
       ? allRowsRecientes.filter(r => allAdIds.has(r.adId) || !!wsNombreToId[_normalizarProducto(r.producto || '', wsNames)])
       : allRowsRecientes;
 
-    if (!rows.length) return { ventas: 0, registros: 0, crm: 0, wsIds: [] };
+    if (!rows.length) return { registros: [], crmRows: [], fechasSheet: [], ventasLeidas: 0, vacio: false };
 
     // ── 5. SIN deduplicar: suben TODAS las ventas, incluidas las idénticas exactas.
     // El "merge por conteo" (paso 8) inserta solo las copias que falten en la BD,
@@ -4400,6 +4414,47 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
       }
     }
     const registros = Object.values(registrosMap);
+
+    // Se devuelve lo leído sin tocar la base. El merge entre fuentes y la escritura
+    // viven en `_escribirSync`.
+    return {
+      registros, crmRows,
+      fechasSheet: [...new Set(allRowsRecientes.map(r => r.fecha))],
+      ventasLeidas: ventasUnicas.length,
+      vacio: false
+    };
+}
+
+// FASE DE ESCRITURA — recibe las lecturas de TODAS las fuentes, las SUMA y escribe
+// una sola vez por (ws, ad, fecha). Es lo que permite que un producto tenga varios
+// bots sin que el último sync pise las ventas de los anteriores.
+async function _escribirSync(lecturas, ui, fechaMinima, fechaMaxima) {
+    const { status, label } = ui;
+
+    // ── MERGE entre fuentes ──
+    // Un mismo (ws, ad, fecha) puede recibir ventas de más de un Sheet (producto con
+    // varios bots, o un Sheet de archivo además del activo). Se suman ANTES de
+    // escribir porque el PATCH de registros manda el total absoluto del día.
+    const registrosMap = {};
+    const crmRows = [];
+    const fechasEnSheet = new Set();
+    let ventasLeidas = 0;
+    for (const L of lecturas) {
+      for (const g of (L.registros || [])) {
+        const key = `${g.wsId}||${g.adId}||${g.fecha}`;
+        if (!registrosMap[key]) registrosMap[key] = { ...g };
+        else {
+          registrosMap[key].ventas   += g.ventas;
+          registrosMap[key].ingresos += g.ingresos;
+          registrosMap[key].upsell   += g.upsell;
+        }
+      }
+      (L.crmRows    || []).forEach(r => crmRows.push(r));
+      (L.fechasSheet || []).forEach(f => fechasEnSheet.add(f));
+      ventasLeidas += (L.ventasLeidas || 0);
+    }
+    const registros = Object.values(registrosMap);
+    if (!registros.length && !crmRows.length) return { ventas: 0, registros: 0, crm: 0, wsIds: [] };
 
     // Blindaje: registros corregidos a mano no se sobrescriben en sus ventas
     const protegidos = new Set();
@@ -4470,10 +4525,13 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
     // ausencia de días recientes no prueba nada y sin este chequeo se vaciarían
     // todos los días recientes — el mismo bug que este freno vino a tapar, pero
     // del otro lado del calendario.
+    //
+    // `fechasEnSheet` es la UNIÓN de todas las fuentes leídas: una fecha está
+    // "ausente" solo si NINGÚN Sheet la trajo. Antes cada fuente juzgaba sola y
+    // ponía en 0 los días que solo existían en el Sheet de otro bot.
     const ESPEJO_DIAS_CONFIABLES = 15;
     const limiteConfiable = nDaysAgo(ESPEJO_DIAS_CONFIABLES);
-    const fechasEnSheet = new Set(allRowsRecientes.map(r => r.fecha));
-    const sheetTieneRecientes = allRowsRecientes.some(r => r.fecha >= limiteConfiable);
+    const sheetTieneRecientes = [...fechasEnSheet].some(f => f >= limiteConfiable);
     const borrableAusente = f => sheetTieneRecientes && f >= limiteConfiable;
     const regMapKeys = new Set(registros.map(r => `${r.wsId}||${r.adId}||${r.fecha}`));
     const wsIdsReg = [...new Set(registros.map(r => r.wsId))];
@@ -4634,9 +4692,9 @@ async function _syncOneSheet(job, ui, syncDesde, syncHasta) {
       });
     }
 
-    // ── 10. Devolver totales de esta fuente ──
+    // ── 10. Devolver totales de TODAS las fuentes (ya sumadas) ──
     return {
-      ventas: ventasUnicas.length,
+      ventas: ventasLeidas,
       registros: registros.length,
       crm: crmRows.length,
       wsIds: Object.keys(wsSyncCounts)

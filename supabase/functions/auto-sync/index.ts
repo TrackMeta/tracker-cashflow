@@ -145,14 +145,18 @@ function regIngresoBaseR(r: any, cfg: any): number {
 // ── Sincroniza un Sheet (una fuente) ──
 // days=5 (auto-sync inteligente): solo últimos 5 días para capturar ajustes tardíos de Meta.
 // days=90 (sync manual completo). days=0 = sin límite (Total).
-async function syncSheet(job: { url: string; wsList: any[]; userId: string }, days = 90) {
+// FASE DE LECTURA — lee UN Sheet y devuelve lo que trae, sin escribir nada.
+// Antes leía Y escribía, así que con varias fuentes la 2ª PISABA los (ws,ad,fecha)
+// de la 1ª (el PATCH de registros manda el total absoluto del día, no incrementos).
+// Espejo del split en index.html (`_leerSheetJob` / `_escribirSync`).
+async function leerSheet(job: { url: string; wsList: any[]; userId: string }, days = 90) {
   const sheetId = (job.url.match(/\/d\/([a-zA-Z0-9_-]+)/) || [])[1] || job.url;
   const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`);
   if (!res.ok) throw new Error(`Sheet ${job.url} no accesible (${res.status})`);
   const allRows = parseSheetCSV(await res.text());
   const fechaMin = days > 0 ? nDaysAgo(days) : "2000-01-01";
   const recientes = allRows.filter((r) => r.fecha >= fechaMin);
-  if (!recientes.length) return { ventas: 0, registros: 0, wsIds: [] as string[] };
+  if (!recientes.length) return { registros: [] as any[], crmRows: [] as any[], fechasSheet: [] as string[], ventasLeidas: 0, wsList: job.wsList };
 
   const wsNames = job.wsList.map((w) => w.nombre || "");
   const wsNombreToId: Record<string, string> = {};
@@ -168,7 +172,7 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
   const rows = allAdIds.size
     ? recientes.filter((r) => allAdIds.has(r.adId) || !!wsNombreToId[normalizarProducto(r.producto || "", wsNames)])
     : recientes;
-  if (!rows.length) return { ventas: 0, registros: 0, wsIds: [] };
+  if (!rows.length) return { registros: [] as any[], crmRows: [] as any[], fechasSheet: [] as string[], ventasLeidas: 0, wsList: job.wsList };
 
   // No se deduplica: suben TODAS las filas (idéntico al sync manual del cliente),
   // para que ambos motores cuenten igual y los números no oscilen entre un sync y otro.
@@ -198,6 +202,41 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
     else { regMap[k].ventas += g.ventas; regMap[k].ingresos += g.ingresos; regMap[k].upsell += g.upsell; }
   }
   const registros = Object.values(regMap) as any[];
+
+  // Se devuelve lo leído sin tocar la base; el merge y la escritura van en escribirSync.
+  return {
+    registros, crmRows,
+    fechasSheet: [...new Set(recientes.map((r: any) => r.fecha))] as string[],
+    ventasLeidas: unicas.length,
+    wsList: job.wsList,
+  };
+}
+
+// FASE DE ESCRITURA — recibe las lecturas de TODAS las fuentes del usuario, las SUMA
+// y escribe una sola vez por (ws, ad, fecha). Permite que un producto tenga varios
+// bots sin que el último sync pise las ventas de los anteriores.
+async function escribirSync(lecturas: any[], userId: string, fechaMin: string) {
+  // ── MERGE entre fuentes ──
+  const regMap: Record<string, any> = {};
+  const crmRows: any[] = [];
+  const fechasEnSheet = new Set<string>();
+  const wsAll: any[] = [];
+  const wsVistos = new Set<string>();
+  let ventasLeidas = 0;
+  for (const L of (lecturas || [])) {
+    for (const g of (L.registros || [])) {
+      const k = `${g.wsId}||${g.adId}||${g.fecha}`;
+      if (!regMap[k]) regMap[k] = { ...g };
+      else { regMap[k].ventas += g.ventas; regMap[k].ingresos += g.ingresos; regMap[k].upsell += g.upsell; }
+    }
+    (L.crmRows || []).forEach((r: any) => crmRows.push(r));
+    (L.fechasSheet || []).forEach((f: string) => fechasEnSheet.add(f));
+    (L.wsList || []).forEach((w: any) => { if (w && !wsVistos.has(w.id)) { wsVistos.add(w.id); wsAll.push(w); } });
+    ventasLeidas += (L.ventasLeidas || 0);
+  }
+  const registros = Object.values(regMap) as any[];
+  if (!registros.length && !crmRows.length) return { ventas: 0, registros: 0, wsIds: [] as string[] };
+  const job = { wsList: wsAll, userId };
 
   // Blindaje: no pisar ventas corregidas a mano
   const protegidos = new Set<string>();
@@ -238,10 +277,12 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
   // venta de un día reciente vuelve a bajarlo a 0 solo). Exige que el Sheet haya traído
   // algo en esa ventana: si la pestaña activa solo tiene datos viejos, la ausencia de
   // días recientes no prueba nada y se vaciarían todos. Espejo de index.html (~4446).
+  // `fechasEnSheet` es la UNIÓN de todas las fuentes leídas: una fecha está "ausente"
+  // solo si NINGÚN Sheet la trajo. Antes cada fuente juzgaba sola y ponía en 0 los
+  // días que solo existían en el Sheet de otro bot.
   const ESPEJO_DIAS_CONFIABLES = 15;
   const limiteConfiable = nDaysAgo(ESPEJO_DIAS_CONFIABLES);
-  const fechasEnSheet = new Set(recientes.map((r: any) => r.fecha));
-  const sheetTieneRecientes = recientes.some((r: any) => r.fecha >= limiteConfiable);
+  const sheetTieneRecientes = [...fechasEnSheet].some((f) => f >= limiteConfiable);
   const borrableAusente = (f: string) => sheetTieneRecientes && f >= limiteConfiable;
   const regMapKeys = new Set(registros.map((r) => `${r.wsId}||${r.adId}||${r.fecha}`));
   for (const ws of job.wsList) {
@@ -382,7 +423,7 @@ async function syncSheet(job: { url: string; wsList: any[]; userId: string }, da
     }
   }
 
-  return { ventas: unicas.length, registros: registros.length, wsIds: [...new Set(registros.map((r) => r.wsId))] };
+  return { ventas: ventasLeidas, registros: registros.length, wsIds: [...new Set(registros.map((r) => r.wsId))] as string[] };
 }
 
 // ── Meta gasto por fuente ──
@@ -497,6 +538,12 @@ async function procesarUsuario(userId: string, conMeta: boolean, sheetDays = 5) 
   const multiFuente = (fuentes || []).length > 1;
   const wsTouched = new Set<string>();
   let totVentas = 0;
+  // Se LEEN todas las fuentes primero y se escribe UNA vez con todo sumado; antes
+  // cada fuente escribía por su cuenta y la última pisaba a las anteriores en los
+  // (ws,ad,fecha) compartidos. El rango es único para todas, así el espejo juzga
+  // sobre la misma ventana.
+  const fechaMin = sheetDays > 0 ? nDaysAgo(sheetDays) : "2000-01-01";
+  const lecturas: any[] = [];
   for (const f of (fuentes || [])) {
     const wsList = (workspaces || []).filter((w: any) => w.fuente_id === f.id);
     // Con una sola fuente cubre todos los productos (incluye los sin asignar). Con
@@ -505,14 +552,19 @@ async function procesarUsuario(userId: string, conMeta: boolean, sheetDays = 5) 
     const wsForJob = wsList.length ? wsList : (multiFuente ? [] : workspaces);
     if (f.sheets_url && wsForJob.length) {
       try {
-        const r = await syncSheet({ url: f.sheets_url, wsList: wsForJob, userId }, sheetDays);
-        totVentas += r.ventas; r.wsIds.forEach((id) => wsTouched.add(id));
-      } catch (e) { console.error("syncSheet", f.nombre, e); }
+        lecturas.push(await leerSheet({ url: f.sheets_url, wsList: wsForJob, userId }, sheetDays));
+      } catch (e) { console.error("leerSheet", f.nombre, e); }
     }
     if (conMeta) {
       try { await syncMeta(f, wsForJob); (wsForJob || []).forEach((w: any) => wsTouched.add(w.id)); }
       catch (e) { console.error("syncMeta", f.nombre, e); }
     }
+  }
+  if (lecturas.length) {
+    try {
+      const r = await escribirSync(lecturas, userId, fechaMin);
+      totVentas += r.ventas; r.wsIds.forEach((id) => wsTouched.add(id));
+    } catch (e) { console.error("escribirSync", e); }
   }
   const alertas: string[] = [];
   for (const wsId of wsTouched) {
