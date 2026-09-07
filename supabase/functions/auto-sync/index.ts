@@ -357,7 +357,13 @@ async function escribirSync(lecturas: any[], userId: string, fechaMin: string) {
     const seenUids = new Set<string>();
     const faltaDato = (e: any, s: any) => (!e.producto && s.producto) || (!e.cliente && s.cliente) || (!e.telefono && s.telefono);
 
-    // (1) Filas CON uid → emparejar/adoptar/insertar y actualizar cambios
+    // (1) Filas CON uid → emparejar/adoptar/insertar y actualizar cambios.
+    // Se CLASIFICA primero (sincrono) y se ejecuta despues en lotes paralelos: el bucle
+    // hacia un await por venta y con muchas filas eso se come el tiempo de la edge.
+    // La clasificacion DEBE seguir sincrona: `cand.shift()` consume candidatos de
+    // adopcion, depende del orden. Espejo del mismo cambio en index.html.
+    const patches: { id: string; data: any }[] = [];
+    const inserts: any[] = [];
     for (const r of conUid) {
       seenUids.add(r.fuente_uid);
       const e = exByUid.get(r.fuente_uid);
@@ -377,26 +383,35 @@ async function escribirSync(lecturas: any[], userId: string, fechaMin: string) {
           hist.push({ t: nowISO, accion: "Editada en Sheets", detalle: Object.keys(cambios).join(", ") });
           if (cambios.ad_id !== undefined || cambios.precio !== undefined) { cambios.ciclo = "pendiente"; cambios.estado_verif = "pendiente"; }
           cambios.sincronizado_at = nowISO; cambios.historial = hist;
-          await sb("PATCH", `crm_ventas?id=eq.${e.id}`, { ...cambios, ...(sello || {}) }, "return=minimal").catch(() => {});
+          patches.push({ id: e.id, data: { ...cambios, ...(sello || {}) } });
         } else if (sello) {
-          await sb("PATCH", `crm_ventas?id=eq.${e.id}`, sello, "return=minimal").catch(() => {});
+          patches.push({ id: e.id, data: sello });
         }
       } else {
         // adoptar una fila legacy (sin uid) por clave natural, o insertar nueva
         const cand = exNoUid.get(hkey(r.workspace_id, r.ad_id, r.hora, +r.precio));
         const adopt = cand && cand.length ? cand.shift() : null;
         if (adopt) {
-          await sb("PATCH", `crm_ventas?id=eq.${adopt.id}`, { fuente_uid: r.fuente_uid, fuente_id: fid(r), sincronizado_at: nowISO }, "return=minimal").catch(() => {});
+          patches.push({ id: adopt.id, data: { fuente_uid: r.fuente_uid, fuente_id: fid(r), sincronizado_at: nowISO } });
         } else {
-          await sb("POST", "crm_ventas", [{
+          inserts.push({
             fecha: r.fecha, ad_id: r.ad_id, hora: r.hora, precio: r.precio,
             telefono: r.telefono, producto: r.producto, cliente: r.cliente,
             workspace_id: r.workspace_id, user_id: job.userId, fuente_id: fid(r), fuente_uid: r.fuente_uid,
             ciclo: "pendiente", estado_verif: "pendiente", origen: "auto", sincronizado_at: nowISO,
             bump_monto: (+r.bump_monto || 0), bump_ciclo: (r.bump_ciclo || null),
-          }], "return=minimal").catch(() => {});
+          });
         }
       }
+    }
+
+    // Ejecucion en lotes: PATCH de 25 en paralelo, INSERT de 100 por request.
+    for (let i = 0; i < patches.length; i += 25) {
+      await Promise.all(patches.slice(i, i + 25).map((p) =>
+        sb("PATCH", `crm_ventas?id=eq.${p.id}`, p.data, "return=minimal").catch(() => {})));
+    }
+    for (let i = 0; i < inserts.length; i += 100) {
+      await sb("POST", "crm_ventas", inserts.slice(i, i + 100), "return=minimal").catch(() => {});
     }
 
     // (2) Filas SIN uid → merge por conteo legacy (insertar solo las copias que falten)
@@ -426,18 +441,22 @@ async function escribirSync(lecturas: any[], userId: string, fechaMin: string) {
         }));
         await sb("POST", "crm_ventas", lote, "return=minimal").catch(() => {});
       }
-      for (const { ex, r } of modificados) {
-        const hist = Array.isArray(ex.historial) ? ex.historial : [];
-        hist.push({ t: nowISO, accion: "Modificada en Sheets", detalle: `monto ${ex.precio} → ${r.precio}` });
-        await sb("PATCH", `crm_ventas?id=eq.${ex.id}`, {
-          precio: r.precio, telefono: r.telefono || null, producto: r.producto || null, cliente: r.cliente || null,
-          ciclo: "pendiente", estado_verif: "pendiente", sincronizado_at: nowISO, historial: hist,
-        }, "return=minimal").catch(() => {});
+      // Lotes de 25 en paralelo (eran awaits de a uno, igual que el bucle de arriba).
+      for (let i = 0; i < modificados.length; i += 25) {
+        await Promise.all(modificados.slice(i, i + 25).map(({ ex, r }: any) => {
+          const hist = Array.isArray(ex.historial) ? ex.historial : [];
+          hist.push({ t: nowISO, accion: "Modificada en Sheets", detalle: `monto ${ex.precio} → ${r.precio}` });
+          return sb("PATCH", `crm_ventas?id=eq.${ex.id}`, {
+            precio: r.precio, telefono: r.telefono || null, producto: r.producto || null, cliente: r.cliente || null,
+            ciclo: "pendiente", estado_verif: "pendiente", sincronizado_at: nowISO, historial: hist,
+          }, "return=minimal").catch(() => {});
+        }));
       }
-      for (const { ex, r } of enriquecer) {
-        await sb("PATCH", `crm_ventas?id=eq.${ex.id}`, {
-          producto: r.producto || null, cliente: r.cliente || null, telefono: r.telefono || null,
-        }, "return=minimal").catch(() => {});
+      for (let i = 0; i < enriquecer.length; i += 25) {
+        await Promise.all(enriquecer.slice(i, i + 25).map(({ ex, r }: any) =>
+          sb("PATCH", `crm_ventas?id=eq.${ex.id}`, {
+            producto: r.producto || null, cliente: r.cliente || null, telefono: r.telefono || null,
+          }, "return=minimal").catch(() => {})));
       }
     }
 
