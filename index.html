@@ -5526,6 +5526,12 @@ async function renderGlobal() {
   // Cargar todos los workspaces del usuario con sus datos
   showLoading('Cargando datos globales...');
   try {
+    // La capa de validadas (CICLO_MAP) es la ÚNICA fuente de ingresos/ventas en
+    // modo 🟢 Confirmado. Si no está cargada, el lookup da undefined y todo el
+    // período sale con 0 ventas y el gasto completo → rojo sin explicación.
+    // El resto de las vistas en confirmado ya la pedían; esta era la que faltaba.
+    await cargarCicloMap();   // cacheada 30s → no re-consulta en cada render
+
     // Inicializar selección si está vacía
     if (SELECTED_WS_IDS.size === 0) {
       DB.workspaces.forEach(w => SELECTED_WS_IDS.add(w.id));
