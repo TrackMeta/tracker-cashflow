@@ -4983,7 +4983,13 @@ const api = {
     return parseInt(cr.split('/')[1] || '0') || 0;
   },
   // Trae TODAS las filas paginando (PostgREST corta en ~1000 por request).
+  // OJO: un `limit=N` en un .get() normal NO levanta el tope — con 1.317 filas
+  // llega 1.000 y el resto se pierde en silencio (200 OK). Para tablas grandes
+  // (registros, crm_ventas) usar SIEMPRE getAll, con `order=` estable.
   async getAll(table, params='') {
+    // Si el llamador dejó un limit= propio, se descarta: dos limit en la URL
+    // rompen la paginación y el tope de 1000 volvería por la puerta de atrás.
+    params = (params || '').replace(/(^|&)limit=\d+(?=&|$)/g, '$1').replace(/&&+/g, '&').replace(/^&+|&+$/g, '');
     let out = [], offset = 0;
     while (true) {
       const sep = params ? '&' : '';
@@ -5218,7 +5224,7 @@ async function renderAdminPage() {
     const rows = await Promise.all(profiles.map(async p => {
       try {
         const [regs, cfgs, wss, ftes] = await Promise.all([
-          api.get('registros', `user_id=eq.${p.id}&select=gasto_meta,gasto_tiktok,ventas,ingresos,v1,v2,v3,v4&limit=5000`),
+          api.getAll('registros', `user_id=eq.${p.id}&select=gasto_meta,gasto_tiktok,ventas,ingresos,v1,v2,v3,v4&order=fecha.asc,id.asc`),
           api.get('config', `user_id=eq.${p.id}&select=sheets_url,script_url,meta_token&limit=10`).catch(()=>[]),
           api.get('workspaces', `user_id=eq.${p.id}&select=id,nombre&limit=10`).catch(()=>[]),
           api.get('fuentes', `user_id=eq.${p.id}&select=sheets_url,meta_token&limit=10`).catch(()=>[]),
@@ -9908,8 +9914,8 @@ async function loadAll() {
     api.get('campanas', `order=created_at.asc${baseFilter}`),
     api.get('anuncios', `order=created_at.asc${baseFilter}`),
     api.getAll('registros', `order=fecha.asc${baseFilter}`),
-    api.get('notas', `order=hora.desc&limit=2000${baseFilter}`),
-    api.get('notas_campanas', `order=hora.desc&limit=1000${baseFilter}`).catch(()=>[]),
+    api.getAll('notas', `order=hora.desc,id.desc${baseFilter}`),
+    api.getAll('notas_campanas', `order=hora.desc,id.desc${baseFilter}`).catch(()=>[]),
     api.get('business_managers', `order=created_at.asc${baseFilter}`).catch(()=>[]),
     api.get('cuentas_pub', `order=created_at.asc${baseFilter}`).catch(()=>[]),
     api.get('conjuntos', `order=created_at.asc${baseFilter}`).catch(()=>[]),
@@ -9917,9 +9923,6 @@ async function loadAll() {
 
   // Estado de consolidación por día (Etapa 2) — tolerante a tabla aún no creada
   DB.diaEstado = await api.get('dia_estado', `order=fecha.desc&limit=400${baseFilter}`).catch(() => []);
-
-  // Resumen de verificación de ventas (Etapa 3) — ligero: solo fecha + estado
-  DB.crmVerif = await api.get('crm_ventas', `select=fecha,estado_verif,ciclo&order=fecha.desc&limit=8000${baseFilter}`).catch(() => []);
 
   if (cfgArr.length) DB.config = cfgArr[0];
   else DB.config = { id:null, p1:10, p2:7, p3:5, p4:3, igv:0.18, tc:4.0, sat_caida:0.30, sat_dias:3, estados:[], alerta_gasto_min:5, alerta_roas_min:1, roas_gasto_min:1, gastos_extras:[] };
@@ -11378,8 +11381,14 @@ async function bitaLoadGlobalYear(anio){
   const ini = `${anio}-01-01`, fin = `${anio}-12-31`;
   let regs = [], cfgs = [];
   try {
-    regs = await api.get('registros', `fecha=gte.${ini}&fecha=lte.${fin}&select=workspace_id,fecha,gasto_meta,gasto_tiktok,ventas,ingresos,v1,v2,v3,v4,upsell_total&limit=20000`);
-    cfgs = await api.get('config', 'select=workspace_id,p1,p2,p3,p4');
+    // getAll y no get: PostgREST corta CUALQUIER respuesta en 1000 filas aunque se pida
+    // limit=20000, y sin orden el recorte cae donde caiga. Con 1.317 filas en 2026
+    // llegaban 1.000: el 9 sep quedaba a medias (28 ventas de 47, profit "$ -0") y el
+    // 10 ni aparecía. Se acota a los productos del usuario porque como admin el RLS
+    // deja leer filas de otras cuentas y se mezclaban en el total.
+    const wsIds = (DB.workspaces || []).map(w => w.id);
+    if (wsIds.length) regs = await api.getAll('registros', `workspace_id=in.(${wsIds.join(',')})&fecha=gte.${ini}&fecha=lte.${fin}&select=workspace_id,fecha,gasto_meta,gasto_tiktok,ventas,ingresos,v1,v2,v3,v4,upsell_total&order=fecha.asc,id.asc`);
+    cfgs = await api.get('config', `select=workspace_id,p1,p2,p3,p4${userScopeQ()}`);
   } catch(e) {}
   const pm = {}; cfgs.forEach(c => pm[c.workspace_id] = c);
   const rm = {}; DB.workspaces.forEach(w => rm[w.id] = wsUsdRate(w));
@@ -12616,7 +12625,7 @@ async function renderOrderBumps(){
   const kpis = document.getElementById('ob-kpis'); if (!kpis) return;
   if (!ws?.id){ kpis.innerHTML = '<div class="alert alert-info" style="grid-column:1/-1">Selecciona un producto</div>'; return; }
   let bumps = [];
-  try { bumps = await api.get('crm_ventas', `workspace_id=eq.${ws.id}&bump_monto=gt.0&select=id,fecha,ad_id,bump_monto,bump_ciclo,cliente&order=fecha.desc&limit=5000`); } catch(e){ bumps = []; }
+  try { bumps = await api.getAll('crm_ventas', `workspace_id=eq.${ws.id}&bump_monto=gt.0&select=id,fecha,ad_id,bump_monto,bump_ciclo,cliente&order=fecha.desc,id.desc`); } catch(e){ bumps = []; }
   const proy = bumps.filter(b => b.bump_ciclo !== 'descartado');
   const conf = bumps.filter(b => b.bump_ciclo === 'finalizado');
   const pend = bumps.filter(b => b.bump_ciclo === 'pendiente' || !b.bump_ciclo);
@@ -13321,7 +13330,7 @@ async function importarMeta() {
   for (const ws of DB.workspaces) {
     if (ws.id === CURRENT_WORKSPACE?.id) continue;
     try {
-      const wsRegs = await api.get('registros', `workspace_id=eq.${ws.id}&order=fecha.asc&limit=5000&select=id,fecha,ad_id,gasto_meta,impr_meta,clics_meta,chats_meta,workspace_id`);
+      const wsRegs = await api.getAll('registros', `workspace_id=eq.${ws.id}&order=fecha.asc,id.asc&select=id,fecha,ad_id,gasto_meta,impr_meta,clics_meta,chats_meta,workspace_id`);
       allRegs.push(...wsRegs);
     } catch(e) {}
   }
@@ -14813,7 +14822,7 @@ async function aplicarMetaAPI() {
   // Mapa global Ad ID → producto (TODOS los productos del usuario, no solo el activo)
   const adMap = {};
   try {
-    const ads = await api.get('anuncios', 'select=ad_id,workspace_id&limit=10000');
+    const ads = await api.getAll('anuncios', `select=ad_id,workspace_id&order=created_at.asc,ad_id.asc${userScopeQ()}`);
     ads.forEach(a => { adMap[a.ad_id] = a.workspace_id; });
   } catch(e) { console.warn('No se pudo cargar el mapa de anuncios:', e); }
 
@@ -15795,7 +15804,7 @@ init();
   window.concVerDescartadas = async function(){
     const fechaQ = (CONC.desde?`&fecha=gte.${CONC.desde}`:'') + (CONC.hasta?`&fecha=lte.${CONC.hasta}`:'');
     const sel = 'select=id,fecha,ad_id,hora,precio,workspace_id,telefono,producto,cliente,origen,estado_verif,ciclo,sincronizado_at,conciliado_at,historial,fuente_uid' + (await crmTieneFuenteId() ? ',fuente_id' : '');
-    const rows = await api.get('crm_ventas', `ciclo=eq.descartado&${sel}&order=fecha.desc&limit=2000${fechaQ}${userScopeQ()}`).catch(()=>[]);
+    const rows = await api.getAll('crm_ventas', `ciclo=eq.descartado&${sel}&order=fecha.desc,id.desc${fechaQ}${userScopeQ()}`).catch(()=>[]);
     if(!rows.length){ if(typeof showSuccess==='function') showSuccess('No hay ventas descartadas en este periodo'); return; }
     const existentes = new Set(CONC.ventas.map(v=>String(v.id)));
     const wsFuente = {}; (DB.workspaces||[]).forEach(w => { wsFuente[w.id] = wsFuenteUnica(w); });
