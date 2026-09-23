@@ -14,7 +14,7 @@ const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // el deploy es manual (copiar/pegar en el Dashboard, el CLI da 403), así que esta
 // cadena es la ÚNICA forma de saber si lo que está arriba es el código nuevo o el
 // viejo. Estuvo congelada desde junio y por eso un `?ping` no distinguía versiones.
-const FN_VERSION = "2026-09-23-nodo-fecha";
+const FN_VERSION = "2026-09-23-relleno-tel";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -415,13 +415,18 @@ async function escribirSync(lecturas: any[], userId: string, fechaMin: string) {
         const cambios: any = {};
         if (e.ad_id !== r.ad_id) cambios.ad_id = r.ad_id;
         if (Math.abs((+e.precio) - (+r.precio)) > 0.001) cambios.precio = r.precio;
-        if ((e.telefono || null) !== (r.telefono || null)) cambios.telefono = r.telefono || null;
-        if ((e.cliente || null) !== (r.cliente || null)) cambios.cliente = r.cliente || null;
-        if ((e.producto || null) !== (r.producto || null)) cambios.producto = r.producto || null;
+        // Completar un dato que la venta NO tenia es relleno, no edicion (al aprender a leer
+        // "CEL" ~2.400 ventas recibieron su telefono de golpe). Va con el sello, sin historial.
+        const relleno: any = {};
+        for (const k of ["telefono", "cliente", "producto"]) {
+          if ((e[k] || null) === (r[k] || null)) continue;
+          if (!e[k] && r[k]) relleno[k] = r[k]; else cambios[k] = r[k] || null;
+        }
         // Autocuracion del bot de la venta: 0017 deja fuente_id NULL cuando el producto
         // tiene varias fuentes. Aca si se sabe (la fila la trajo ESTE Sheet). Va aparte de
         // `cambios`: no es edicion del usuario, no entra al historial ni reabre validacion.
-        const sello = (okFid && r.fuente_id && e.fuente_id !== r.fuente_id) ? { fuente_id: r.fuente_id } : null;
+        let sello: any = (okFid && r.fuente_id && e.fuente_id !== r.fuente_id) ? { fuente_id: r.fuente_id } : null;
+        if (Object.keys(relleno).length) sello = { ...(sello || {}), ...relleno };
         if (Object.keys(cambios).length) {
           const hist = Array.isArray(e.historial) ? e.historial : [];
           hist.push({ t: nowISO, accion: "Editada en Sheets", detalle: Object.keys(cambios).join(", ") });
