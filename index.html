@@ -2854,6 +2854,7 @@ body.dark .modal{box-shadow:0 28px 90px rgba(0,0,0,0.75);}
     <div class="field" style="margin-top:10px">
       <label>URL del Google Sheet (ventas)</label>
       <input type="url" id="fuente-sheet" placeholder="https://docs.google.com/spreadsheets/d/..." style="font-family:var(--mono);font-size:11px">
+      <div style="font-size:10.5px;color:var(--text3);margin-top:4px">¿El Sheet tiene varias pestañas? Copia el link estando parado en la pestaña de ventas: termina en <span style="font-family:var(--mono)">#gid=…</span> y se leerá solo esa.</div>
       <div style="display:flex;gap:8px;align-items:center;margin-top:6px">
         <button class="btn btn-ghost btn-sm" type="button" onclick="probarSheetFuente()">🧪 Probar conexión</button>
         <span id="fuente-sheet-estado" style="font-size:11px;color:var(--text3)"></span>
@@ -4170,9 +4171,8 @@ async function _autoAsignarHuerfanos() {
   // Leer cada Sheet UNA vez: nombres de producto + Ad IDs presentes.
   const porFuente = [];
   for (const f of fuentesConSheet) {
-    const sheetId = (f.sheets_url.match(/\/d\/([a-zA-Z0-9_-]+)/) || [])[1] || f.sheets_url;
     let rows = [];
-    try { const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`); if (res.ok) rows = _parseSheetCSV(await res.text()); } catch(e) {}
+    try { const res = await fetch(_sheetCsvUrl(f.sheets_url)); if (res.ok) rows = _parseSheetCSV(await res.text()); } catch(e) {}
     const nombres = new Set(), adIds = new Set();
     rows.forEach(r => { if (r.producto) nombres.add(r.producto); if (r.adId && r.adId !== 'SIN_ID') adIds.add(String(r.adId)); });
     porFuente.push({ f, nombres, adIds });
@@ -4318,7 +4318,7 @@ async function _leerSheetJob(job, ui, fechaMinima, fechaMaxima) {
   const sheetId = sheetIdMatch ? sheetIdMatch[1] : job.url;
 
     // ── 1. Leer Sheet vía API pública (CSV) ──
-    const apiUrl = `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`;
+    const apiUrl = _sheetCsvUrl(job.url);
     let res, csvText = '';
     try { res = await fetch(apiUrl); csvText = await res.text(); } catch(e){ csvText=''; }
 
@@ -4749,6 +4749,16 @@ async function _escribirSync(lecturas, ui, fechaMinima, fechaMaxima) {
 // ════════════════════════════════════════════════
 // HELPERS DE SYNC — Parser de CSV de Google Sheets
 // ════════════════════════════════════════════════
+// URL del CSV público de un Sheet. Si el link trae `gid` (se copia estando parado en
+// una pestaña: .../edit#gid=123) se lee ESA pestaña; sin gid Google devuelve una sola
+// pestaña y las demás no existen para el sync. Espejo de `sheetCsvUrl` en la edge.
+function _sheetCsvUrl(url) {
+  const u = String(url || '');
+  const sheetId = (u.match(/\/d\/([a-zA-Z0-9_-]+)/) || [])[1] || u;
+  const gid = (u.match(/[#?&]gid=(\d+)/) || [])[1];
+  return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv` + (gid ? `&gid=${gid}` : '');
+}
+
 function _parseSheetCSV(text) {
   const lines = text.trim().split('\n').filter(l => l.trim());
   if (lines.length < 2) return [];
@@ -4780,10 +4790,10 @@ function _parseSheetCSV(text) {
   const iAdId  = findH(['ad id','ad_id','adid']);
   const iFecha = findH(['fecha y hora','fecha','timestamp']);
   const iValor = findH(['valor','value','precio','monto']);
-  const iTel   = findH(['numero de celular','telefono','phone','celular']);
+  const iTel   = findH(['numero de celular','telefono','phone','celular','cel']);   // 'cel' = Nodo
   const iProd  = findH(['producto','product']);
   const iCli   = findH(['nombre del cliente','nombre cliente','id cliente','cliente','nombre','customer name','customer','id']);
-  const iUp1   = findH(['upsell 1','upsell1','venta extra 1','ventaextra1']);
+  const iUp1   = findH(['upsell 1','upsell1','venta extra 1','ventaextra1','orderbump','order bump']);   // up1 = Order Bump
   const iUp2   = findH(['upsell 2','upsell2','venta extra 2','ventaextra2']);
   const iUp3   = findH(['upsell 3','upsell3','venta extra 3','ventaextra3']);
   const iUp4   = findH(['upsell 4','upsell4','venta extra 4','ventaextra4']);
@@ -9270,8 +9280,7 @@ async function probarSheetFuente() {
   if (!url) { est.textContent = 'Pega la URL del Sheet primero'; est.style.color = 'var(--orange)'; return; }
   est.textContent = '⏳ probando...'; est.style.color = 'var(--text3)';
   try {
-    const sheetId = (url.match(/\/d\/([a-zA-Z0-9_-]+)/) || [])[1] || url;
-    const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`);
+    const res = await fetch(_sheetCsvUrl(url));
     if (!res.ok) { est.textContent = `❌ No accesible (${res.status}) — ¿el Sheet es público?`; est.style.color = 'var(--red)'; return; }
     const rows = _parseSheetCSV(await res.text());
     if (!rows.length) { est.textContent = '⚠️ Conecta, pero no se leyeron ventas — revisa columnas (Ad ID, Fecha y hora, Valor)'; est.style.color = 'var(--orange)'; return; }
@@ -9511,9 +9520,8 @@ async function probarScriptFuente() {
   // 3) Identidad script ↔ Sheet de esta fuente
   if (!sheetUrl) { lineas.push('⚪ 3/3 Sin URL de Sheet arriba — no se pudo verificar a qué Sheet apunta el script'); pinta(); return; }
   try {
-    const sheetId = (sheetUrl.match(/\/d\/([a-zA-Z0-9_-]+)/) || [])[1] || sheetUrl;
     const leerUid = async () => {
-      const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`);
+      const res = await fetch(_sheetCsvUrl(sheetUrl));
       if (!res.ok) return null;                       // Sheet no accesible
       const rows = _parseSheetCSV(await res.text());
       if (!rows.length) return null;                  // sin filas legibles
@@ -15886,9 +15894,8 @@ init();
     const adIdToWs = {}; (DB.anuncios||[]).forEach(a => { if (a.ad_id) adIdToWs[a.ad_id] = a.workspace_id; });
     const out = [], seen = new Set();
     for (const job of jobs){
-      const sheetId = (job.url.match(/\/d\/([a-zA-Z0-9_-]+)/) || [])[1] || job.url;
       let csv;
-      try { const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`); if (!res.ok) continue; csv = await res.text(); } catch(e){ continue; }
+      try { const res = await fetch(_sheetCsvUrl(job.url)); if (!res.ok) continue; csv = await res.text(); } catch(e){ continue; }
       const rows = _parseSheetCSV(csv);
       const wsNames = job.wsList.map(w => w.nombre || '');
       const wsNombreToId = {}; job.wsList.forEach(w => { wsNombreToId[w.nombre||''] = w.id; });

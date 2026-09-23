@@ -14,7 +14,7 @@ const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // el deploy es manual (copiar/pegar en el Dashboard, el CLI da 403), así que esta
 // cadena es la ÚNICA forma de saber si lo que está arriba es el código nuevo o el
 // viejo. Estuvo congelada desde junio y por eso un `?ping` no distinguía versiones.
-const FN_VERSION = "2026-09-07-multibot-lotes";
+const FN_VERSION = "2026-09-23-nodo-pestana";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -84,10 +84,12 @@ function parseSheetCSV(text: string) {
   const iAdId = findH(["ad id", "ad_id", "adid"]);
   const iFecha = findH(["fecha y hora", "fecha", "timestamp"]);
   const iValor = findH(["valor", "value", "precio", "monto"]);
-  const iTel = findH(["numero de celular", "telefono", "phone", "celular"]);
+  const iTel = findH(["numero de celular", "telefono", "phone", "celular", "cel"]);   // 'cel' = Nodo
   const iProd = findH(["producto", "product"]);
   const iCli = findH(["nombre del cliente", "nombre cliente", "id cliente", "cliente", "nombre", "customer name", "customer", "id"]);
-  const iUp = [findH(["upsell 1", "upsell1"]), findH(["upsell 2", "upsell2"]), findH(["upsell 3", "upsell3"]), findH(["upsell 4", "upsell4"])];
+  // up1 = Order Bump ('orderbump' = Nodo). Mismos alias que _parseSheetCSV del cliente.
+  const iUp = [findH(["upsell 1", "upsell1", "venta extra 1", "ventaextra1", "orderbump", "order bump"]), findH(["upsell 2", "upsell2", "venta extra 2", "ventaextra2"]),
+               findH(["upsell 3", "upsell3", "venta extra 3", "ventaextra3"]), findH(["upsell 4", "upsell4", "venta extra 4", "ventaextra4"])];
   const iUid = findH(["_uid", "uid"]);   // ID estable que escribe el Apps Script (puede no existir aún)
   const parseVal = (raw: string) => parseFloat((raw || "").toString().replace(/S\/\s*/i, "").replace(/[^0-9.]/g, "")) || 0;
   const rows = [];
@@ -178,9 +180,16 @@ function regIngresoBaseR(r: any, cfg: any): number {
 // Antes leía Y escribía, así que con varias fuentes la 2ª PISABA los (ws,ad,fecha)
 // de la 1ª (el PATCH de registros manda el total absoluto del día, no incrementos).
 // Espejo del split en index.html (`_leerSheetJob` / `_escribirSync`).
+// URL del CSV publico. Si el link trae `gid` (copiado estando en una pestana:
+// .../edit#gid=123) se lee ESA pestana. Espejo de `_sheetCsvUrl` en index.html.
+function sheetCsvUrl(url: string) {
+  const sheetId = (url.match(/\/d\/([a-zA-Z0-9_-]+)/) || [])[1] || url;
+  const gid = (url.match(/[#?&]gid=(\d+)/) || [])[1];
+  return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv` + (gid ? `&gid=${gid}` : "");
+}
+
 async function leerSheet(job: { url: string; wsList: any[]; userId: string; fuenteId?: string | null }, days = 90) {
-  const sheetId = (job.url.match(/\/d\/([a-zA-Z0-9_-]+)/) || [])[1] || job.url;
-  const res = await fetch(`https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv`);
+  const res = await fetch(sheetCsvUrl(job.url));
   if (!res.ok) throw new Error(`Sheet ${job.url} no accesible (${res.status})`);
   const allRows = parseSheetCSV(await res.text());
   const fechaMin = days > 0 ? nDaysAgo(days) : "2000-01-01";
