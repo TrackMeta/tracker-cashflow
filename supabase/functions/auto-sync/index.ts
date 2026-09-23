@@ -14,7 +14,7 @@ const AUTOSYNC_SECRET = Deno.env.get("AUTOSYNC_SECRET") ?? "";
 // el deploy es manual (copiar/pegar en el Dashboard, el CLI da 403), así que esta
 // cadena es la ÚNICA forma de saber si lo que está arriba es el código nuevo o el
 // viejo. Estuvo congelada desde junio y por eso un `?ping` no distinguía versiones.
-const FN_VERSION = "2026-09-23-nodo-pestana";
+const FN_VERSION = "2026-09-23-nodo-fecha";
 
 const cors = {
   "Access-Control-Allow-Origin": "*",
@@ -52,21 +52,48 @@ async function sbAll(pathBase: string): Promise<any[]> {
   return out;
 }
 
+// CSV -> filas de celdas. Respeta saltos de linea DENTRO de una celda entre comillas
+// (Nodo pone 2 URLs en "Comprobante extra"). Espejo de `_csvFilas` en index.html.
+function csvFilas(text: string): string[][] {
+  const filas: string[][] = []; let fila: string[] = [], cur = "", inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else inQ = false; }
+      else cur += ch;
+    }
+    else if (ch === '"') inQ = true;
+    else if (ch === ",") { fila.push(cur.trim()); cur = ""; }
+    else if (ch === "\n") { fila.push(cur.trim()); filas.push(fila); fila = []; cur = ""; }
+    else if (ch !== "\r") cur += ch;
+  }
+  if (cur || fila.length) { fila.push(cur.trim()); filas.push(fila); }
+  return filas.filter((f) => f.some((c) => c !== ""));
+}
+
+// "Fecha y hora" -> ISO. ISO de los bots pasa tal cual; el texto de Nodo
+// ("09/09/2026, 12:52 p. m.", dia primero) se convierte con -05:00 (Lima) para que
+// esta edge (UTC), el navegador y Postgres lean el MISMO instante.
+// Espejo de `_horaSheetISO` en index.html.
+function horaSheetISO(raw: string): string {
+  const s = String(raw || "").trim();
+  if (!s || s.includes("T")) return s;
+  const pad = (n: string | number) => String(n).padStart(2, "0");
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}T${pad(m[4])}:${m[5]}:${m[6] || "00"}-05:00`;
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4}),?\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([ap])?/i);
+  if (!m) return "";
+  let h = +m[4]; const ap = (m[7] || "").toLowerCase();
+  if (ap === "p" && h < 12) h += 12;
+  if (ap === "a" && h === 12) h = 0;
+  return `${m[3]}-${pad(m[2])}-${pad(m[1])}T${pad(h)}:${m[5]}:${m[6] || "00"}-05:00`;
+}
+
 // ── Parser CSV (portado del cliente) ──
 function parseSheetCSV(text: string) {
-  const lines = text.trim().split("\n").filter((l) => l.trim());
+  const lines = csvFilas(text);
   if (lines.length < 2) return [];
-  const parseLine = (line: string) => {
-    const cols: string[] = []; let cur = "", inQ = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') { if (inQ && line[i + 1] === '"') { cur += '"'; i++; } else inQ = !inQ; }
-      else if (ch === "," && !inQ) { cols.push(cur.trim()); cur = ""; }
-      else if (ch !== "\r") cur += ch;
-    }
-    cols.push(cur.trim());
-    return cols;
-  };
+  const parseLine = (cols: string[]) => cols;   // `lines` ya viene partido en celdas
   // Buscar la FILA de encabezado en las primeras filas (gviz puede devolver "Column 1".. o
   // haber una fila en blanco/título arriba → el encabezado real no siempre es la fila 0).
   const findHIn = (hdrs: string[], opts: string[]) => {
@@ -97,7 +124,7 @@ function parseSheetCSV(text: string) {
     const cols = parseLine(lines[i]);
     let adId = (cols[iAdId] || "").replace(/"/g, "").trim().replace(/\.0$/, "");
     if (!adId) adId = "SIN_ID";   // sin Ad ID: igual cuenta como venta (se asigna por producto)
-    const horaRaw = (cols[iFecha] || "").replace(/"/g, "").trim();
+    const horaRaw = horaSheetISO((cols[iFecha] || "").replace(/"/g, "").trim());
     if (!horaRaw || !horaRaw.includes("T")) continue;
     const fecha = horaRaw.split("T")[0];
     if (!/^\d{4}-\d{2}-\d{2}$/.test(fecha)) continue;

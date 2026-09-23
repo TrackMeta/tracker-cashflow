@@ -4759,20 +4759,48 @@ function _sheetCsvUrl(url) {
   return `https://docs.google.com/spreadsheets/d/${sheetId}/gviz/tq?tqx=out:csv` + (gid ? `&gid=${gid}` : '');
 }
 
-function _parseSheetCSV(text) {
-  const lines = text.trim().split('\n').filter(l => l.trim());
-  if (lines.length < 2) return [];
-  function parseLine(line) {
-    const cols = []; let cur = '', inQ = false;
-    for (let i = 0; i < line.length; i++) {
-      const ch = line[i];
-      if (ch === '"') { if (inQ && line[i+1] === '"') { cur += '"'; i++; } else inQ = !inQ; }
-      else if (ch === ',' && !inQ) { cols.push(cur.trim()); cur = ''; }
-      else if (ch !== '\r') cur += ch;
+// CSV → filas de celdas. Respeta saltos de línea DENTRO de una celda entre comillas
+// (Nodo pone 2 URLs en "Comprobante extra"); partir primero por '\n' cortaba esa fila
+// en dos. Espejo de `csvFilas` en la edge.
+function _csvFilas(text) {
+  const filas = []; let fila = [], cur = '', inQ = false;
+  for (let i = 0; i < text.length; i++) {
+    const ch = text[i];
+    if (inQ) {
+      if (ch === '"') { if (text[i+1] === '"') { cur += '"'; i++; } else inQ = false; }
+      else cur += ch;
     }
-    cols.push(cur.trim());
-    return cols;
+    else if (ch === '"') inQ = true;
+    else if (ch === ',') { fila.push(cur.trim()); cur = ''; }
+    else if (ch === '\n') { fila.push(cur.trim()); filas.push(fila); fila = []; cur = ''; }
+    else if (ch !== '\r') cur += ch;
   }
+  if (cur || fila.length) { fila.push(cur.trim()); filas.push(fila); }
+  return filas.filter(f => f.some(c => c !== ''));
+}
+
+// "Fecha y hora" → ISO. Los bots ya escriben ISO (con 'T') y pasa tal cual. Nodo escribe
+// el texto de toLocaleString('es-PE'): "09/09/2026, 12:52 p. m." (día primero, a. m./p. m.,
+// con espacios U+202F/U+00A0 que \s cubre). Se fija -05:00 (Lima, sin horario de verano)
+// para que el navegador, la edge (UTC) y Postgres lean el MISMO instante.
+function _horaSheetISO(raw) {
+  const s = String(raw || '').trim();
+  if (!s || s.includes('T')) return s;
+  const pad = n => String(n).padStart(2, '0');
+  let m = s.match(/^(\d{4})-(\d{2})-(\d{2})\s+(\d{1,2}):(\d{2})(?::(\d{2}))?$/);
+  if (m) return `${m[1]}-${m[2]}-${m[3]}T${pad(m[4])}:${m[5]}:${m[6] || '00'}-05:00`;
+  m = s.match(/^(\d{1,2})\/(\d{1,2})\/(\d{4}),?\s+(\d{1,2}):(\d{2})(?::(\d{2}))?\s*([ap])?/i);
+  if (!m) return '';
+  let h = +m[4]; const ap = (m[7] || '').toLowerCase();
+  if (ap === 'p' && h < 12) h += 12;
+  if (ap === 'a' && h === 12) h = 0;
+  return `${m[3]}-${pad(m[2])}-${pad(m[1])}T${pad(h)}:${m[5]}:${m[6] || '00'}-05:00`;
+}
+
+function _parseSheetCSV(text) {
+  const lines = _csvFilas(text);
+  if (lines.length < 2) return [];
+  const parseLine = cols => cols;   // `lines` ya viene partido en celdas
   // Buscar la FILA de encabezado en las primeras filas (gviz a veces devuelve
   // "Column 1".. o hay una fila en blanco/título arriba → el encabezado real no es la fila 0).
   const findHIn = (hdrs, opts) => {
@@ -4804,7 +4832,7 @@ function _parseSheetCSV(text) {
     const cols = parseLine(lines[i]);
     let adId = (cols[iAdId]||'').replace(/"/g,'').trim().replace(/\.0$/,'');
     if (!adId) adId = 'SIN_ID';   // sin Ad ID: igual cuenta como venta (se asigna por producto)
-    const horaRaw = (cols[iFecha]||'').replace(/"/g,'').trim();
+    const horaRaw = _horaSheetISO((cols[iFecha]||'').replace(/"/g,'').trim());
     if (!horaRaw || !horaRaw.includes('T')) continue;
     const fecha = horaRaw.split('T')[0];
     if (!fecha || !/^\d{4}-\d{2}-\d{2}$/.test(fecha)) continue;
